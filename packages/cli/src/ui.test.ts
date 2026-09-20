@@ -4,7 +4,7 @@ import type { CaboStateLike } from "./model.js";
 import { renderDashboard, renderPlainState } from "./ui.js";
 
 const state: CaboStateLike = {
-  phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
+  revision: 1, phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
   deckCount: 39,
   players: new Map([
     ["a", { id: "a", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, cardCount: 4, isHost: true }],

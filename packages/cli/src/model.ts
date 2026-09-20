@@ -10,6 +10,7 @@ export interface StatePlayer {
 }
 
 export interface CaboStateLike {
+  revision: number;
   phase: string;
   round: number;
   targetScore: number;

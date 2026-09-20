@@ -29,9 +29,36 @@ export const clientCommandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("leave") }),
 ]);
 
+export const agentActionSchema = clientCommandSchema.refine((command) => command.type !== "leave", {
+  message: "Use the top-level leave request instead of an action.",
+});
+
+export const agentCommandRequestSchema = z.object({
+  id: z.string().trim().min(1),
+  command: agentActionSchema,
+});
+
+const requestId = z.string().trim().min(1);
+export const agentRequestSchema = z.discriminatedUnion("type", [
+  z.object({ id: requestId, type: z.literal("rooms") }).strict(),
+  z.object({ id: requestId, type: z.literal("create"), visibility: z.enum(["public", "private"]), targetScore: targetScore.default(100), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
+  z.object({ id: requestId, type: z.literal("join"), roomId: z.string().min(1), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
+  z.object({ id: requestId, type: z.literal("reconnect") }).strict(),
+  z.object({ id: requestId, type: z.literal("observe") }).strict(),
+  z.object({ id: requestId, type: z.literal("action"), action: agentActionSchema }).strict(),
+  z.object({ id: requestId, type: z.literal("leave") }).strict(),
+  z.object({ id: requestId, type: z.literal("shutdown") }).strict(),
+]);
+
 export type ClientCommand = z.infer<typeof clientCommandSchema>;
+export type AgentCommandRequest = z.infer<typeof agentCommandRequestSchema>;
+export type AgentRequest = z.infer<typeof agentRequestSchema>;
 export type RoomOptions = z.infer<typeof roomOptionsSchema>;
 export type JoinOptions = z.infer<typeof joinOptionsSchema>;
+
+export type AgentCommandResult =
+  | { id: string; ok: true; revision: number }
+  | { id: string; ok: false; revision: number; error: ErrorMessage };
 
 export interface ErrorMessage {
   code: string;

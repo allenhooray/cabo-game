@@ -3,10 +3,11 @@ import { createInterface, emitKeypressEvents } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { Writable } from "node:stream";
 import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo/shared";
-import { Client, type Room } from "@colyseus/sdk";
-import { clearSession, loadSession, saveSession, type SavedSession } from "./config.js";
+import type { Room } from "@colyseus/sdk";
+import { CaboClientCore } from "./client-core.js";
+import { defaultSessionPath } from "./config.js";
 import { advanceFlow, isGuardedFlow, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
-import { applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
+import { createKnowledge, type KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, RoundResultView, StatePlayer } from "./model.js";
 import { parseCommand, type LocalCommand } from "./parser.js";
 import { renderDashboard, renderPlainState } from "./ui.js";
@@ -18,7 +19,6 @@ function option(name: string, fallback: string): string {
 
 const serverUrl = option("--server", "http://localhost:2567").replace(/\/$/, "");
 const playerName = option("--name", process.env.USER ?? "Player").trim().slice(0, 20);
-const client = new Client(serverUrl);
 const interactive = Boolean(stdin.isTTY && stdout.isTTY);
 let room: Room<any, CaboStateLike> | undefined;
 let latestState: CaboStateLike | undefined;
@@ -27,11 +27,9 @@ let readingSecret = false;
 let muteReadlineOutput = false;
 let flow: InteractionFlow = { kind: "idle" };
 let knowledge: KnowledgeState = createKnowledge();
-let pendingGameAction: PendingGameAction | undefined;
 let notice: string | undefined;
 let recentEvents: string[] = [];
 let roundResult: RoundResultView | undefined;
-let sessionWrites = Promise.resolve();
 
 const readlineOutput = new Writable({
   write(chunk, encoding, callback) {
@@ -123,85 +121,62 @@ function makeRoundResult(event: any): RoundResultView {
   return { lines, nextRoundPending: true };
 }
 
-async function persistSession(): Promise<void> {
-  if (!room) return;
-  await saveSession({ server: serverUrl, name: playerName, roomId: room.roomId, token: room.reconnectionToken, knowledge: storedKnowledge(knowledge) });
-}
-
-function queueSessionPersist(): void {
-  sessionWrites = sessionWrites.then(persistSession).catch((error: unknown) => {
-    inform(`Could not save the reconnect session: ${error instanceof Error ? error.message : String(error)}`, true);
-  });
-}
-
-async function attach(nextRoom: Room<any, CaboStateLike>, saved?: SavedSession): Promise<void> {
-  room = nextRoom;
-  latestState = nextRoom.state;
-  lastRound = nextRoom.state.round;
-  flow = { kind: "idle" };
-  knowledge = createKnowledge(nextRoom.state.round, saved?.knowledge);
-  pendingGameAction = undefined;
-  roundResult = undefined;
-
-  nextRoom.onStateChange((state) => {
-    latestState = state;
-    if (state.round !== lastRound) {
-      knowledge = resetForRound(knowledge, state.round);
-      if (lastRound !== 0) roundResult = undefined;
-      lastRound = state.round;
-      queueSessionPersist();
-    }
-    if (isGuardedFlow(flow) && flow.guard !== stateGuard(context())) {
+const gameClient = new CaboClientCore({
+  serverUrl,
+  playerName,
+  sessionPath: defaultSessionPath(),
+  handlers: {
+    attached: (nextRoom) => {
+      room = nextRoom;
+      latestState = nextRoom.state;
+      lastRound = nextRoom.state.round;
+      knowledge = gameClient.knowledge;
       flow = { kind: "idle" };
-      notice = "The game state changed; the previous selection was cancelled.";
-    }
-    renderNow();
-  });
-  nextRoom.onMessage<PrivateRevealMessage>("reveal", (message) => {
-    knowledge = applyReveal(knowledge, message, latestState?.round ?? lastRound, latestState?.phase ?? "LOBBY", pendingGameAction);
-    if (message.reason === "draw") addEvent(`You drew ${message.card.label} (${message.card.rank} pts).`);
-    else addEvent(`Private reveal${message.position ? ` at position ${message.position}` : ""}: ${message.card.label} (${message.card.rank} pts).`);
-    if (message.reason === "peek") pendingGameAction = undefined;
-    queueSessionPersist();
-    renderNow();
-  });
-  nextRoom.onMessage<ErrorMessage>("error", (message) => {
-    pendingGameAction = undefined;
-    flow = { kind: "idle" };
-    inform(`${friendlyError(message.code)} ${message.message}`, true);
-  });
-  nextRoom.onMessage<any>("event", (event) => {
-    if (event.type === "discard" && event.playerId === nextRoom.sessionId) {
-      knowledge = applyOwnActionEvent(knowledge, pendingGameAction);
-      pendingGameAction = undefined;
-      queueSessionPersist();
-    }
-    if (event.type === "swap") {
-      knowledge = applySwapEvent(knowledge, event.position, event.playerId === nextRoom.sessionId || event.targetPlayerId === nextRoom.sessionId);
-      if (event.playerId === nextRoom.sessionId) pendingGameAction = undefined;
-      queueSessionPersist();
-    }
-    if (event.type === "round-result") roundResult = makeRoundResult(event);
-    if (event.type === "match-result" && roundResult) roundResult.nextRoundPending = false;
-    if (event.type === "cabo" || event.type === "turn") pendingGameAction = undefined;
-    addEvent(formatEvent(event));
-    renderNow();
-  });
-  nextRoom.onDrop(() => { addEvent("Connection dropped. Your seat is held for 60 seconds; use reconnect if recovery fails."); renderNow(); });
-  nextRoom.onReconnect(() => { addEvent("Reconnected."); queueSessionPersist(); renderNow(); });
-  nextRoom.onLeave(() => {
-    if (room === nextRoom) {
+      roundResult = undefined;
+      addEvent(`Joined room ${nextRoom.roomId} as ${playerName}.`);
+      renderNow();
+    },
+    state: (state) => {
+      latestState = state;
+      knowledge = gameClient.knowledge;
+      if (state.round !== lastRound) {
+        if (lastRound !== 0) roundResult = undefined;
+        lastRound = state.round;
+      }
+      if (isGuardedFlow(flow) && flow.guard !== stateGuard(context())) {
+        flow = { kind: "idle" };
+        notice = "The game state changed; the previous selection was cancelled.";
+      }
+      renderNow();
+    },
+    reveal: (message: PrivateRevealMessage) => {
+      knowledge = gameClient.knowledge;
+      if (message.reason === "draw") addEvent(`You drew ${message.card.label} (${message.card.rank} pts).`);
+      else addEvent(`Private reveal${message.position ? ` at position ${message.position}` : ""}: ${message.card.label} (${message.card.rank} pts).`);
+      renderNow();
+    },
+    error: (message: ErrorMessage) => {
+      flow = { kind: "idle" };
+      inform(`${friendlyError(message.code)} ${message.message}`, true);
+    },
+    event: (event: any) => {
+      knowledge = gameClient.knowledge;
+      if (event.type === "round-result") roundResult = makeRoundResult(event);
+      if (event.type === "match-result" && roundResult) roundResult.nextRoundPending = false;
+      addEvent(formatEvent(event));
+      renderNow();
+    },
+    dropped: () => { addEvent("Connection dropped. Your seat is held for 60 seconds; use reconnect if recovery fails."); renderNow(); },
+    reconnected: () => { addEvent("Reconnected."); renderNow(); },
+    left: () => {
       room = undefined;
       latestState = undefined;
       flow = { kind: "idle" };
-      pendingGameAction = undefined;
-    }
-    renderNow();
-  });
-  addEvent(`Joined room ${nextRoom.roomId} as ${playerName}.`);
-  await persistSession();
-  renderNow();
-}
+      renderNow();
+    },
+    persistenceError: (error) => inform(`Could not save the reconnect session: ${error instanceof Error ? error.message : String(error)}`, true),
+  },
+});
 
 function friendlyError(code: string): string {
   const labels: Record<string, string> = {
@@ -214,9 +189,7 @@ function friendlyError(code: string): string {
 }
 
 async function listRooms(): Promise<ListedRoom[]> {
-  const response = await fetch(`${serverUrl}/rooms`);
-  if (!response.ok) throw new Error(`Room list failed: HTTP ${response.status}`);
-  return await response.json() as ListedRoom[];
+  return gameClient.listRooms();
 }
 
 async function readSecret(prompt: string): Promise<string> {
@@ -270,12 +243,7 @@ function withTarget(command: LocalCommand & { kind: "game" }): ClientCommand {
 }
 
 function sendGame(command: ClientCommand): void {
-  if (!room) throw new Error("Join a room first.");
-  pendingGameAction = {
-    command,
-    ...(command.type === "draw-discard" && latestState?.discardLabel ? { discard: { label: latestState.discardLabel, rank: latestState.discardRank } } : {}),
-  };
-  room.send("command", command);
+  gameClient.send(command);
   notice = undefined;
 }
 
@@ -293,7 +261,7 @@ async function execute(command: LocalCommand): Promise<boolean> {
       if (room) throw new Error("Leave the current room first.");
       const password = command.visibility === "private" ? await readSecret("Six digit password: ") : undefined;
       if (password !== undefined && !/^\d{6}$/.test(password)) throw new Error("Password must contain exactly six digits.");
-      await attach(await client.create("cabo", { name: playerName, visibility: command.visibility, targetScore: command.targetScore, ...(password ? { password } : {}) }));
+      await gameClient.create(command.visibility, command.targetScore, password);
       break;
     }
     case "join": {
@@ -301,15 +269,12 @@ async function execute(command: LocalCommand): Promise<boolean> {
       const publicRooms = await listRooms();
       const isPublic = publicRooms.some((item) => item.roomId === command.roomId);
       const password = command.password ?? (isPublic ? undefined : await readSecret("Six digit password: "));
-      await attach(await client.joinById(command.roomId, { name: playerName, ...(password ? { password } : {}) }));
+      await gameClient.join(command.roomId, password);
       break;
     }
     case "reconnect": {
       if (room) throw new Error("Already connected to a room.");
-      const saved = await loadSession();
-      if (!saved) throw new Error("No saved session.");
-      if (saved.server !== serverUrl) throw new Error(`Saved session belongs to ${saved.server}.`);
-      await attach(await client.reconnect(saved.token), saved);
+      await gameClient.reconnect();
       break;
     }
     case "show": renderState(); break;
@@ -325,15 +290,13 @@ async function execute(command: LocalCommand): Promise<boolean> {
     }
     case "leave":
       if (!room) throw new Error("Not in a room.");
-      room.send("command", { type: "leave" });
-      await room.leave(true);
+      await gameClient.leave();
       room = undefined;
       latestState = undefined;
       knowledge = createKnowledge();
-      await clearSession();
       addEvent("Left the room.");
       break;
-    case "quit": if (room) await room.leave(true); return false;
+    case "quit": await gameClient.close(); return false;
   }
   return true;
 }

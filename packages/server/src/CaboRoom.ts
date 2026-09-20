@@ -1,11 +1,13 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import {
+  agentCommandRequestSchema,
   clientCommandSchema,
   GameEngine,
   GameRuleError,
   joinOptionsSchema,
   roomOptionsSchema,
   type ClientCommand,
+  type AgentCommandResult,
   type EngineEvent,
   type ErrorMessage,
   type Position,
@@ -34,6 +36,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
 
   messages = {
     command: (client: Client, payload: unknown) => this.handleCommand(client, payload),
+    "agent-command": (client: Client, payload: unknown) => this.handleAgentCommand(client, payload),
   };
 
   async onCreate(rawOptions: unknown): Promise<void> {
@@ -75,6 +78,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       isHost: this.state.players.size === 0,
     });
     this.state.players.set(client.sessionId, player);
+    this.bumpRevision();
     if (!this.hostId) this.hostId = client.sessionId;
     await this.updateListing();
     this.broadcast("event", { type: "joined", playerId: client.sessionId, name: auth.name });
@@ -84,13 +88,17 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     player.connected = false;
+    this.bumpRevision();
     this.broadcast("event", { type: "disconnected", playerId: client.sessionId, graceSeconds: 60 });
     this.allowReconnection(client, 60);
   }
 
   onReconnect(client: Client): void {
     const player = this.state.players.get(client.sessionId);
-    if (player) player.connected = true;
+    if (player) {
+      player.connected = true;
+      this.bumpRevision();
+    }
     this.broadcast("event", { type: "reconnected", playerId: client.sessionId });
   }
 
@@ -98,6 +106,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     if (this.state.phase === "LOBBY") {
       this.state.players.delete(client.sessionId);
       if (this.hostId === client.sessionId) this.transferHost();
+      this.bumpRevision();
       await this.updateListing();
       return;
     }
@@ -121,6 +130,31 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       } else {
         this.sendError(client, "INVALID_COMMAND", error instanceof Error ? error.message : "Command failed.");
       }
+    }
+  }
+
+  private handleAgentCommand(client: Client, rawPayload: unknown): void {
+    const parsed = agentCommandRequestSchema.safeParse(rawPayload);
+    const id = typeof (rawPayload as { id?: unknown } | null)?.id === "string"
+      ? (rawPayload as { id: string }).id
+      : "";
+    if (!parsed.success) {
+      this.sendAgentResult(client, {
+        id,
+        ok: false,
+        revision: this.state.revision,
+        error: { code: "INVALID_COMMAND", message: parsed.error.issues[0]?.message ?? "Invalid command." },
+      });
+      return;
+    }
+    try {
+      this.runCommand(client, parsed.data.command);
+      this.sendAgentResult(client, { id: parsed.data.id, ok: true, revision: this.state.revision });
+    } catch (error) {
+      const payload: ErrorMessage = error instanceof GameRuleError
+        ? { code: error.code, message: error.message }
+        : { code: "INVALID_COMMAND", message: error instanceof Error ? error.message : "Command failed." };
+      this.sendAgentResult(client, { id: parsed.data.id, ok: false, revision: this.state.revision, error: payload });
     }
   }
 
@@ -227,7 +261,13 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       statePlayer.forfeited = publicPlayer.forfeited;
       statePlayer.cardCount = publicPlayer.cardCount;
     }
+    this.bumpRevision();
     void this.updateListing();
+  }
+
+  private bumpRevision(): void {
+    // revision 是 Agent 的状态屏障：动作回执只能引用已经提交到 Schema 的版本。
+    this.state.revision += 1;
   }
 
   private transferHost(): void {
@@ -259,5 +299,9 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private sendError(client: Client, code: string, message: string): void {
     const payload: ErrorMessage = { code, message };
     client.send("error", payload);
+  }
+
+  private sendAgentResult(client: Client, payload: AgentCommandResult): void {
+    client.send("agent-result", payload);
   }
 }

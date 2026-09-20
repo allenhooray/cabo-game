@@ -7,6 +7,7 @@ const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: t
 
 function context(phase: string, currentPlayerId = "a", discardRank = 5): InteractionContext {
   const state: CaboStateLike = {
+    revision: 1,
     phase, round: 1, targetScore: 100, currentPlayerId, caboCallerId: "", discardLabel: "5♣", discardRank,
     deckCount: 43, players: new Map([["a", alice], ["b", bob]]), winners: [],
   };

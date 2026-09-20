@@ -10,7 +10,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "dev:server": "pnpm --filter @cabo/shared build && pnpm --filter @cabo/server dev",
-    "dev:cli": "pnpm --filter @cabo/shared build && pnpm --filter @cabo/cli dev"
+    "dev:cli": "pnpm --filter @cabo/shared build && pnpm --filter @cabo/cli dev",
+    "dev:agent": "pnpm --filter @cabo/shared build && pnpm --filter @cabo/cli dev:agent"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

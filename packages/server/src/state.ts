@@ -17,6 +17,7 @@ export type PlayerState = SchemaType<typeof PlayerState>;
 
 export const CaboState = schema(
   {
+    revision: t.number().default(0),
     phase: t.string().default("LOBBY"),
     round: t.number().default(0),
     targetScore: t.number().default(100),

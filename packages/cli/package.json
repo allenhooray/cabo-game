@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "bin": {
-    "cabo": "./dist/main.js"
+    "cabo": "./dist/main.js",
+    "cabo-agent": "./dist/agent-main.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "dev": "tsx src/main.ts"
+    "dev": "tsx src/main.ts",
+    "dev:agent": "tsx src/agent-main.ts"
   },
   "dependencies": {
     "@cabo/shared": "workspace:*",
