@@ -1,0 +1,19 @@
+{
+  "name": "@cabo/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "cabo": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "dev": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@cabo/shared": "workspace:*",
+    "@colyseus/sdk": "0.18.2"
+  }
+}

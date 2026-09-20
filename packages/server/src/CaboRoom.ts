@@ -1,0 +1,263 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+import {
+  clientCommandSchema,
+  GameEngine,
+  GameRuleError,
+  joinOptionsSchema,
+  roomOptionsSchema,
+  type ClientCommand,
+  type EngineEvent,
+  type ErrorMessage,
+  type Position,
+} from "@cabo/shared";
+import { type Client, Room } from "colyseus";
+import { CaboState, PlayerState } from "./state.js";
+
+interface RoomMetadata {
+  visibility: "public" | "private";
+  phase: string;
+  targetScore: number;
+  playerCount: number;
+  maxClients: number;
+}
+
+export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }> {
+  state = new CaboState();
+  maxClients = 4;
+  maxMessagesPerSecond = 20;
+
+  private engine: GameEngine | undefined;
+  private hostId = "";
+  private passwordHash: Buffer | undefined;
+  private visibility: "public" | "private" = "public";
+  private targetScore = 100;
+
+  messages = {
+    command: (client: Client, payload: unknown) => this.handleCommand(client, payload),
+  };
+
+  async onCreate(rawOptions: unknown): Promise<void> {
+    const parsed = roomOptionsSchema.safeParse(rawOptions);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid room options.");
+    const options = parsed.data;
+    if (options.visibility === "private" && !options.password) {
+      throw new Error("Private rooms require a six digit password.");
+    }
+    this.visibility = options.visibility;
+    this.targetScore = options.targetScore;
+    this.state.targetScore = this.targetScore;
+    if (options.password) this.passwordHash = this.hashPassword(options.password);
+    await this.setPrivate(this.visibility === "private");
+    await this.updateListing();
+  }
+
+  private validateJoin(rawOptions: unknown): { name: string } {
+    if (this.state.phase !== "LOBBY") throw new Error("ROOM_STARTED");
+    const parsed = joinOptionsSchema.safeParse(rawOptions);
+    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid join options.");
+    if (this.visibility === "private" && !this.passwordMatches(parsed.data.password)) {
+      throw new Error("INVALID_PASSWORD");
+    }
+    const normalized = parsed.data.name.toLocaleLowerCase();
+    for (const player of this.state.players.values()) {
+      if (player.name.toLocaleLowerCase() === normalized) throw new Error("NICKNAME_TAKEN");
+    }
+    return { name: parsed.data.name };
+  }
+
+  async onJoin(client: Client, rawOptions: unknown): Promise<void> {
+    const auth = this.validateJoin(rawOptions);
+    const player = new PlayerState().assign({
+      id: client.sessionId,
+      name: auth.name,
+      seat: this.state.players.size,
+      connected: true,
+      isHost: this.state.players.size === 0,
+    });
+    this.state.players.set(client.sessionId, player);
+    if (!this.hostId) this.hostId = client.sessionId;
+    await this.updateListing();
+    this.broadcast("event", { type: "joined", playerId: client.sessionId, name: auth.name });
+  }
+
+  onDrop(client: Client): void {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+    player.connected = false;
+    this.broadcast("event", { type: "disconnected", playerId: client.sessionId, graceSeconds: 60 });
+    this.allowReconnection(client, 60);
+  }
+
+  onReconnect(client: Client): void {
+    const player = this.state.players.get(client.sessionId);
+    if (player) player.connected = true;
+    this.broadcast("event", { type: "reconnected", playerId: client.sessionId });
+  }
+
+  async onLeave(client: Client): Promise<void> {
+    if (this.state.phase === "LOBBY") {
+      this.state.players.delete(client.sessionId);
+      if (this.hostId === client.sessionId) this.transferHost();
+      await this.updateListing();
+      return;
+    }
+    if (this.engine) {
+      this.dispatch(this.engine.forfeit(client.sessionId));
+      this.syncFromEngine();
+    }
+  }
+
+  private handleCommand(client: Client, rawPayload: unknown): void {
+    const parsed = clientCommandSchema.safeParse(rawPayload);
+    if (!parsed.success) {
+      this.sendError(client, "INVALID_COMMAND", parsed.error.issues[0]?.message ?? "Invalid command.");
+      return;
+    }
+    try {
+      this.runCommand(client, parsed.data);
+    } catch (error) {
+      if (error instanceof GameRuleError) {
+        this.sendError(client, error.code, error.message);
+      } else {
+        this.sendError(client, "INVALID_COMMAND", error instanceof Error ? error.message : "Command failed.");
+      }
+    }
+  }
+
+  private runCommand(client: Client, command: ClientCommand): void {
+    if (command.type === "start") {
+      this.startGame(client);
+      return;
+    }
+    if (command.type === "leave") {
+      if (this.engine) this.dispatch(this.engine.forfeit(client.sessionId));
+      this.syncFromEngine();
+      return;
+    }
+    if (!this.engine) throw new GameRuleError("INVALID_PHASE", "The game has not started.");
+
+    let events: EngineEvent[];
+    switch (command.type) {
+      case "draw-deck":
+        events = this.engine.drawDeck(client.sessionId);
+        break;
+      case "draw-discard":
+        events = this.engine.drawDiscard(client.sessionId, command.position as Position);
+        break;
+      case "replace":
+        events = this.engine.replaceHeld(client.sessionId, command.position as Position);
+        break;
+      case "discard":
+        events = this.engine.discardHeld(client.sessionId);
+        break;
+      case "peek-self":
+        events = this.engine.peekSelf(client.sessionId, command.position as Position);
+        break;
+      case "peek-other":
+        events = this.engine.peekOther(client.sessionId, command.targetPlayerId, command.position as Position);
+        break;
+      case "swap":
+        events = this.engine.swap(client.sessionId, command.targetPlayerId, command.position as Position);
+        break;
+      case "skip":
+        events = this.engine.skipPower(client.sessionId);
+        break;
+      case "cabo":
+        events = this.engine.callCabo(client.sessionId);
+        break;
+      default:
+        throw new GameRuleError("INVALID_COMMAND", "Unsupported command.");
+    }
+    this.dispatch(events);
+    this.syncFromEngine();
+  }
+
+  private startGame(client: Client): void {
+    if (client.sessionId !== this.hostId) throw new GameRuleError("NOT_HOST", "Only the host can start the game.");
+    const connectedPlayers = [...this.state.players.values()].filter((player) => player.connected && !player.forfeited);
+    if (connectedPlayers.length < 2) throw new GameRuleError("NOT_ENOUGH_PLAYERS", "At least two connected players are required.");
+    if (this.state.phase !== "LOBBY") throw new GameRuleError("INVALID_PHASE", "The game has already started.");
+    this.engine = new GameEngine({
+      players: [...this.state.players.values()].sort((a, b) => a.seat - b.seat).map((player) => ({ id: player.id, name: player.name })),
+      targetScore: this.targetScore,
+    });
+    void this.lock();
+    void this.setPrivate(true);
+    this.dispatch(this.engine.startMatch());
+    this.syncFromEngine();
+  }
+
+  private dispatch(events: EngineEvent[]): void {
+    for (const event of events) {
+      if (event.type === "private-reveal") {
+        this.clients.find((client) => client.sessionId === event.playerId)?.send("reveal", {
+          card: event.card,
+          ...(event.position ? { position: event.position } : {}),
+          reason: event.reason,
+        });
+      } else {
+        this.broadcast("event", event);
+      }
+      if (event.type === "round-result" && this.engine?.phase === "ROUND_RESULT") {
+        this.clock.setTimeout(() => {
+          if (this.engine?.phase !== "ROUND_RESULT") return;
+          this.dispatch(this.engine.startNextRound());
+          this.syncFromEngine();
+        }, 5_000);
+      }
+    }
+  }
+
+  private syncFromEngine(): void {
+    if (!this.engine) return;
+    const snapshot = this.engine.getSnapshot();
+    this.state.phase = snapshot.phase;
+    this.state.round = snapshot.round;
+    this.state.currentPlayerId = snapshot.currentPlayerId ?? "";
+    this.state.caboCallerId = snapshot.caboCallerId ?? "";
+    this.state.discardLabel = snapshot.discardTop?.label ?? "";
+    this.state.discardRank = snapshot.discardTop?.rank ?? -1;
+    this.state.deckCount = snapshot.deckCount;
+    this.state.winners.clear();
+    for (const winner of snapshot.winners) this.state.winners.push(winner);
+    for (const publicPlayer of snapshot.players) {
+      const statePlayer = this.state.players.get(publicPlayer.id);
+      if (!statePlayer) continue;
+      statePlayer.score = publicPlayer.score;
+      statePlayer.forfeited = publicPlayer.forfeited;
+      statePlayer.cardCount = publicPlayer.cardCount;
+    }
+    void this.updateListing();
+  }
+
+  private transferHost(): void {
+    const next = [...this.state.players.values()].sort((a, b) => a.seat - b.seat)[0];
+    this.hostId = next?.id ?? "";
+    for (const player of this.state.players.values()) player.isHost = player.id === this.hostId;
+  }
+
+  private async updateListing(): Promise<void> {
+    await this.setMetadata({
+      visibility: this.visibility,
+      phase: this.state.phase,
+      targetScore: this.targetScore,
+      playerCount: this.state.players.size,
+      maxClients: this.maxClients,
+    });
+  }
+
+  private hashPassword(password: string): Buffer {
+    return createHash("sha256").update(`${this.roomId}:${password}`).digest();
+  }
+
+  private passwordMatches(password: string | undefined): boolean {
+    if (!this.passwordHash || !password) return false;
+    const candidate = this.hashPassword(password);
+    return candidate.length === this.passwordHash.length && timingSafeEqual(candidate, this.passwordHash);
+  }
+
+  private sendError(client: Client, code: string, message: string): void {
+    const payload: ErrorMessage = { code, message };
+    client.send("error", payload);
+  }
+}
