@@ -28,6 +28,14 @@ pnpm dev:agent -- --name Bot-A
 
 它只在 stdout 输出 JSON，每行一个协议帧；stdin 同样每行接受一个 JSON 请求。完整契约见 [Agent JSONL 协议](docs/agent-protocol.md)。
 
+已安装的 Agent CLI 可以自行展示用法和机器可读协议：
+
+```bash
+cabo-agent --help
+cabo-agent --version
+cabo-agent --print-schema
+```
+
 客户端会根据当前游戏阶段显示桌面、自己的已知牌和可用操作。常用操作可以直接输入菜单编号；原有完整命令仍然可用。分步选择过程中输入 `cancel` 可返回操作菜单。
 
 服务端默认为 `http://localhost:2567`。连接其他地址时使用：

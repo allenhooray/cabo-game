@@ -1,6 +1,7 @@
 import { createServer } from "node:net";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolve } from "node:path";
+import { agentFrameSchema } from "@cabo/shared";
 import { afterEach, describe, expect, it } from "vitest";
 
 interface JsonProcess {
@@ -35,11 +36,18 @@ describe("cabo-agent process protocol", () => {
     const bob = jsonProcess(spawn(tsx, [resolve(root, "packages/cli/src/agent-main.ts"), "--server", `http://localhost:${port}`, "--name", "Bob"], { cwd: root }));
     expect((await alice.waitFor((frame) => frame.type === "ready")).sessionPersistence).toBe(false);
     expect((await bob.waitFor((frame) => frame.type === "ready")).sessionPersistence).toBe(false);
+    const described = await request(alice, { id: "describe", type: "describe" });
+    expect(described.data.requestTypes).toContain("ping");
+    expect(described.data.schemaCommand).toBe("cabo-agent --print-schema");
+    const disconnectedPing = await request(bob, { id: "ping-before", type: "ping" });
+    expect(disconnectedPing.data).toMatchObject({ connected: false, roomId: null, revision: null });
 
     const created = await request(alice, { id: "create", type: "create", visibility: "public", targetScore: 100 });
     const roomId = created.data.roomId as string;
     const joined = await request(bob, { id: "join", type: "join", roomId });
     expect(joined.data.selfId).not.toBe(created.data.selfId);
+    const connectedPing = await request(bob, { id: "ping-after", type: "ping" });
+    expect(connectedPing.data).toMatchObject({ connected: true, roomId, selfId: joined.data.selfId });
 
     await alice.waitFor((frame) => frame.type === "observation" && frame.state.players.length === 2);
     const started = await request(alice, { id: "start", type: "action", action: { type: "start" } });
@@ -65,10 +73,15 @@ describe("cabo-agent process protocol", () => {
     }
     await waiting.waitFor((frame) => frame.type === "observation" && frame.state.currentPlayerId === waitingId);
 
+    waiting.child.stdin.end();
+    expect(await waitForExit(waiting.child)).toBe(0);
+    await active.waitFor((frame) => frame.type === "event" && frame.event.type === "forfeit" && frame.event.playerId === waitingId);
+
     for (const process of [alice, bob]) {
       expect(process.rawLines.length).toBeGreaterThan(0);
       expect(process.rawLines.every((line) => !line.includes("cabo> ") && !line.includes("\u001b["))).toBe(true);
       expect(process.frames.some((frame) => frame.type === "invalid-json")).toBe(false);
+      expect(process.frames.every((frame) => agentFrameSchema.safeParse(frame).success)).toBe(true);
       const revisions = process.frames.filter((frame) => frame.type === "observation").map((frame) => frame.revision as number);
       expect(revisions.every((revision, index) => index === 0 || revision >= (revisions[index - 1] as number))).toBe(true);
       expect(process.errors).toEqual([]);
@@ -129,6 +142,17 @@ async function request(process: JsonProcess, frame: { id: string; [key: string]:
   const result = await process.waitFor((candidate) => candidate.type === "result" && candidate.id === frame.id);
   expect(result.ok, JSON.stringify(result)).toBe(true);
   return result;
+}
+
+function waitForExit(child: ChildProcessWithoutNullStreams): Promise<number | null> {
+  if (child.exitCode !== null) return Promise.resolve(child.exitCode);
+  return new Promise((resolveExit, reject) => {
+    const timer = setTimeout(() => reject(new Error("Timed out waiting for child exit.")), 10_000);
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      resolveExit(code);
+    });
+  });
 }
 
 async function freePort(): Promise<number> {

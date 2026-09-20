@@ -1,3 +1,5 @@
+import type { GamePhase } from "@cabo/shared";
+
 export interface StatePlayer {
   id: string;
   name: string;
@@ -11,7 +13,7 @@ export interface StatePlayer {
 
 export interface CaboStateLike {
   revision: number;
-  phase: string;
+  phase: GamePhase;
   round: number;
   targetScore: number;
   currentPlayerId: string;

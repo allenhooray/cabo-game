@@ -23,6 +23,29 @@ export interface CaboClientCoreOptions {
   handlers?: ClientCoreHandlers;
 }
 
+export class AgentRequestTimeoutError extends Error {
+  readonly code = "REQUEST_TIMEOUT";
+  readonly uncertain = true;
+
+  constructor(id: string) {
+    super(`Request ${id} did not receive a committed result before the timeout.`);
+    this.name = "AgentRequestTimeoutError";
+  }
+}
+
+interface PendingAgentResult {
+  resolve(result: AgentCommandResult): void;
+  reject(error: Error): void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+interface RevisionWaiter {
+  revision: number;
+  resolve(): void;
+  reject(error: Error): void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 export class CaboClientCore {
   readonly serverUrl: string;
   readonly playerName: string;
@@ -35,8 +58,8 @@ export class CaboClientCore {
   private readonly handlers: ClientCoreHandlers;
   private pendingGameAction: PendingGameAction | undefined;
   private sessionWrites = Promise.resolve();
-  private readonly pendingAgentResults = new Map<string, (result: AgentCommandResult) => void>();
-  private readonly revisionWaiters: Array<{ revision: number; resolve: () => void }> = [];
+  private readonly pendingAgentResults = new Map<string, PendingAgentResult>();
+  private readonly revisionWaiters: RevisionWaiter[] = [];
 
   constructor(options: CaboClientCoreOptions) {
     this.serverUrl = options.serverUrl.replace(/\/$/, "");
@@ -84,12 +107,18 @@ export class CaboClientCore {
     this.room.send("command", command);
   }
 
-  async sendAgent(id: string, command: ClientCommand): Promise<AgentCommandResult> {
+  async sendAgent(id: string, command: ClientCommand, timeoutMs: number): Promise<AgentCommandResult> {
     if (!this.room) throw new Error("Join a room first.");
     if (this.pendingAgentResults.has(id)) throw new Error(`Duplicate in-flight request id: ${id}`);
+    const deadline = Date.now() + timeoutMs;
     this.rememberPending(command);
-    const result = await new Promise<AgentCommandResult>((resolve) => {
-      this.pendingAgentResults.set(id, resolve);
+    const result = await new Promise<AgentCommandResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingAgentResults.delete(id);
+        this.pendingGameAction = undefined;
+        reject(new AgentRequestTimeoutError(id));
+      }, timeoutMs);
+      this.pendingAgentResults.set(id, { resolve, reject, timer });
       this.room?.send("agent-command", { id, command });
     });
     if (!result.ok) {
@@ -97,7 +126,7 @@ export class CaboClientCore {
       return result;
     }
     // Colyseus 的消息与 Schema patch 可能先后到达；等待 revision 可避免下一动作读取旧状态。
-    await this.waitForRevision(result.revision);
+    await this.waitForRevision(id, result.revision, Math.max(0, deadline - Date.now()));
     return result;
   }
 
@@ -148,10 +177,11 @@ export class CaboClientCore {
       this.handlers.error?.(message);
     });
     nextRoom.onMessage<AgentCommandResult>("agent-result", (result) => {
-      const resolve = this.pendingAgentResults.get(result.id);
-      if (!resolve) return;
+      const pending = this.pendingAgentResults.get(result.id);
+      if (!pending) return;
       this.pendingAgentResults.delete(result.id);
-      resolve(result);
+      clearTimeout(pending.timer);
+      pending.resolve(result);
     });
     nextRoom.onMessage<any>("event", (event) => {
       // 只有服务端确认的公开事件才能改变牌面记忆，避免失败动作污染 Agent 的知识状态。
@@ -183,6 +213,7 @@ export class CaboClientCore {
         this.state = undefined;
         this.pendingGameAction = undefined;
       }
+      this.rejectPendingRequests(new Error("The room connection closed."));
       this.handlers.left?.();
     });
     await this.persistSession();
@@ -197,9 +228,22 @@ export class CaboClientCore {
     };
   }
 
-  private waitForRevision(revision: number): Promise<void> {
+  private waitForRevision(id: string, revision: number, timeoutMs: number): Promise<void> {
     if ((this.state?.revision ?? -1) >= revision) return Promise.resolve();
-    return new Promise((resolve) => this.revisionWaiters.push({ revision, resolve }));
+    return new Promise((resolve, reject) => {
+      const waiter: RevisionWaiter = {
+        revision,
+        resolve,
+        reject,
+        timer: setTimeout(() => {
+          const index = this.revisionWaiters.indexOf(waiter);
+          if (index >= 0) this.revisionWaiters.splice(index, 1);
+          this.pendingGameAction = undefined;
+          reject(new AgentRequestTimeoutError(id));
+        }, timeoutMs),
+      };
+      this.revisionWaiters.push(waiter);
+    });
   }
 
   private resolveRevisionWaiters(revision: number): void {
@@ -207,8 +251,21 @@ export class CaboClientCore {
       const waiter = this.revisionWaiters[index];
       if (waiter && revision >= waiter.revision) {
         this.revisionWaiters.splice(index, 1);
+        clearTimeout(waiter.timer);
         waiter.resolve();
       }
+    }
+  }
+
+  private rejectPendingRequests(error: Error): void {
+    for (const pending of this.pendingAgentResults.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pendingAgentResults.clear();
+    for (const waiter of this.revisionWaiters.splice(0)) {
+      clearTimeout(waiter.timer);
+      waiter.reject(error);
     }
   }
 

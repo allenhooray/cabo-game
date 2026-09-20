@@ -1,27 +1,9 @@
-import { agentRequestSchema, type AgentRequest, type ClientCommand } from "@cabo/shared";
+import { agentRequestSchema, type AgentAction, type AgentObservation, type AgentRequest } from "@cabo/shared";
 import type { KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, StatePlayer } from "./model.js";
 
 export type { AgentRequest };
-
-export interface AgentObservation {
-  roomId: string;
-  selfId: string;
-  revision: number;
-  state: {
-    phase: string;
-    round: number;
-    targetScore: number;
-    currentPlayerId: string | null;
-    caboCallerId: string | null;
-    discardTop: { label: string; rank: number } | null;
-    deckCount: number;
-    players: StatePlayer[];
-    winners: string[];
-  };
-  knowledge: KnowledgeState;
-  legalActions: ClientCommand[];
-}
+export type { AgentObservation };
 
 export function parseAgentRequest(line: string): AgentRequest {
   let value: unknown;
@@ -80,7 +62,7 @@ function serializePlayer(player: StatePlayer): StatePlayer {
   };
 }
 
-export function legalActions(state: CaboStateLike, selfId: string): ClientCommand[] {
+export function legalActions(state: CaboStateLike, selfId: string): AgentAction[] {
   const self = state.players.get(selfId);
   if (!self || self.forfeited || !self.connected) return [];
   if (state.phase === "LOBBY") {
@@ -104,7 +86,7 @@ export function legalActions(state: CaboStateLike, selfId: string): ClientComman
   const targets = [...state.players.values()]
     .filter((player) => player.id !== selfId && !player.forfeited)
     .sort((a, b) => a.seat - b.seat);
-  let powers: ClientCommand[] = [];
+  let powers: AgentAction[] = [];
   if (state.discardRank === 7 || state.discardRank === 8) {
     powers = positions.map((position) => ({ type: "peek-self", position }));
   } else if (state.discardRank === 9 || state.discardRank === 10) {

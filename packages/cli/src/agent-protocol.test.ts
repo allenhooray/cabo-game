@@ -1,3 +1,4 @@
+import { AGENT_PROTOCOL_VERSION, agentFrameSchema, agentProtocolJsonSchema } from "@cabo/shared";
 import { describe, expect, it } from "vitest";
 import { AgentProtocolError, buildObservation, legalActions, parseAgentRequest } from "./agent-protocol.js";
 import { createKnowledge } from "./knowledge.js";
@@ -26,6 +27,8 @@ function state(overrides: Partial<CaboStateLike> = {}): CaboStateLike {
 describe("agent JSONL protocol", () => {
   it("parses strict requests and reports malformed input", () => {
     expect(parseAgentRequest('{"id":"r1","type":"rooms"}')).toEqual({ id: "r1", type: "rooms" });
+    expect(parseAgentRequest('{"id":"d1","type":"describe"}')).toEqual({ id: "d1", type: "describe" });
+    expect(parseAgentRequest('{"id":"p1","type":"ping"}')).toEqual({ id: "p1", type: "ping" });
     expect(() => parseAgentRequest("{"))
       .toThrowError(expect.objectContaining<Partial<AgentProtocolError>>({ code: "INVALID_JSON", id: null }));
     expect(() => parseAgentRequest('{"id":"r2","type":"rooms","extra":true}'))
@@ -63,5 +66,24 @@ describe("agent JSONL protocol", () => {
     expect(observation.state.caboCallerId).toBeNull();
     expect(observation.state.discardTop).toBeNull();
     expect(observation.knowledge.slots).toEqual([null, null, null, null]);
+    expect(() => agentFrameSchema.parse({ type: "observation", ...observation })).not.toThrow();
+  });
+
+  it("generates a complete protocol JSON Schema from the wire schema", () => {
+    const schema = agentProtocolJsonSchema();
+    expect(schema.$id).toBe(`urn:cabo:agent-protocol:v${AGENT_PROTOCOL_VERSION}`);
+    expect(schema).toHaveProperty("anyOf");
+    expect(JSON.stringify(schema).match(/\"const\":\"leave\"/g)).toHaveLength(1);
+  });
+
+  it("validates every output frame family", () => {
+    const frames = [
+      { type: "ready", protocolVersion: 1, cliVersion: "0.1.0", server: "http://localhost", name: "Bot", sessionPersistence: false, requestTimeoutMs: 15000, capabilities: ["describe", "ping", "json-schema", "request-timeout"] },
+      { type: "result", id: "1", ok: true, data: { connected: false } },
+      { type: "result", id: "2", ok: false, error: { code: "NO", message: "no" }, uncertain: true },
+      { type: "event", event: { type: "connection-dropped" } },
+      { type: "fatal", error: { code: "BAD", message: "bad" } },
+    ];
+    for (const frame of frames) expect(() => agentFrameSchema.parse(frame)).not.toThrow();
   });
 });

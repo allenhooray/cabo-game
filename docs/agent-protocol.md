@@ -13,13 +13,17 @@ pnpm dev:agent -- --server http://localhost:2567 --name Bot-A
 - `--server URL`：服务端地址，默认 `http://localhost:2567`。
 - `--name NAME`：玩家名，最长 20 个字符。
 - `--session-file PATH`：可选的独立会话文件。未提供时不写磁盘，`reconnect` 请求不可用。
+- `--request-timeout-ms N`：请求超时，范围 100–300000，默认 15000 毫秒。
+- `--help`：输出人类可读帮助并退出。
+- `--version`：输出 CLI 包版本并退出。
+- `--print-schema`：输出由运行时 Zod 定义生成的 JSON Schema 并退出。
 
 stdout 只包含 JSONL 协议帧。stderr 只包含不属于协议的诊断信息。调用方不得依赖 stderr 文案。
 
 进程启动后的第一帧为：
 
 ```json
-{"type":"ready","protocolVersion":1,"server":"http://localhost:2567","name":"Bot-A","sessionPersistence":false}
+{"type":"ready","protocolVersion":1,"cliVersion":"0.1.0","server":"http://localhost:2567","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 ```
 
 ## 请求与结果
@@ -35,6 +39,8 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 {"id":"4","type":"join","roomId":"ROOM_ID","password":"123456"}
 {"id":"5","type":"reconnect"}
 {"id":"6","type":"observe"}
+{"id":"6a","type":"describe"}
+{"id":"6b","type":"ping"}
 {"id":"7","type":"action","action":{"type":"draw-deck"}}
 {"id":"8","type":"leave"}
 {"id":"9","type":"shutdown"}
@@ -61,6 +67,10 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 ```
 
 无法解析 JSON 时，结果的 `id` 为 `null`；如果能从无效请求中读取字符串 ID，则原样返回该 ID。单条错误不会结束进程。启动参数等不可恢复错误使用 `fatal` 帧并以非零状态退出。
+
+`describe` 返回协议/CLI 版本、支持的请求、输出帧、动作类型、运行默认值和 Schema 获取命令。`ping` 不改变状态，可用于查询当前连接、房间、自身 ID、revision 和 phase。
+
+所有请求受 `--request-timeout-ms` 限制。超时返回 `REQUEST_TIMEOUT` 和 `uncertain: true`；之后新的 `create`、`join`、`reconnect` 和 `action` 会返回 `STATE_UNCERTAIN`。调用方必须先成功执行 `observe`，或使用始终可用的 `ping`、`leave`、`shutdown`。
 
 ## Observation
 
@@ -112,10 +122,18 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 
 Agent 应以 observation 作为决策状态，以 event 作为增量通知和日志来源。
 
+## 进程生命周期
+
+- `leave` 主动离开房间并清理显式 session 文件，但进程继续接收请求。
+- `shutdown` 等待当前请求、主动离房、返回成功 result，然后退出 0。
+- stdin EOF 会在处理完已接收请求后执行相同的优雅离房。
+- `SIGINT` 和 `SIGTERM` 优雅离房后分别退出 130 和 143。
+- 主动离房在进行中的游戏里会被视为弃权；需要重连宽限期时不能使用上述主动退出方式。
+
 ## 完整交互片段
 
 ```jsonl
-{"type":"ready","protocolVersion":1,"server":"http://localhost:2567","name":"Bot-A","sessionPersistence":false}
+{"type":"ready","protocolVersion":1,"cliVersion":"0.1.0","server":"http://localhost:2567","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"1","type":"create","visibility":"public","targetScore":100}
 {"type":"observation","roomId":"abc123","selfId":"a","revision":1,"state":{"phase":"LOBBY"},"knowledge":{"round":0,"slots":[null,null,null,null],"held":null},"legalActions":[]}
 {"type":"result","id":"1","ok":true,"data":{"roomId":"abc123","selfId":"a"}}
