@@ -20,6 +20,8 @@ pnpm dev:cli -- --name Alice
 pnpm dev:cli -- --name Bob
 ```
 
+客户端会根据当前游戏阶段显示桌面、自己的已知牌和可用操作。常用操作可以直接输入菜单编号；原有完整命令仍然可用。分步选择过程中输入 `cancel` 可返回操作菜单。
+
 服务端默认为 `http://localhost:2567`。连接其他地址时使用：
 
 ```bash
@@ -62,7 +64,7 @@ skip
 cabo
 ```
 
-输入 `help` 可随时查看完整命令。私密房间使用 `create private [target]` 创建，客户端会以不回显方式读取六位数字密码。
+输入 `help` 可随时查看完整命令。宣告 Cabo 前会要求确认。私密房间使用 `create private [target]` 创建，客户端会以不回显方式读取六位数字密码。
 
 ## 规则摘要
 

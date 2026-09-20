@@ -1,12 +1,14 @@
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { isStoredKnowledge, type StoredKnowledge } from "./knowledge.js";
 
 export interface SavedSession {
   server: string;
   name: string;
   roomId: string;
   token: string;
+  knowledge?: StoredKnowledge;
 }
 
 export function defaultSessionPath(): string {
@@ -25,7 +27,9 @@ export async function loadSession(path = defaultSessionPath()): Promise<SavedSes
     if (typeof data.server !== "string" || typeof data.name !== "string" || typeof data.roomId !== "string" || typeof data.token !== "string") {
       return undefined;
     }
-    return data as SavedSession;
+    const base: SavedSession = { server: data.server, name: data.name, roomId: data.roomId, token: data.token };
+    if (isStoredKnowledge(data.knowledge)) base.knowledge = data.knowledge;
+    return base;
   } catch {
     return undefined;
   }
