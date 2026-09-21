@@ -1,4 +1,4 @@
-import type { ClientCommand, PrivateRevealMessage } from "@cabo/shared";
+import type { ClientCommand, PrivateRevealMessage } from "@cabo-game/shared";
 import type { DisplayCard } from "./model.js";
 
 export interface KnowledgeState {

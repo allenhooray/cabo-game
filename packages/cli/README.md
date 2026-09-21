@@ -2,6 +2,14 @@
 
 `cabo-agent` exposes one Cabo player as a language-neutral JSONL subprocess. It is designed for supervisors and bots written in Python, Go, Rust, Node.js, or any runtime that can manage a child process.
 
+## Install
+
+```bash
+npm install --global @cabo-game/cli
+```
+
+This installs both the interactive `cabo` command and the JSONL-based `cabo-agent` command.
+
 ## Discover the interface
 
 ```bash

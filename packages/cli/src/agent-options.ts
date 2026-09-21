@@ -1,4 +1,4 @@
-import { DEFAULT_SERVER_URL } from "@cabo/client-core";
+import { DEFAULT_SERVER_URL } from "@cabo-game/client-core";
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 export const MIN_REQUEST_TIMEOUT_MS = 100;

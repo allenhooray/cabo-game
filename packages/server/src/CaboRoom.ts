@@ -11,7 +11,7 @@ import {
   type EngineEvent,
   type ErrorMessage,
   type Position,
-} from "@cabo/shared";
+} from "@cabo-game/shared";
 import { type Client, Room } from "colyseus";
 import { CaboState, PlayerState } from "./state.js";
 

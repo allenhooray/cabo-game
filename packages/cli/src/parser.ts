@@ -1,4 +1,4 @@
-import type { ClientCommand } from "@cabo/shared";
+import type { ClientCommand } from "@cabo-game/shared";
 
 export type LocalCommand =
   | { kind: "help" }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SERVER_URL } from "@cabo/client-core";
+import { DEFAULT_SERVER_URL } from "@cabo-game/client-core";
 import { AgentOptionError, DEFAULT_REQUEST_TIMEOUT_MS, parseAgentOptions, renderAgentHelp } from "./agent-options.js";
 
 describe("agent CLI options", () => {

@@ -1,5 +1,5 @@
 {
-  "name": "@cabo/web",
+  "name": "@cabo-game/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@cabo/client-core": "workspace:*",
-    "@cabo/shared": "workspace:*",
+    "@cabo-game/client-core": "workspace:*",
+    "@cabo-game/shared": "workspace:*",
     "@colyseus/sdk": "0.18.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

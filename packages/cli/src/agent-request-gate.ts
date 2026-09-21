@@ -1,4 +1,4 @@
-import type { AgentRequest } from "@cabo/shared";
+import type { AgentRequest } from "@cabo-game/shared";
 
 export class AgentRequestGate {
   private uncertain = false;

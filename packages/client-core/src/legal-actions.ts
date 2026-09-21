@@ -1,4 +1,4 @@
-import type { AgentAction } from "@cabo/shared";
+import type { AgentAction } from "@cabo-game/shared";
 import type { CaboStateLike } from "./model.js";
 
 export function legalActions(state: CaboStateLike, selfId: string): AgentAction[] {

@@ -9,8 +9,8 @@ import {
   savedServerUrl,
   validateServerUrl,
 } from "./browser-session.js";
-import { CaboClientCore, legalActions, type CaboStateLike, type ListedRoom, type StatePlayer } from "@cabo/client-core";
-import type { ClientCommand, PrivateRevealMessage } from "@cabo/shared";
+import { CaboClientCore, legalActions, type CaboStateLike, type ListedRoom, type StatePlayer } from "@cabo-game/client-core";
+import type { ClientCommand, PrivateRevealMessage } from "@cabo-game/shared";
 
 type ConnectionState = "idle" | "connecting" | "live" | "reconnecting" | "offline";
 type Selection = "idle" | "draw-discard" | "replace" | "peek-other" | "swap";

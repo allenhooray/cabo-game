@@ -2,7 +2,7 @@
 import { createInterface, emitKeypressEvents } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { Writable } from "node:stream";
-import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo/shared";
+import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo-game/shared";
 import type { Room } from "@colyseus/sdk";
 import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
 import { createFileSessionStore, defaultSessionPath } from "./config.js";

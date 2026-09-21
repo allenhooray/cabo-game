@@ -23,10 +23,10 @@ importers:
 
   packages/cli:
     dependencies:
-      '@cabo/client-core':
+      '@cabo-game/client-core':
         specifier: workspace:*
         version: link:../client-core
-      '@cabo/shared':
+      '@cabo-game/shared':
         specifier: workspace:*
         version: link:../shared
       '@colyseus/sdk':
@@ -35,7 +35,7 @@ importers:
 
   packages/client-core:
     dependencies:
-      '@cabo/shared':
+      '@cabo-game/shared':
         specifier: workspace:*
         version: link:../shared
       '@colyseus/sdk':
@@ -44,7 +44,7 @@ importers:
 
   packages/server:
     dependencies:
-      '@cabo/shared':
+      '@cabo-game/shared':
         specifier: workspace:*
         version: link:../shared
       '@colyseus/schema':
@@ -69,10 +69,10 @@ importers:
 
   packages/web:
     dependencies:
-      '@cabo/client-core':
+      '@cabo-game/client-core':
         specifier: workspace:*
         version: link:../client-core
-      '@cabo/shared':
+      '@cabo-game/shared':
         specifier: workspace:*
         version: link:../shared
       '@colyseus/sdk':
@@ -1732,7 +1732,7 @@ packages:
     hasBin: true
 
   uWebSockets.js@https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/cfc9a40d8132a34881813cec3d5f8e3a185b3ce3:
-    resolution: {gitHosted: true, tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/cfc9a40d8132a34881813cec3d5f8e3a185b3ce3}
+    resolution: {gitHosted: true, integrity: sha512-1eSUhK/WLig+fbq6dB18hsmkoaC+6YGVkAp2r0tQ6PGBxsOPpLUmMsKN/7ANoYtWiou+lU46+Bnf8JBYES9EsA==, tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/cfc9a40d8132a34881813cec3d5f8e3a185b3ce3}
     version: 20.52.0
 
   uid-safe@2.1.5:

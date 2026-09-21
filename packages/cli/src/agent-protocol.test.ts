@@ -1,4 +1,4 @@
-import { AGENT_PROTOCOL_VERSION, agentFrameSchema, agentProtocolJsonSchema } from "@cabo/shared";
+import { AGENT_PROTOCOL_VERSION, agentFrameSchema, agentProtocolJsonSchema } from "@cabo-game/shared";
 import { describe, expect, it } from "vitest";
 import { AgentProtocolError, buildObservation, legalActions, parseAgentRequest } from "./agent-protocol.js";
 import { createKnowledge } from "./knowledge.js";

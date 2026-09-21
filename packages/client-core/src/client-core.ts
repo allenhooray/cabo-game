@@ -1,4 +1,4 @@
-import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo/shared";
+import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo-game/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom } from "./model.js";

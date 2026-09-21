@@ -1,4 +1,4 @@
-import type { GamePhase } from "@cabo/shared";
+import type { GamePhase } from "@cabo-game/shared";
 
 export interface StatePlayer {
   id: string;

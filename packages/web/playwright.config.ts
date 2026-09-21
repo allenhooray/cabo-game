@@ -14,14 +14,14 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "pnpm --filter @cabo/server start",
+      command: "pnpm --filter @cabo-game/server start",
       url: "http://127.0.0.1:2567/rooms",
       reuseExistingServer: true,
       timeout: 20_000,
       env: { WEB_ORIGINS: "http://127.0.0.1:5173" },
     },
     {
-      command: "pnpm --filter @cabo/web dev --host 127.0.0.1 --port 5173",
+      command: "pnpm --filter @cabo-game/web dev --host 127.0.0.1 --port 5173",
       url: "http://127.0.0.1:5173",
       reuseExistingServer: true,
       timeout: 20_000,

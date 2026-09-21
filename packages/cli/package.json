@@ -1,7 +1,6 @@
 {
-  "name": "@cabo/cli",
+  "name": "@cabo-game/cli",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "bin": {
     "cabo": "./dist/main.js",
@@ -11,7 +10,15 @@
     "dist",
     "README.md"
   ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
+    "prepack": "pnpm run build",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
@@ -19,8 +26,8 @@
     "dev:agent": "tsx src/agent-main.ts"
   },
   "dependencies": {
-    "@cabo/client-core": "workspace:*",
-    "@cabo/shared": "workspace:*",
+    "@cabo-game/client-core": "workspace:*",
+    "@cabo-game/shared": "workspace:*",
     "@colyseus/sdk": "0.18.2"
   }
 }

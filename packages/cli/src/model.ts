@@ -1,1 +1,1 @@
-export * from "@cabo/client-core";
+export * from "@cabo-game/client-core";

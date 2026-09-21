@@ -1,7 +1,7 @@
 import { createServer } from "node:net";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { resolve } from "node:path";
-import { agentFrameSchema } from "@cabo/shared";
+import { agentFrameSchema } from "@cabo-game/shared";
 import { afterEach, describe, expect, it } from "vitest";
 
 interface JsonProcess {

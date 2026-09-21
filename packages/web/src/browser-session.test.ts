@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { DEFAULT_SERVER_URL } from "@cabo/client-core";
+import { DEFAULT_SERVER_URL } from "@cabo-game/client-core";
 import { BrowserSessionStore, defaultServerUrl, resetServerUrl, savePlayerName, saveServerUrl, savedServerUrl, validateServerUrl } from "./browser-session.js";
 
 describe("browser settings and reconnect session", () => {

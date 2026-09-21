@@ -1,4 +1,4 @@
-import type { ClientCommand } from "@cabo/shared";
+import type { ClientCommand } from "@cabo-game/shared";
 import type { CaboStateLike, StatePlayer } from "./model.js";
 
 export type MenuAction =

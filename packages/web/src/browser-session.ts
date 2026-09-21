@@ -1,4 +1,4 @@
-import { DEFAULT_SERVER_URL, parseSavedSession, type SavedSession, type SessionStore } from "@cabo/client-core";
+import { DEFAULT_SERVER_URL, parseSavedSession, type SavedSession, type SessionStore } from "@cabo-game/client-core";
 
 const SESSION_KEY = "cabo.session.v1";
 const SERVER_KEY = "cabo.server.v1";

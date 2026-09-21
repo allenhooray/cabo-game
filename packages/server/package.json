@@ -1,5 +1,5 @@
 {
-  "name": "@cabo/server",
+  "name": "@cabo-game/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
-    "@cabo/shared": "workspace:*",
+    "@cabo-game/shared": "workspace:*",
     "@colyseus/schema": "5.0.33",
     "colyseus": "0.18.6",
     "zod": "4.6.5"

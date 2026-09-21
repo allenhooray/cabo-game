@@ -1,9 +1,9 @@
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { parseSavedSession, type SavedSession, type SessionStore } from "@cabo/client-core";
+import { parseSavedSession, type SavedSession, type SessionStore } from "@cabo-game/client-core";
 
-export type { SavedSession } from "@cabo/client-core";
+export type { SavedSession } from "@cabo-game/client-core";
 
 export function defaultSessionPath(): string {
   return join(homedir(), ".config", "cabo", "session.json");

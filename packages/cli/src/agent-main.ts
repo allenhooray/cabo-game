@@ -11,7 +11,7 @@ import {
   type AgentCommandResult,
   type ErrorMessage,
   type PrivateRevealMessage,
-} from "@cabo/shared";
+} from "@cabo-game/shared";
 import { AgentOptionError, parseAgentOptions, renderAgentHelp, type AgentCliOptions } from "./agent-options.js";
 import { AgentProtocolError, buildObservation, parseAgentRequest, type AgentRequest } from "./agent-protocol.js";
 import { AgentRequestGate } from "./agent-request-gate.js";

@@ -1,5 +1,5 @@
-import { agentRequestSchema, type AgentObservation, type AgentRequest } from "@cabo/shared";
-import { legalActions } from "@cabo/client-core";
+import { agentRequestSchema, type AgentObservation, type AgentRequest } from "@cabo-game/shared";
+import { legalActions } from "@cabo-game/client-core";
 import type { KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, StatePlayer } from "./model.js";
 
@@ -63,7 +63,7 @@ function serializePlayer(player: StatePlayer): StatePlayer {
   };
 }
 
-export { legalActions } from "@cabo/client-core";
+export { legalActions } from "@cabo-game/client-core";
 
 export function requestId(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
