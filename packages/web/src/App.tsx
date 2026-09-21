@@ -622,30 +622,22 @@ function GameTable(props: GameTableProps) {
   const selectedTarget = props.targetId ? state.players.get(props.targetId) : undefined;
   const phaseCopy = gameStatus(state, selfId);
   const [exchangePositions, setExchangePositions] = useState<number[]>([]);
-  const [replacementPosition, setReplacementPosition] = useState<number>();
   const [mismatchDrawnPlacement, setMismatchDrawnPlacement] = useState<"left" | "right">();
 
-  useEffect(() => {
-    if (props.selection !== "replace") {
-      setExchangePositions([]);
-      setReplacementPosition(undefined);
-    }
-    if (state.phase !== "MISMATCH_PENDING") setMismatchDrawnPlacement(undefined);
-  }, [props.selection, state.phase, state.round]);
-
   const hasAction = (type: ClientCommand["type"]) => actions.some((action) => action.type === type);
+  const canReplace = myTurn && hasAction("replace");
+
+  useEffect(() => {
+    if (!canReplace) setExchangePositions([]);
+    if (state.phase !== "MISMATCH_PENDING") setMismatchDrawnPlacement(undefined);
+  }, [canReplace, state.phase, state.round]);
 
   const chooseOwnPosition = (position: number) => {
-    if (props.selection === "replace") {
+    if (canReplace) {
       setExchangePositions((current) => {
-        if (current.includes(position)) {
-          if (replacementPosition === position) setReplacementPosition(undefined);
-          return current.filter((candidate) => candidate !== position);
-        }
+        if (current.includes(position)) return current.filter((candidate) => candidate !== position);
         if (current.length >= 4) return current;
-        const next = [...current, position].sort((a, b) => a - b);
-        if (next.length === 1) setReplacementPosition(position);
-        return next;
+        return [...current, position];
       });
     }
     else if (state.phase === "POWER_PENDING" && (power === 7 || power === 8)) props.onExecute({ type: "peek-self", position });
@@ -710,12 +702,13 @@ function GameTable(props: GameTableProps) {
       <section className="player-dock" aria-label="Your hand and actions">
         <div className="hand-block">
           <div className="hand-heading"><div><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length)} hidden</span></div><button className="privacy-button" type="button" onPointerDown={props.onConcealStart} onPointerUp={props.onConcealEnd} onPointerCancel={props.onConcealEnd}>Hold to conceal</button></div>
+          {canReplace && exchangePositions.length > 0 && <div className="exchange-controls"><span>Selected: {exchangePositions.join(", ")} · Drawn card → {exchangePositions[0]}</span><div><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: exchangePositions[0] as number })}>Confirm exchange</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>Clear</button></div></div>}
           <div className="own-hand">
             {Array.from({ length: self?.cardCount ?? props.core.knowledge.slots.length }, (_, index) => props.core.knowledge.slots[index] ?? null).map((card, index) => {
               const position = index + 1;
-              const selectable = props.selection === "replace" || (state.phase === "POWER_PENDING" && myTurn && (power === 7 || power === 8));
+              const selectable = canReplace || (state.phase === "POWER_PENDING" && myTurn && (power === 7 || power === 8));
               const slotMotion = props.cardMotion && "position" in props.cardMotion && props.cardMotion.position === position && (props.cardMotion.action !== "swap" || props.cardMotion.playerId === selfId || props.cardMotion.targetPlayerId === selfId) ? props.cardMotion : undefined;
-              return <button aria-pressed={props.selection === "replace" ? exchangePositions.includes(position) : undefined} className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${exchangePositions.includes(position) ? "selected" : ""} ${slotMotion ? `motion-${slotMotion.action}` : ""}`} data-card-anchor={`slot-${selfId}-${position}`} type="button" disabled={!selectable || props.busy} key={`${position}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>{String(position).padStart(2, "0")}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
+              return <button aria-pressed={canReplace ? exchangePositions.includes(position) : undefined} className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${exchangePositions.includes(position) ? "selected" : ""} ${slotMotion ? `motion-${slotMotion.action}` : ""}`} data-card-anchor={`slot-${selfId}-${position}`} type="button" disabled={!selectable || props.busy} key={`${position}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>{String(position).padStart(2, "0")}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
             })}
             <div className={`decision-card ${props.core.knowledge.held ? "occupied" : ""}`} data-card-anchor={`decision-${selfId}`} aria-label="Drawn card">
               {props.core.knowledge.held ? <CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /> : <span>Draw</span>}
@@ -727,10 +720,6 @@ function GameTable(props: GameTableProps) {
             {...props}
             actions={actions}
             phaseCopy={phaseCopy}
-            exchangePositions={exchangePositions}
-            replacementPosition={replacementPosition}
-            onReplacementPosition={setReplacementPosition}
-            onConfirmExchange={() => replacementPosition && props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition })}
             mismatchDrawnPlacement={mismatchDrawnPlacement}
             onMismatchDrawnPlacement={setMismatchDrawnPlacement}
           />
@@ -831,24 +820,13 @@ function motionAnnouncement(motion: PublicActionEvent): string {
 function ActionPanel(props: GameTableProps & {
   actions: ReturnType<typeof legalActions>;
   phaseCopy: { eyebrow: string; title: string; detail: string };
-  exchangePositions: number[];
-  replacementPosition: number | undefined;
-  onReplacementPosition(position: number): void;
-  onConfirmExchange(): void;
   mismatchDrawnPlacement: "left" | "right" | undefined;
   onMismatchDrawnPlacement(placement: "left" | "right" | undefined): void;
 }) {
   const { state, selfId } = props;
   if (state.currentPlayerId !== selfId) return <><p className="action-kicker">Waiting</p><h3>{props.phaseCopy.title}</h3><p>{props.phaseCopy.detail}</p></>;
-  if (props.selection === "replace") return <>
-    <p className="action-kicker">Keep the drawn card</p>
-    <h3>Choose 1–4 cards to replace.</h3>
-    <p>{props.exchangePositions.length ? `Selected: ${props.exchangePositions.join(", ")}. Choose which selected position receives the drawn card.` : "Matching multiple cards removes all but the drawn replacement."}</p>
-    {props.exchangePositions.length > 0 && <div className="action-buttons">{props.exchangePositions.map((position) => <button className={props.replacementPosition === position ? "button primary" : "button"} type="button" key={position} onClick={() => props.onReplacementPosition(position)}>Position {position}</button>)}</div>}
-    <div className="action-buttons"><button className="button primary" type="button" disabled={props.busy || !props.exchangePositions.length || !props.replacementPosition} onClick={props.onConfirmExchange}>Confirm exchange</button><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>Cancel</button></div>
-  </>;
   if (props.selection === "peek-other" || props.selection === "swap") return <><p className="action-kicker">{props.selection === "swap" ? "Blind swap" : "Private peek"}</p><h3>{props.targetId ? "Choose one of their cards." : "Choose another player."}</h3><p>{props.selection === "swap" ? "Neither card will be revealed." : "Only you will see the selected card."}</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>Cancel</button></>;
-  if (state.phase === "DRAWN") return <><p className="action-kicker">Card drawn</p><h3>Choose what it replaces.</h3><p>Select up to four of your cards. Multiple cards must share the same rank.</p><div className="action-buttons"><button className="button" type="button" disabled={props.busy} onClick={() => props.onSelection("replace")}>Replace cards</button>{state.drawSource === "deck" && <button className="button primary" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "discard" })}>Discard drawn card</button>}</div></>;
+  if (state.phase === "DRAWN") return <><p className="action-kicker">Card drawn</p><h3>Choose what it replaces.</h3><p>Select up to four cards directly from your hand. Multiple cards must share the same rank.</p>{state.drawSource === "deck" && <button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "discard" })}>Discard drawn card</button>}</>;
   if (state.phase === "MISMATCH_PENDING") {
     if (!props.mismatchDrawnPlacement) return <><p className="action-kicker">Cards did not match</p><h3>Place the drawn card.</h3><p>The selected cards are now public.</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => state.mismatchPenaltyCardPending ? props.onMismatchDrawnPlacement(placement) : props.onExecute({ type: "resolve-mismatch", drawnPlacement: placement })}>{placement === "left" ? "Left end" : "Right end"}</button>)}</div></>;
     return <><p className="action-kicker">Penalty card</p><h3>Place the facedown penalty.</h3><p>The drawn card will go to the {props.mismatchDrawnPlacement} end.</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => props.onExecute({ type: "resolve-mismatch", drawnPlacement: props.mismatchDrawnPlacement as "left" | "right", penaltyPlacement: placement })}>{placement === "left" ? "Left end" : "Right end"}</button>)}</div><button className="text-button" type="button" onClick={() => props.onMismatchDrawnPlacement(undefined)}>Back</button></>;

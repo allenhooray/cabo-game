@@ -178,7 +178,7 @@ describe("Cabo game table additions", () => {
     }).map((flight) => flight.key)).toEqual(["take-discard"]);
   });
 
-  it("submits a multi-card replacement with the chosen destination", () => {
+  it("allows direct hand selection and confirms the exchange above the hand", () => {
     const players = new Map([
       ["alice", { id: "alice", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
       ["bob", { id: "bob", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false }],
@@ -191,7 +191,7 @@ describe("Cabo game table additions", () => {
         players={[...players.values()]}
         core={{ knowledge: { slots: [null, null, null, null], opponents: [], held: { label: "2S", rank: 2 } } } as any}
         busy={false}
-        selection="replace"
+        selection="idle"
         targetId={undefined}
         events={[]}
         cardMotion={undefined}
@@ -205,11 +205,12 @@ describe("Cabo game table additions", () => {
       />,
     );
     const slots = container.querySelectorAll<HTMLButtonElement>(".hand-slot");
-    fireEvent.click(slots[0]!);
     fireEvent.click(slots[2]!);
-    fireEvent.click(within(container).getByRole("button", { name: "Position 3" }));
+    fireEvent.click(slots[0]!);
+    expect(within(container).queryByRole("button", { name: /Position/ })).not.toBeInTheDocument();
+    expect(container.querySelector(".exchange-controls")).toContainElement(within(container).getByRole("button", { name: "Confirm exchange" }));
     fireEvent.click(within(container).getByRole("button", { name: "Confirm exchange" }));
-    expect(onExecute).toHaveBeenCalledWith({ type: "replace", positions: [1, 3], replacementPosition: 3 });
+    expect(onExecute).toHaveBeenCalledWith({ type: "replace", positions: [3, 1], replacementPosition: 3 });
   });
 
 });

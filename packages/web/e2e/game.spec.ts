@@ -43,10 +43,8 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await expect(observer.locator(".opponent-decision.occupied")).toBeVisible();
   await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText("drew a hidden card");
 
-  await actor.getByRole("button", { name: "Replace cards" }).click();
   await actor.locator(".hand-slot").first().click();
   await actor.locator(".hand-slot").nth(1).click();
-  await actor.getByRole("button", { name: "Position 1" }).click();
   await actor.getByRole("button", { name: "Confirm exchange" }).click();
   await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText(/positions 1, 2|did not match/);
   const mismatchPlacement = actor.getByRole("button", { name: "Left end" });

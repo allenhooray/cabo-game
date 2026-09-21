@@ -185,6 +185,9 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .hand-heading strong { font-size: 13px; }
 .hand-heading span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .privacy-button { min-height: 36px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 10px; cursor: pointer; }
+.exchange-controls { margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.exchange-controls > span { color: var(--muted); font-size: 10px; }
+.exchange-controls > div { display: flex; align-items: center; gap: 10px; }
 .own-hand { display: flex; flex-wrap: wrap; gap: 8px; }
 .hand-slot { width: 72px; height: 84px; position: relative; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); transition: transform 160ms ease, box-shadow 160ms ease; }
 .decision-card { width: 72px; height: 84px; margin-left: 8px; padding: 8px; position: relative; display: flex; flex-direction: column; justify-content: space-between; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
@@ -310,6 +313,8 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
   .cabo-button, .leave-button { bottom: 4px; }
   .player-dock { width: calc(100% - 18px); margin-bottom: 8px; padding: 14px; grid-template-columns: 1fr; gap: 14px; }
   .own-hand { justify-content: space-between; gap: 5px; }
+  .exchange-controls { align-items: flex-start; }
+  .exchange-controls > div { flex-shrink: 0; }
   .hand-slot, .decision-card { width: min(64px, calc((100% - 20px) / 5)); height: 76px; }
   .decision-card { margin-left: 0; }
   .action-zone { min-height: 0; padding: 14px 0 0; border-left: 0; border-top: 1px solid var(--soft-line); }
