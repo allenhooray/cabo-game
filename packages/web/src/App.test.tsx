@@ -280,10 +280,15 @@ describe("Cabo game table additions", () => {
       />,
     );
     const slots = container.querySelectorAll<HTMLButtonElement>(".hand-slot");
+    const handHeading = container.querySelector(".hand-heading")!;
+    const exchangeControls = container.querySelector(".exchange-controls")!;
+    expect(handHeading.compareDocumentPosition(exchangeControls) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(exchangeControls).toHaveClass("is-empty");
     fireEvent.click(slots[2]!);
     fireEvent.click(slots[0]!);
     expect(within(container).queryByRole("button", { name: /Position/ })).not.toBeInTheDocument();
     expect(container.querySelector(".exchange-controls")).toContainElement(within(container).getByRole("button", { name: "Confirm exchange" }));
+    expect(exchangeControls).not.toHaveClass("is-empty");
     fireEvent.click(within(container).getByRole("button", { name: "Confirm exchange" }));
     expect(onExecute).toHaveBeenCalledWith({ type: "replace", positions: [3, 1], replacementPosition: 3 });
   });
