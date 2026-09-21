@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { GAME_PHASES } from "./types.js";
 
-export const AGENT_PROTOCOL_VERSION = 5 as const;
+export const AGENT_PROTOCOL_VERSION = 6 as const;
 export const AGENT_REQUEST_TYPES = ["rooms", "create", "join", "reconnect", "observe", "describe", "ping", "action", "leave", "shutdown"] as const;
 export const AGENT_FRAME_TYPES = ["ready", "result", "observation", "event", "fatal"] as const;
 export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "resolve-mismatch", "discard", "peek-self", "peek-other", "swap", "skip", "cabo", "ready-next-round"] as const;
@@ -113,6 +113,20 @@ const playerObservationSchema = z.object({
   cardCount: z.number().int().nonnegative(),
   isHost: z.boolean(),
 }).strict();
+const roundHistoryPlayerSchema = z.object({
+  playerId: z.string(),
+  roundScore: z.number(),
+  totalScore: z.number(),
+  handScore: z.number(),
+  cards: z.array(displayCardSchema),
+}).strict();
+const roundHistoryEntrySchema = z.object({
+  round: z.number().int().positive(),
+  outcomeType: z.enum(["cabo", "shooting-the-moon"]),
+  outcomePlayerId: z.string(),
+  caboSucceeded: z.boolean(),
+  players: z.array(roundHistoryPlayerSchema),
+}).strict();
 
 export const agentObservationSchema = z.object({
   roomId: z.string(),
@@ -131,6 +145,7 @@ export const agentObservationSchema = z.object({
     deckCount: z.number().int().nonnegative(),
     players: z.array(playerObservationSchema),
     winners: z.array(z.string()),
+    roundHistory: z.array(roundHistoryEntrySchema),
   }).strict(),
   knowledge: z.object({
     round: z.number().int().nonnegative(),

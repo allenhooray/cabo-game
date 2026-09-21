@@ -52,6 +52,42 @@ describe("interactive command compatibility", () => {
   });
 });
 
+describe("round history synchronization", () => {
+  it("records each completed round once in authoritative room state", () => {
+    const room = new CaboRoom();
+    const internals = room as unknown as {
+      engine: { round: number };
+      recordRoundResult(event: unknown): void;
+    };
+    internals.engine = { round: 2 };
+    const result = {
+      type: "round-result",
+      hands: [{ playerId: "a", cards: [{ id: "c1", label: "4H", rank: 4 }], handScore: 4 }],
+      roundScores: { a: 9 },
+      totals: { a: 13 },
+      outcome: { type: "cabo", callerId: "a", succeeded: false },
+    };
+
+    internals.recordRoundResult(result);
+    internals.recordRoundResult(result);
+
+    expect(room.state.roundHistory).toHaveLength(1);
+    expect(room.state.roundHistory[0]).toMatchObject({
+      round: 2,
+      outcomeType: "cabo",
+      outcomePlayerId: "a",
+      caboSucceeded: false,
+    });
+    expect(room.state.roundHistory[0]?.players[0]).toMatchObject({
+      playerId: "a",
+      roundScore: 9,
+      totalScore: 13,
+      handScore: 4,
+    });
+    expect(room.state.roundHistory[0]?.players[0]?.cards[0]).toMatchObject({ label: "4H", rank: 4 });
+  });
+});
+
 describe("next round confirmations", () => {
   function waitingRoom() {
     const room = new CaboRoom();

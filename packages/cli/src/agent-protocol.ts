@@ -43,6 +43,19 @@ export function buildObservation(
       deckCount: state.deckCount,
       players: [...state.players.values()].sort((a, b) => a.seat - b.seat).map(serializePlayer),
       winners: [...state.winners],
+      roundHistory: [...(state.roundHistory ?? [])].map((entry) => ({
+        round: entry.round,
+        outcomeType: entry.outcomeType,
+        outcomePlayerId: entry.outcomePlayerId,
+        caboSucceeded: entry.caboSucceeded,
+        players: [...entry.players].map((player) => ({
+          playerId: player.playerId,
+          roundScore: player.roundScore,
+          totalScore: player.totalScore,
+          handScore: player.handScore,
+          cards: [...player.cards].map((card) => ({ label: card.label, rank: card.rank })),
+        })),
+      })),
     },
     knowledge: {
       round: knowledge.round,

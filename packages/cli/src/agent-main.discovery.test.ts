@@ -31,7 +31,7 @@ describe("agent CLI discovery modes", () => {
     const output = run(["--print-schema"]);
     expect(output.status).toBe(0);
     const schema = JSON.parse(output.stdout);
-    expect(schema.$id).toBe("urn:cabo:agent-protocol:v5");
+    expect(schema.$id).toBe("urn:cabo:agent-protocol:v6");
     expect(output.stdout).not.toContain('"type":"ready"');
   });
 
@@ -48,6 +48,6 @@ describe("agent CLI discovery modes", () => {
     expect(output.status).toBe(0);
     const lines = output.stdout.trim().split("\n").map((line) => JSON.parse(line));
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatchObject({ type: "ready", protocolVersion: 5, name: "EOF-Bot" });
+    expect(lines[0]).toMatchObject({ type: "ready", protocolVersion: 6, name: "EOF-Bot" });
   });
 });
