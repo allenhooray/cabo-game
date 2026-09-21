@@ -19,7 +19,7 @@ pnpm dev:server
 VITE_CABO_SERVER_URL=http://localhost:2567 pnpm dev:web
 ```
 
-访问 `http://localhost:5173`。Web 端默认连接 `https://cabo.human404.link`，也可以通过 `VITE_CABO_SERVER_URL` 或进入页的 **Server settings** 覆盖；自定义地址会保存在浏览器 `localStorage`，点击 Reset 可恢复构建默认值。
+访问 `http://localhost:5173`。Web 端默认连接 `https://cabo-api.human404.link`，也可以通过 `VITE_CABO_SERVER_URL` 或进入页的 **Server settings** 覆盖；自定义地址会保存在浏览器 `localStorage`，点击 Reset 可恢复构建默认值。
 
 生产构建：
 
@@ -64,7 +64,7 @@ cabo-agent --print-schema
 
 客户端会根据当前游戏阶段显示桌面、自己的已知牌和可用操作。常用操作可以直接输入菜单编号；原有完整命令仍然可用。分步选择过程中输入 `cancel` 可返回操作菜单。
 
-客户端默认连接 `https://cabo.human404.link`。连接其他地址时使用：
+客户端默认连接 `https://cabo-api.human404.link`。连接其他地址时使用：
 
 ```bash
 pnpm dev:cli -- --server http://host:2567 --name Alice

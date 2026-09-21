@@ -4,6 +4,7 @@ import { AgentOptionError, DEFAULT_REQUEST_TIMEOUT_MS, parseAgentOptions, render
 
 describe("agent CLI options", () => {
   it("parses run options and defaults", () => {
+    expect(DEFAULT_SERVER_URL).toBe("https://cabo-api.human404.link");
     expect(parseAgentOptions([], "Bot")).toEqual({
       mode: "run",
       serverUrl: DEFAULT_SERVER_URL,
