@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_SERVER_URL } from "@cabo-game/client-core";
-import { BrowserSessionStore, defaultServerUrl, resetServerUrl, savePlayerName, saveServerUrl, savedServerUrl, validateServerUrl } from "./browser-session.js";
+import { BrowserSessionStore, defaultServerUrl, resetServerUrl, savePlayerName, saveServerUrl, savedPlayerName, savedServerUrl, validateServerUrl } from "./browser-session.js";
 
 describe("browser settings and reconnect session", () => {
   beforeEach(() => localStorage.clear());
@@ -21,5 +21,12 @@ describe("browser settings and reconnect session", () => {
     await store.clear();
     expect(await store.load()).toBeUndefined();
     expect(savePlayerName("  Alice  ")).toBe("Alice");
+  });
+
+  it("creates and persists a default player name", () => {
+    const generated = savedPlayerName();
+    expect(generated).toMatch(/^Player[A-Z0-9]{4}$/);
+    expect(savedPlayerName()).toBe(generated);
+    expect(localStorage.getItem("cabo.name.v1")).toBe(generated);
   });
 });

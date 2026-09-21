@@ -11,11 +11,24 @@ describe("Cabo home", () => {
   it("renders the entry actions and empty public room state", async () => {
     render(<App />);
     expect(screen.getByRole("heading", { name: /keep the lowest hand/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /set player name/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /create or join a room/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create room/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/docs/rules/");
     expect(screen.getByRole("link", { name: "CLI" })).toHaveAttribute("href", "/docs/cli/");
     expect(screen.getByRole("link", { name: "Agent" })).toHaveAttribute("href", "/docs/agent/");
     await waitFor(() => expect(screen.getByText(/no public rooms are waiting/i)).toBeInTheDocument());
+  });
+
+  it("starts with a generated name and saves a player-selected name", () => {
+    const { container } = render(<App />);
+    const nameInput = container.querySelector<HTMLInputElement>("#player-name")!;
+    expect(nameInput.value).toMatch(/^Player[A-Z0-9]{4}$/);
+    fireEvent.change(nameInput, { target: { value: "  Alice  " } });
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".name-actions button")!);
+    expect(nameInput).toHaveValue("Alice");
+    expect(localStorage.getItem("cabo.name.v1")).toBe("Alice");
+    expect(container.querySelector("[role=status]")).toHaveTextContent("Saved");
   });
 });
 

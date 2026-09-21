@@ -304,6 +304,7 @@ export function App() {
         connection={connection}
         notice={notice}
         onName={setName}
+        onSaveName={() => setName(savePlayerName(name))}
         onServerDraft={setServerDraft}
         onApplyServer={applyServer}
         onResetServer={() => {
@@ -417,6 +418,7 @@ interface HomeProps {
   connection: ConnectionState;
   notice: string | undefined;
   onName(value: string): void;
+  onSaveName(): void;
   onServerDraft(value: string): void;
   onApplyServer(event: FormEvent): void;
   onResetServer(): void;
@@ -433,6 +435,7 @@ function Home(props: HomeProps) {
   const [createPassword, setCreatePassword] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [joinPassword, setJoinPassword] = useState("");
+  const [nameSaved, setNameSaved] = useState(false);
 
   return (
     <div className="home-shell">
@@ -445,38 +448,57 @@ function Home(props: HomeProps) {
           {props.connection === "reconnecting" && <p className="reconnecting" role="status">Reconnecting to your saved seat…</p>}
         </section>
 
-        <section className="entry-panel" aria-label="Enter Cabo">
-          <label className="field-label" htmlFor="player-name">Player name</label>
-          <input id="player-name" className="input hero-input" value={props.name} maxLength={20} placeholder="Your name" onChange={(event) => props.onName(event.target.value)} />
-          <div className="entry-actions">
-            <button className="button primary" type="button" onClick={() => { setCreateOpen(true); setJoinOpen(false); }}>Create room</button>
-            <button className="button" type="button" onClick={() => { setJoinOpen(true); setCreateOpen(false); }}>Join by code</button>
-          </div>
-          {props.notice && <p className="form-notice" role="alert">{props.notice}</p>}
-
-          {createOpen && (
-            <form className="inline-form" onSubmit={(event) => {
+        <div className="entry-stack">
+          <section className="entry-panel" aria-labelledby="player-name-heading">
+            <p className="eyebrow">Your identity</p>
+            <h2 id="player-name-heading" className="module-heading">Set player name</h2>
+            <form onSubmit={(event) => {
               event.preventDefault();
-              props.onCreate(visibility, targetScore, visibility === "private" ? createPassword : undefined);
+              props.onSaveName();
+              setNameSaved(true);
             }}>
-              <div className="segmented" aria-label="Room visibility">
-                <button type="button" aria-pressed={visibility === "public"} onClick={() => setVisibility("public")}>Public</button>
-                <button type="button" aria-pressed={visibility === "private"} onClick={() => setVisibility("private")}>Private</button>
+              <label className="field-label" htmlFor="player-name">Player name</label>
+              <input id="player-name" className="input hero-input" value={props.name} maxLength={20} placeholder="Your name" onChange={(event) => { props.onName(event.target.value); setNameSaved(false); }} />
+              <div className="name-actions">
+                <button className="button" type="submit" disabled={!props.name.trim()}>Save player name</button>
+                {nameSaved && <span className="saved-state" role="status">Saved</span>}
               </div>
-              <label className="field-label">Target score<input className="input" type="number" min={20} max={500} value={targetScore} onChange={(event) => setTargetScore(Number(event.target.value))} /></label>
-              {visibility === "private" && <label className="field-label">Six-digit password<input className="input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={createPassword} onChange={(event) => setCreatePassword(event.target.value.replace(/\D/g, ""))} /></label>}
-              <button className="button primary" disabled={props.busy || targetScore < 20 || targetScore > 500 || (visibility === "private" && !/^\d{6}$/.test(createPassword))}>Create table</button>
             </form>
-          )}
+          </section>
 
-          {joinOpen && (
-            <form className="inline-form" onSubmit={(event) => { event.preventDefault(); props.onJoin(roomCode.trim(), joinPassword || undefined); }}>
-              <label className="field-label">Room code<input className="input code-input" autoCapitalize="characters" value={roomCode} onChange={(event) => setRoomCode(event.target.value)} /></label>
-              <label className="field-label">Password <span>optional</span><input className="input" inputMode="numeric" maxLength={6} value={joinPassword} onChange={(event) => setJoinPassword(event.target.value.replace(/\D/g, ""))} /></label>
-              <button className="button primary" disabled={props.busy || !roomCode.trim()}>Join table</button>
-            </form>
-          )}
-        </section>
+          <section className="entry-panel" aria-labelledby="room-actions-heading">
+            <p className="eyebrow">Play Cabo</p>
+            <h2 id="room-actions-heading" className="module-heading">Create or join a room</h2>
+            <div className="entry-actions">
+              <button className="button primary" type="button" onClick={() => { setCreateOpen(true); setJoinOpen(false); }}>Create room</button>
+              <button className="button" type="button" onClick={() => { setJoinOpen(true); setCreateOpen(false); }}>Join by code</button>
+            </div>
+            {props.notice && <p className="form-notice" role="alert">{props.notice}</p>}
+
+            {createOpen && (
+              <form className="inline-form" onSubmit={(event) => {
+                event.preventDefault();
+                props.onCreate(visibility, targetScore, visibility === "private" ? createPassword : undefined);
+              }}>
+                <div className="segmented" aria-label="Room visibility">
+                  <button type="button" aria-pressed={visibility === "public"} onClick={() => setVisibility("public")}>Public</button>
+                  <button type="button" aria-pressed={visibility === "private"} onClick={() => setVisibility("private")}>Private</button>
+                </div>
+                <label className="field-label">Target score<input className="input" type="number" min={20} max={500} value={targetScore} onChange={(event) => setTargetScore(Number(event.target.value))} /></label>
+                {visibility === "private" && <label className="field-label">Six-digit password<input className="input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={createPassword} onChange={(event) => setCreatePassword(event.target.value.replace(/\D/g, ""))} /></label>}
+                <button className="button primary" disabled={props.busy || targetScore < 20 || targetScore > 500 || (visibility === "private" && !/^\d{6}$/.test(createPassword))}>Create table</button>
+              </form>
+            )}
+
+            {joinOpen && (
+              <form className="inline-form" onSubmit={(event) => { event.preventDefault(); props.onJoin(roomCode.trim(), joinPassword || undefined); }}>
+                <label className="field-label">Room code<input className="input code-input" autoCapitalize="characters" value={roomCode} onChange={(event) => setRoomCode(event.target.value)} /></label>
+                <label className="field-label">Password <span>optional</span><input className="input" inputMode="numeric" maxLength={6} value={joinPassword} onChange={(event) => setJoinPassword(event.target.value.replace(/\D/g, ""))} /></label>
+                <button className="button primary" disabled={props.busy || !roomCode.trim()}>Join table</button>
+              </form>
+            )}
+          </section>
+        </div>
 
         <section className="rooms-section">
           <div className="section-heading"><div><p className="eyebrow">Open tables</p><h2>Public rooms</h2></div><button className="text-button" type="button" onClick={props.onRefresh} disabled={props.roomsBusy}>{props.roomsBusy ? "Refreshing…" : "Refresh"}</button></div>
@@ -521,7 +543,7 @@ function Lobby(props: { roomId: string; targetScore: number; players: StatePlaye
         <div className="seat-list">
           {[0, 1, 2, 3].map((seat) => {
             const player = props.players.find((candidate) => candidate.seat === seat);
-            return <div className={`seat ${player ? "seat-filled" : ""}`} key={seat}>{player ? <><Avatar player={player} /><div><strong>{player.name}{player.id === props.selfId ? " · You" : ""}</strong><span>{player.isHost ? "Host" : player.connected ? "Ready" : "Offline"}</span></div></> : <span>Open seat</span>}</div>;
+            return <div className={`seat ${player ? "seat-filled" : ""}`} key={seat}>{player ? <><Avatar player={player} /><div><strong>{player.name}{player.id === props.selfId ? " · You" : ""}</strong><span>{player.isHost ? "Host" : player.connected ? "Ready" : "Offline"}</span></div></> : <span className="open-seat">Open seat</span>}</div>;
           })}
         </div>
         <div className="lobby-actions"><button className="button ghost" type="button" onClick={props.onLeave}>Leave</button>{props.canStart ? <button className="button primary" type="button" disabled={props.busy} onClick={props.onStart}>Start game</button> : <span>Waiting for {props.players[0]?.isHost ? "players" : "the host"}…</span>}</div>

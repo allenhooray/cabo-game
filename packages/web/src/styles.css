@@ -66,10 +66,15 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .intro h1 { margin: 0; max-width: 760px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(44px, 6vw, 82px); font-weight: 400; line-height: .98; letter-spacing: -.045em; }
 .lede { margin: 28px 0 0; color: var(--muted); font-size: 16px; }
 .reconnecting { margin-top: 24px; font-size: 13px; }
-.entry-panel { align-self: center; padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--surface) 92%, transparent); box-shadow: 0 24px 70px var(--shadow); backdrop-filter: blur(18px); }
+.entry-stack { align-self: center; display: grid; gap: 16px; }
+.entry-panel { padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: color-mix(in srgb, var(--surface) 92%, transparent); box-shadow: 0 24px 70px var(--shadow); backdrop-filter: blur(18px); }
+.entry-panel .eyebrow { margin-bottom: 7px; }
+.module-heading { margin: 0 0 20px; font: 400 25px Georgia, "Times New Roman", serif; }
 .hero-input { height: 54px; font-size: 17px; }
 .entry-actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 .entry-actions .button { flex: 1; }
+.name-actions { min-height: 44px; margin-top: 14px; display: flex; align-items: center; gap: 14px; }
+.saved-state { color: var(--muted); font-size: 12px; }
 .form-notice { margin: 14px 0 0; color: var(--danger); font-size: 12px; line-height: 1.5; }
 .inline-form { display: grid; gap: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--soft-line); animation: panel-in 200ms ease both; }
 .segmented { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; background: var(--surface-2); border-radius: 10px; }
@@ -121,7 +126,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .lobby-score strong { color: var(--ink); font: 400 30px Georgia, serif; }
 .seat-list { display: grid; }
 .seat { min-height: 66px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--soft-line); color: var(--muted); }
-.seat strong, .seat span { display: block; font-size: 13px; }
+.seat > .open-seat, .seat > div > strong { display: block; font-size: 13px; }
 .seat div span { margin-top: 3px; color: var(--muted); font-size: 11px; }
 .lobby-actions { min-height: 68px; padding-top: 18px; display: flex; justify-content: flex-end; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
 
@@ -132,7 +137,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .player-card.selected { border-color: var(--ink); }
 .player-main { width: 100%; min-height: 61px; padding: 10px 12px; display: flex; align-items: center; gap: 11px; border: 0; background: none; color: inherit; text-align: left; }
 .player-main:not(:disabled) { cursor: pointer; }
-.avatar { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--ink); font-size: 11px; font-weight: 500; }
+.avatar { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--ink); font-size: 11px; font-weight: 500; line-height: 1; text-align: center; }
 .player-copy { min-width: 0; flex: 1; }
 .player-copy strong, .player-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .player-copy strong { font-size: 13px; font-weight: 500; }

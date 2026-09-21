@@ -44,7 +44,12 @@ export function resetServerUrl(): string {
 }
 
 export function savedPlayerName(): string {
-  return (localStorage.getItem(NAME_KEY) ?? "").slice(0, 20);
+  const saved = localStorage.getItem(NAME_KEY)?.trim().slice(0, 20);
+  if (saved) return saved;
+
+  const generated = `Player${randomNameSuffix()}`;
+  localStorage.setItem(NAME_KEY, generated);
+  return generated;
 }
 
 export function savePlayerName(value: string): string {
@@ -65,4 +70,17 @@ export function validateServerUrl(value: string): string {
 
 function normalizeServerUrl(value: string): string {
   return value.trim().replace(/\/+$/, "");
+}
+
+function randomNameSuffix(): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  const values = new Uint32Array(4);
+
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    crypto.getRandomValues(values);
+  } else {
+    for (let index = 0; index < values.length; index += 1) values[index] = Math.floor(Math.random() * alphabet.length);
+  }
+
+  return Array.from(values, (value) => alphabet[value % alphabet.length]).join("");
 }
