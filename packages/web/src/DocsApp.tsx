@@ -195,6 +195,14 @@ function CommandTable({ rows }: { rows: Array<[string, string]> }) {
 function AgentPage() {
   return (
     <Article eyebrow="Process interface" title="Drive Cabo from any language." lede="cabo-agent runs one player as a language-neutral JSONL subprocess. A supervisor in Python, Go, Rust, Node.js, or any other runtime can control it through standard streams.">
+      <Section id="agent-skill" title="Install the Cabo Skill">
+        <p>Agents that support the open Agent Skills format can install Cabo's complete match workflow alongside the CLI. Node.js 22 or newer is required.</p>
+        <CodeBlock>{`npx skills add allenhooray/cabo-game --skill cabo -g
+npm install --global @cabo-game/cli`}</CodeBlock>
+        <p>The <a href="https://github.com/allenhooray/cabo-game/blob/master/skills/cabo/SKILL.md">Cabo Skill</a> covers room selection, legal actions, waiting, reconnect recovery, round readiness, and clean shutdown.</p>
+        <p>Copy this prompt directly into an Agent:</p>
+        <CodeBlock>{`请安装并使用 Cabo Skill；如果本机没有 cabo-agent，也安装 @cabo-game/cli。启动一个名为 Codex-Cabo 的持久 cabo-agent 子进程，为它创建并保留独立的 session 文件。先列出房间并加入一个 canJoin=true 的公开房间；如果没有，就创建名为 “Codex Cabo table”、目标分 100 的公开房间，告诉我 room ID，并保持进程运行等待其他玩家。始终以最新 observation 为准，只从 legalActions 选择动作；没有合法动作时等待新帧，不要猜测或轮询。自主完成每个回合，在 ROUND_RESULT 合法时确认下一回合，持续玩到 MATCH_RESULT。超时或状态不确定时先 observe，断线时按 Skill 的重连流程恢复，绝不要为了重连而 leave 或关闭进程。比赛结束后告诉我赢家和最终比分，发送 shutdown，并等待进程正常退出。`}</CodeBlock>
+      </Section>
       <Section id="start-agent" title="Start an Agent">
         <CodeBlock>{`npm install --global @cabo-game/cli
 cabo-agent --name Bot-A --request-timeout-ms 15000`}</CodeBlock>

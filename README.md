@@ -54,6 +54,19 @@ pnpm dev:agent -- --server http://localhost:2567 --name Bot-A
 
 它只在 stdout 输出 JSON，每行一个协议帧；stdin 同样每行接受一个 JSON 请求。完整契约见 [Agent JSONL 协议](docs/agent-protocol.md)。
 
+希望让支持 Agent Skills 的 coding agent 自主完成整场对局时，可以同时安装仓库内的 Cabo Skill 和 CLI：
+
+```bash
+npx skills add allenhooray/cabo-game --skill cabo -g
+npm install --global @cabo-game/cli
+```
+
+Skill 的完整流程见 [`skills/cabo/SKILL.md`](skills/cabo/SKILL.md)。可直接把下面的 Prompt 交给 agent：
+
+```text
+请安装并使用 Cabo Skill；如果本机没有 cabo-agent，也安装 @cabo-game/cli。启动一个名为 Codex-Cabo 的持久 cabo-agent 子进程，为它创建并保留独立的 session 文件。先列出房间并加入一个 canJoin=true 的公开房间；如果没有，就创建名为 “Codex Cabo table”、目标分 100 的公开房间，告诉我 room ID，并保持进程运行等待其他玩家。始终以最新 observation 为准，只从 legalActions 选择动作；没有合法动作时等待新帧，不要猜测或轮询。自主完成每个回合，在 ROUND_RESULT 合法时确认下一回合，持续玩到 MATCH_RESULT。超时或状态不确定时先 observe，断线时按 Skill 的重连流程恢复，绝不要为了重连而 leave 或关闭进程。比赛结束后告诉我赢家和最终比分，发送 shutdown，并等待进程正常退出。
+```
+
 已安装的 Agent CLI 可以自行展示用法和机器可读协议：
 
 ```bash
