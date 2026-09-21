@@ -87,6 +87,7 @@ async function run(options: Extract<AgentCliOptions, { mode: "run" }>, cliVersio
         writeJson({ type: "event", event: { type: "private-reveal", ...message } });
         emitObservation();
       },
+      knowledge: () => emitObservation(),
       event: (event: unknown) => {
         writeJson({ type: "event", event });
         emitObservation();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import {
   BrowserSessionStore,
   defaultServerUrl,
@@ -10,19 +10,11 @@ import {
   validateServerUrl,
 } from "./browser-session.js";
 import { CaboClientCore, legalActions, type CaboStateLike, type ListedRoom, type StatePlayer } from "@cabo-game/client-core";
-import type { ClientCommand, PrivateRevealMessage } from "@cabo-game/shared";
+import type { ClientCommand, KnownCard, PrivateRevealMessage, PublicActionEvent } from "@cabo-game/shared";
 
 type ConnectionState = "idle" | "connecting" | "live" | "reconnecting" | "offline";
 type Selection = "idle" | "draw-discard" | "replace" | "peek-other" | "swap";
-type CardMotionKind = "draw" | "draw-discard" | "replace" | "discard" | "swap";
-
-interface CardMotion {
-  id: number;
-  kind: CardMotionKind;
-  playerId?: string;
-  targetPlayerId?: string;
-  position?: number;
-}
+type CardMotion = PublicActionEvent & { id: number };
 
 interface RoundResult {
   type: "round-result";
@@ -67,6 +59,7 @@ export function App() {
   const [result, setResult] = useState<ResultEvent>();
   const [privateReveal, setPrivateReveal] = useState<PrivateRevealMessage>();
   const [cardMotion, setCardMotion] = useState<CardMotion>();
+  const [motionQueue, setMotionQueue] = useState<CardMotion[]>([]);
   const [concealed, setConcealed] = useState(document.visibilityState !== "visible");
   const [readOnly, setReadOnly] = useState(false);
   const reconnectAttempted = useRef(false);
@@ -85,12 +78,18 @@ export function App() {
     setEvents((current) => [...current.slice(-5), message]);
   }, []);
 
-  const triggerCardMotion = useCallback((motion: Omit<CardMotion, "id">) => {
-    if (motionTimer.current) clearTimeout(motionTimer.current);
-    const next = { ...motion, id: ++motionId.current };
-    setCardMotion(next);
-    motionTimer.current = setTimeout(() => setCardMotion((current) => current?.id === next.id ? undefined : current), 720);
+  const enqueueCardMotion = useCallback((motion: PublicActionEvent) => {
+    setMotionQueue((current) => [...current, { ...motion, id: ++motionId.current }]);
   }, []);
+
+  useEffect(() => {
+    if (cardMotion || motionQueue.length === 0) return;
+    const next = motionQueue[0];
+    if (!next) return;
+    setMotionQueue((current) => current.slice(1));
+    setCardMotion(next);
+    motionTimer.current = setTimeout(() => setCardMotion((current) => current?.id === next.id ? undefined : current), motionDuration(next));
+  }, [cardMotion, motionQueue]);
 
   const makeCore = useCallback((nextName: string, nextServer: string) => {
     let instance!: CaboClientCore;
@@ -120,14 +119,10 @@ export function App() {
           }
           setRevisionTick((value) => value + 1);
         },
+        knowledge: () => setRevisionTick((value) => value + 1),
         event: (event: any) => {
           if (event.type === "round-result" || event.type === "match-result") setResult(event as ResultEvent);
-          if (event.type === "discard" && event.playerId !== instance.room?.sessionId) {
-            triggerCardMotion({ kind: "discard", playerId: event.playerId });
-          }
-          if (event.type === "swap" && event.playerId !== instance.room?.sessionId) {
-            triggerCardMotion({ kind: "swap", playerId: event.playerId, targetPlayerId: event.targetPlayerId, position: event.position });
-          }
+          if (event.type === "action") enqueueCardMotion(event as PublicActionEvent);
           const label = formatEvent(event, (id) => instance.state?.players.get(id)?.name ?? id);
           if (label) addEvent(label);
           setRevisionTick((value) => value + 1);
@@ -151,7 +146,7 @@ export function App() {
       },
     });
     return instance;
-  }, [addEvent, triggerCardMotion]);
+  }, [addEvent, enqueueCardMotion]);
 
   const refreshRooms = useCallback(async () => {
     setRoomsBusy(true);
@@ -251,8 +246,6 @@ export function App() {
       const response = await core.execute(command);
       if (!response.ok) setNotice(response.error.message);
       else {
-        const motion = motionForCommand(command, core.room?.sessionId);
-        if (motion) triggerCardMotion(motion);
         setSelection("idle");
         setTargetId(undefined);
       }
@@ -261,7 +254,7 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  }, [core, readOnly, triggerCardMotion]);
+  }, [core, readOnly]);
 
   const leave = useCallback(async () => {
     if (!core) return;
@@ -649,13 +642,20 @@ function GameTable(props: GameTableProps) {
         {opponents.map((player) => {
           const targetable = (props.selection === "peek-other" || props.selection === "swap") && !player.forfeited;
           const selected = props.targetId === player.id;
-          const playerMotion = props.cardMotion && (props.cardMotion.playerId === player.id || props.cardMotion.targetPlayerId === player.id) ? props.cardMotion : undefined;
+          const playerMotion = props.cardMotion && (props.cardMotion.playerId === player.id || ("targetPlayerId" in props.cardMotion && props.cardMotion.targetPlayerId === player.id)) ? props.cardMotion : undefined;
+          const known = props.core.knowledge.opponents.find((entry) => entry.playerId === player.id)?.slots ?? [null, null, null, null];
           return (
-            <article className={`player-card ${state.currentPlayerId === player.id ? "active" : ""} ${selected ? "selected" : ""} ${playerMotion ? `motion-${playerMotion.kind}` : ""}`} key={`${player.id}-${playerMotion?.id ?? 0}`}>
+            <article className={`player-card ${state.currentPlayerId === player.id ? "active" : ""} ${selected ? "selected" : ""} ${playerMotion ? `motion-${playerMotion.action}` : ""}`} key={player.id}>
               <button className="player-main" type="button" disabled={!targetable || props.busy} onClick={() => props.onTarget(player.id)}>
                 <Avatar player={player} />
                 <span className="player-copy"><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : !player.connected ? "Offline · 60s grace" : `${player.score} pts`}</small></span>
-                <span className="mini-hand" aria-label={`${player.cardCount} cards`}>{Array.from({ length: player.cardCount }, (_, index) => <i key={index} />)}</span>
+                <span className="opponent-hand" aria-label={`${player.cardCount} cards`}>
+                  {Array.from({ length: player.cardCount }, (_, index) => {
+                    const card = known[index];
+                    return <span className={`opponent-slot ${card ? "known" : ""}`} data-card-anchor={`slot-${player.id}-${index + 1}`} key={index}>{card ? formatCardLabel(card.label) : ""}</span>;
+                  })}
+                  <span className={`opponent-decision ${state.phase === "DRAWN" && state.currentPlayerId === player.id ? "occupied" : ""}`} data-card-anchor={`decision-${player.id}`} aria-label="Drawn card" />
+                </span>
               </button>
               {selected && <PositionPicker onChoose={chooseOpponentPosition} disabled={props.busy} label={`Choose ${player.name}'s card`} />}
             </article>
@@ -667,14 +667,13 @@ function GameTable(props: GameTableProps) {
         <div className="turn-label"><span>{phaseCopy.eyebrow}</span><strong>{phaseCopy.title}</strong></div>
         <div className="piles">
           <div className="pile-wrap">
-            <button className={`playing-card card-back ${props.cardMotion?.kind === "draw" ? "motion-draw" : ""}`} key={`deck-${props.cardMotion?.kind === "draw" ? props.cardMotion.id : 0}`} type="button" disabled={!hasAction("draw-deck") || props.busy} onClick={() => props.onExecute({ type: "draw-deck" })} aria-label={`Draw pile, ${state.deckCount} cards`}><span>{state.deckCount}</span></button>
+            <button className="playing-card card-back" data-card-anchor="deck" type="button" disabled={!hasAction("draw-deck") || props.busy} onClick={() => props.onExecute({ type: "draw-deck" })} aria-label={`Draw pile, ${state.deckCount} cards`}><span>{state.deckCount}</span></button>
             <small>Deck</small>
           </div>
           <div className="pile-wrap">
-            <button className={`playing-card ${props.cardMotion && ["draw-discard", "replace", "discard"].includes(props.cardMotion.kind) ? "motion-discard" : ""}`} key={`discard-${props.cardMotion && ["draw-discard", "replace", "discard"].includes(props.cardMotion.kind) ? props.cardMotion.id : 0}`} type="button" disabled={!hasAction("draw-discard") || props.busy} onClick={() => props.onSelection("draw-discard")} aria-label={`Discard pile, ${state.discardLabel || "empty"}`}><CardFace label={state.discardLabel || "—"} rank={state.discardRank} /></button>
+            <button className="playing-card" data-card-anchor="discard" type="button" disabled={!hasAction("draw-discard") || props.busy} onClick={() => props.onSelection("draw-discard")} aria-label={`Discard pile, ${state.discardLabel || "empty"}`}><CardFace label={state.discardLabel || "—"} rank={state.discardRank} /></button>
             <small>Discard</small>
           </div>
-          {props.core.knowledge.held && <div className="pile-wrap"><div className="playing-card drawn card-flip-in"><CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /></div><small>Drawn</small></div>}
         </div>
         {hasAction("cabo") && <button className="cabo-button" type="button" disabled={props.busy} onClick={() => props.onConfirm({ title: "Call Cabo?", body: "Every other active player will receive one final turn.", label: "Call Cabo", action: async () => props.onExecute({ type: "cabo" }) })}>Call Cabo</button>}
         <button className="leave-button" type="button" onClick={props.onLeave}>Leave</button>
@@ -687,9 +686,12 @@ function GameTable(props: GameTableProps) {
             {props.core.knowledge.slots.map((card, index) => {
               const position = (index + 1) as 1 | 2 | 3 | 4;
               const selectable = props.selection === "draw-discard" || props.selection === "replace" || (state.phase === "POWER_PENDING" && myTurn && (power === 7 || power === 8));
-              const slotMotion = props.cardMotion?.position === position && (props.cardMotion.kind !== "swap" || props.cardMotion.playerId === selfId || props.cardMotion.targetPlayerId === selfId) ? props.cardMotion : undefined;
-              return <button className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${slotMotion ? `motion-${slotMotion.kind}` : ""}`} type="button" disabled={!selectable || props.busy} key={`${position}-${slotMotion?.id ?? 0}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>0{position}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
+              const slotMotion = props.cardMotion && "position" in props.cardMotion && props.cardMotion.position === position && (props.cardMotion.action !== "swap" || props.cardMotion.playerId === selfId || props.cardMotion.targetPlayerId === selfId) ? props.cardMotion : undefined;
+              return <button className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${slotMotion ? `motion-${slotMotion.action}` : ""}`} data-card-anchor={`slot-${selfId}-${position}`} type="button" disabled={!selectable || props.busy} key={`${position}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>0{position}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
             })}
+            <div className={`decision-card ${props.core.knowledge.held ? "occupied" : ""}`} data-card-anchor={`decision-${selfId}`} aria-label="Drawn card">
+              {props.core.knowledge.held ? <CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /> : <span>Draw</span>}
+            </div>
           </div>
         </div>
         <div className="action-zone">
@@ -697,9 +699,95 @@ function GameTable(props: GameTableProps) {
         </div>
       </section>
 
-      <aside className="event-strip" aria-label="Recent activity"><span>Recent</span><p>{props.events.at(-1) ?? "The table is quiet."}</p></aside>
+      <aside className="event-strip" aria-label="Recent activity"><span>Recent</span><p>{props.events.length ? props.events.slice(-2).join(" · ") : "The table is quiet."}</p></aside>
+      {props.cardMotion && <MotionLayer motion={props.cardMotion} />}
     </main>
   );
+}
+
+interface CardFlight {
+  key: string;
+  from: DOMRect;
+  to: DOMRect;
+  card: KnownCard | undefined;
+  delay: number | undefined;
+  peek: boolean | undefined;
+}
+
+function MotionLayer(props: { motion: CardMotion }) {
+  const [flights, setFlights] = useState<CardFlight[]>([]);
+
+  useEffect(() => {
+    setFlights(buildFlights(props.motion));
+  }, [props.motion]);
+
+  return (
+    <div className="motion-layer" aria-live="polite" aria-label={motionAnnouncement(props.motion)}>
+      {flights.map((flight) => {
+        const style = {
+          left: flight.from.left,
+          top: flight.from.top,
+          width: flight.from.width,
+          height: flight.from.height,
+          "--motion-x": `${flight.to.left - flight.from.left}px`,
+          "--motion-y": `${flight.to.top - flight.from.top}px`,
+          "--motion-width": `${flight.to.width}px`,
+          "--motion-height": `${flight.to.height}px`,
+          animationDelay: `${flight.delay ?? 0}ms`,
+        } as CSSProperties;
+        return <div className={`motion-card ${flight.card ? "face" : "back"} ${flight.peek ? "peek" : ""}`} style={style} key={flight.key}>{flight.card ? formatCardLabel(flight.card.label) : <span>C</span>}</div>;
+      })}
+    </div>
+  );
+}
+
+function buildFlights(motion: CardMotion): CardFlight[] {
+  const deck = anchorRect("deck");
+  const discard = anchorRect("discard");
+  const decision = anchorRect(`decision-${motion.playerId}`);
+  const slot = "position" in motion ? anchorRect(`slot-${motion.playerId}-${motion.position}`) : undefined;
+  const flight = (key: string, from: DOMRect | undefined, to: DOMRect | undefined, card?: KnownCard, delay?: number, peek?: boolean): CardFlight[] => from && to ? [{ key, from, to, card, delay, peek }] : [];
+
+  switch (motion.action) {
+    case "draw-deck": return flight("draw", deck, decision);
+    case "draw-discard": return [
+      ...flight("take-discard", discard, slot, motion.takenCard),
+      ...flight("replace-discard", slot, discard, motion.discardedCard, 120),
+    ];
+    case "replace": return [
+      ...flight("keep-drawn", decision, slot),
+      ...flight("replace-discard", slot, discard, motion.discardedCard, 120),
+    ];
+    case "discard": return flight("discard-drawn", decision, discard, motion.discardedCard);
+    case "peek-self": return flight("peek-self", slot, decision, undefined, 0, true);
+    case "peek-other": return flight("peek-other", anchorRect(`slot-${motion.targetPlayerId}-${motion.position}`), decision, undefined, 0, true);
+    case "swap": return [
+      ...flight("swap-own", slot, anchorRect(`slot-${motion.targetPlayerId}-${motion.position}`)),
+      ...flight("swap-target", anchorRect(`slot-${motion.targetPlayerId}-${motion.position}`), slot, undefined, 70),
+    ];
+    default: return [];
+  }
+}
+
+function anchorRect(name: string): DOMRect | undefined {
+  const element = [...document.querySelectorAll<HTMLElement>("[data-card-anchor]")].find((candidate) => candidate.dataset.cardAnchor === name);
+  return element?.getBoundingClientRect();
+}
+
+function motionDuration(motion: PublicActionEvent): number {
+  if (motion.action === "peek-self" || motion.action === "peek-other" || motion.action === "swap") return 820;
+  if (motion.action === "skip" || motion.action === "cabo") return 420;
+  return 720;
+}
+
+function motionAnnouncement(motion: PublicActionEvent): string {
+  if (motion.action === "draw-deck") return "A card moved from the deck to the player's drawn card area.";
+  if (motion.action === "draw-discard") return `The discard replaced card ${motion.position}.`;
+  if (motion.action === "replace") return `The drawn card replaced card ${motion.position}.`;
+  if (motion.action === "discard") return "The drawn card moved to the discard pile.";
+  if (motion.action === "peek-self" || motion.action === "peek-other") return `Card ${motion.position} was inspected.`;
+  if (motion.action === "swap") return `Card ${motion.position} was swapped.`;
+  return motion.action === "skip" ? "The card power was skipped." : "Cabo was called.";
 }
 
 function ActionPanel(props: GameTableProps & { actions: ReturnType<typeof legalActions>; phaseCopy: { eyebrow: string; title: string; detail: string } }) {
@@ -794,9 +882,21 @@ function formatEvent(event: any, name: (id: string) => string): string | undefin
     case "disconnected": return `${name(event.playerId)} went offline.`;
     case "reconnected": return `${name(event.playerId)} reconnected.`;
     case "turn": return `${name(event.playerId)} is playing${event.finalTurn ? " their final turn" : ""}.`;
-    case "discard": return `${name(event.playerId)} discarded ${event.card.label}.`;
-    case "swap": return `${name(event.playerId)} made a blind swap with ${name(event.targetPlayerId)}.`;
-    case "cabo": return `${name(event.playerId)} called Cabo.`;
+    case "action": {
+      const actor = name(event.playerId);
+      if (event.action === "draw-deck") return `${actor} drew a hidden card from the deck.`;
+      if (event.action === "draw-discard") return `${actor} took the discard into position ${event.position} and discarded ${event.discardedCard.label}.`;
+      if (event.action === "replace") return `${actor} kept the drawn card in position ${event.position} and discarded ${event.discardedCard.label}.`;
+      if (event.action === "discard") return `${actor} discarded the drawn ${event.discardedCard.label}.`;
+      if (event.action === "peek-self") return `${actor} looked at their card ${event.position}.`;
+      if (event.action === "peek-other") return `${actor} looked at ${name(event.targetPlayerId)}'s card ${event.position}.`;
+      if (event.action === "swap") return `${actor} swapped card ${event.position} with ${name(event.targetPlayerId)}.`;
+      if (event.action === "skip") return `${actor} skipped the card power.`;
+      if (event.action === "cabo") return `${actor} called Cabo.`;
+      return undefined;
+    }
+    case "discard": case "swap": return undefined;
+    case "cabo": return undefined;
     case "forfeit": return `${name(event.playerId)} forfeited.`;
     default: return undefined;
   }
@@ -810,19 +910,9 @@ function connectionLabel(state: ConnectionState): string {
   return "Ready";
 }
 
-function motionForCommand(command: ClientCommand, selfId: string | undefined): Omit<CardMotion, "id"> | undefined {
-  const player = selfId ? { playerId: selfId } : {};
-  if (command.type === "draw-deck") return { kind: "draw", ...player };
-  if (command.type === "draw-discard") return { kind: "draw-discard", ...player, position: command.position };
-  if (command.type === "replace") return { kind: "replace", ...player, position: command.position };
-  if (command.type === "discard") return { kind: "discard", ...player };
-  if (command.type === "swap") return { kind: "swap", ...player, targetPlayerId: command.targetPlayerId, position: command.position };
-  return undefined;
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
 }
 
-export const __test = { validateServerUrl, motionForCommand, Results, RulesPopover, GameTable };
+export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, GameTable };

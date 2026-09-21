@@ -71,12 +71,12 @@ describe("Cabo game table additions", () => {
       ["alice", { id: "alice", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, cardCount: 4, isHost: true }],
       ["bob", { id: "bob", name: "Bob", seat: 1, score: 7, connected: true, forfeited: false, cardCount: 4, isHost: false }],
     ]);
-    render(
+    const { container } = render(
       <__test.GameTable
         state={{ revision: 2, phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
         selfId="alice"
         players={[...players.values()]}
-        core={{ knowledge: { slots: [null, null, null, null], held: null } } as any}
+        core={{ knowledge: { slots: [null, null, null, null], opponents: [{ playerId: "bob", slots: [{ label: "9H", rank: 9 }, null, null, null] }], held: null } } as any}
         busy={false}
         selection="idle"
         targetId={undefined}
@@ -92,12 +92,17 @@ describe("Cabo game table additions", () => {
       />,
     );
     expect(screen.getByText("Alice · 12 pts")).toBeVisible();
+    expect(screen.getByText("9♥")).toBeVisible();
+    expect(container.querySelector('[data-card-anchor="decision-alice"]')).toBeInTheDocument();
+    expect(__test.buildFlights({
+      id: 1,
+      type: "action",
+      action: "draw-discard",
+      playerId: "alice",
+      position: 2,
+      takenCard: { label: "4H", rank: 4 },
+      discardedCard: { label: "KC", rank: 13 },
+    }).map((flight) => flight.key)).toEqual(["take-discard", "replace-discard"]);
   });
 
-  it("maps successful card commands to focused motion cues", () => {
-    expect(__test.motionForCommand({ type: "draw-deck" }, "alice")).toEqual({ kind: "draw", playerId: "alice" });
-    expect(__test.motionForCommand({ type: "replace", position: 3 }, "alice")).toEqual({ kind: "replace", playerId: "alice", position: 3 });
-    expect(__test.motionForCommand({ type: "swap", targetPlayerId: "bob", position: 2 }, "alice")).toEqual({ kind: "swap", playerId: "alice", targetPlayerId: "bob", position: 2 });
-    expect(__test.motionForCommand({ type: "skip" }, "alice")).toBeUndefined();
-  });
 });

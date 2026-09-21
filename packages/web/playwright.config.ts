@@ -25,6 +25,7 @@ export default defineConfig({
       url: "http://127.0.0.1:5173",
       reuseExistingServer: true,
       timeout: 20_000,
+      env: { VITE_CABO_SERVER_URL: "http://127.0.0.1:2567" },
     },
   ],
 });

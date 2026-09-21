@@ -38,6 +38,13 @@ export function renderDashboard(input: DashboardInput): string {
   if (state.phase !== "LOBBY") {
     lines.push("", "Your cards", renderCards(input.knowledge));
     if (input.knowledge.held) lines.push(`Drawn card: ${cardLabel(input.knowledge.held)}`);
+    const knownOpponents = input.knowledge.opponents.filter((opponent) => opponent.slots.some(Boolean));
+    if (knownOpponents.length) {
+      lines.push("", "Known opponent cards", ...knownOpponents.map((opponent) => {
+        const name = state.players.get(opponent.playerId)?.name ?? opponent.playerId;
+        return `${name}: ${opponent.slots.map((card, index) => `[${index + 1}] ${card ? cardLabel(card) : "?"}`).join("   ")}`;
+      }));
+    }
   }
   lines.push("", ...renderActions(input));
   return lines.join("\n");

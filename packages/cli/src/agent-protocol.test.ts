@@ -66,6 +66,7 @@ describe("agent JSONL protocol", () => {
     expect(observation.state.caboCallerId).toBeNull();
     expect(observation.state.discardTop).toBeNull();
     expect(observation.knowledge.slots).toEqual([null, null, null, null]);
+    expect(observation.knowledge.opponents).toEqual([]);
     expect(() => agentFrameSchema.parse({ type: "observation", ...observation })).not.toThrow();
   });
 
@@ -78,7 +79,7 @@ describe("agent JSONL protocol", () => {
 
   it("validates every output frame family", () => {
     const frames = [
-      { type: "ready", protocolVersion: 1, cliVersion: "0.1.0", server: "http://localhost", name: "Bot", sessionPersistence: false, requestTimeoutMs: 15000, capabilities: ["describe", "ping", "json-schema", "request-timeout"] },
+      { type: "ready", protocolVersion: 2, cliVersion: "0.1.0", server: "http://localhost", name: "Bot", sessionPersistence: false, requestTimeoutMs: 15000, capabilities: ["describe", "ping", "json-schema", "request-timeout"] },
       { type: "result", id: "1", ok: true, data: { connected: false } },
       { type: "result", id: "2", ok: false, error: { code: "NO", message: "no" }, uncertain: true },
       { type: "event", event: { type: "connection-dropped" } },

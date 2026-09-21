@@ -44,6 +44,10 @@ export function buildObservation(
     knowledge: {
       round: knowledge.round,
       slots: knowledge.slots.map((card) => card ? { ...card } : null),
+      opponents: knowledge.opponents.map((opponent) => ({
+        playerId: opponent.playerId,
+        slots: opponent.slots.map((card) => card ? { ...card } : null),
+      })),
       held: knowledge.held ? { ...knowledge.held } : null,
     },
     legalActions: legalActions(state, selfId),

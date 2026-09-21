@@ -8,12 +8,14 @@ import {
   roomOptionsSchema,
   type ClientCommand,
   type AgentCommandResult,
+  type Card,
   type EngineEvent,
   type ErrorMessage,
   type Position,
 } from "@cabo-game/shared";
 import { type Client, Room } from "colyseus";
 import { CaboState, PlayerState } from "./state.js";
+import { PrivateKnowledgeStore, publicAction } from "./private-knowledge.js";
 
 interface RoomMetadata {
   visibility: "public" | "private";
@@ -33,6 +35,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private passwordHash: Buffer | undefined;
   private visibility: "public" | "private" = "public";
   private targetScore = 100;
+  private readonly knowledge = new PrivateKnowledgeStore();
 
   messages = {
     command: (client: Client, payload: unknown) => this.handleCommand(client, payload),
@@ -100,6 +103,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       this.bumpRevision();
     }
     this.broadcast("event", { type: "reconnected", playerId: client.sessionId });
+    this.sendKnowledge(client.sessionId);
   }
 
   async onLeave(client: Client): Promise<void> {
@@ -112,6 +116,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     }
     if (this.engine) {
       this.dispatch(this.engine.forfeit(client.sessionId));
+      this.sendAllKnowledge();
       this.syncFromEngine();
     }
   }
@@ -165,12 +170,14 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     }
     if (command.type === "leave") {
       if (this.engine) this.dispatch(this.engine.forfeit(client.sessionId));
+      this.sendAllKnowledge();
       this.syncFromEngine();
       return;
     }
     if (!this.engine) throw new GameRuleError("INVALID_PHASE", "The game has not started.");
 
     let events: EngineEvent[];
+    const discardBefore = this.engine.getSnapshot().discardTop;
     switch (command.type) {
       case "draw-deck":
         events = this.engine.drawDeck(client.sessionId);
@@ -202,7 +209,13 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       default:
         throw new GameRuleError("INVALID_COMMAND", "Unsupported command.");
     }
-    this.dispatch(events);
+    const action = publicAction(command, client.sessionId, events, discardBefore as Card | undefined);
+    if (action) {
+      this.knowledge.applyAction(action);
+      this.broadcast("event", action);
+    }
+    this.dispatch(events, command);
+    this.sendAllKnowledge();
     this.syncFromEngine();
   }
 
@@ -217,29 +230,49 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     });
     void this.lock();
     void this.setPrivate(true);
-    this.dispatch(this.engine.startMatch());
+    const events = this.engine.startMatch();
+    const snapshot = this.engine.getSnapshot();
+    this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id));
+    this.dispatch(events);
+    this.sendAllKnowledge();
     this.syncFromEngine();
   }
 
-  private dispatch(events: EngineEvent[]): void {
+  private dispatch(events: EngineEvent[], command?: ClientCommand): void {
     for (const event of events) {
       if (event.type === "private-reveal") {
+        this.knowledge.applyPrivateReveal(event, command);
         this.clients.find((client) => client.sessionId === event.playerId)?.send("reveal", {
           card: event.card,
           ...(event.position ? { position: event.position } : {}),
           reason: event.reason,
         });
       } else {
+        if (event.type === "forfeit") this.knowledge.removePlayer(event.playerId);
         this.broadcast("event", event);
       }
       if (event.type === "round-result" && this.engine?.phase === "ROUND_RESULT") {
         this.clock.setTimeout(() => {
           if (this.engine?.phase !== "ROUND_RESULT") return;
-          this.dispatch(this.engine.startNextRound());
+          const nextEvents = this.engine.startNextRound();
+          const snapshot = this.engine.getSnapshot();
+          this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id));
+          this.dispatch(nextEvents);
+          this.sendAllKnowledge();
           this.syncFromEngine();
         }, 5_000);
       }
     }
+  }
+
+  private sendKnowledge(playerId: string): void {
+    const snapshot = this.knowledge.snapshot(playerId);
+    if (!snapshot) return;
+    this.clients.find((client) => client.sessionId === playerId)?.send("knowledge", snapshot);
+  }
+
+  private sendAllKnowledge(): void {
+    for (const client of this.clients) this.sendKnowledge(client.sessionId);
   }
 
   private syncFromEngine(): void {

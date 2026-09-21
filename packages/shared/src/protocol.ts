@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { GAME_PHASES } from "./types.js";
 
-export const AGENT_PROTOCOL_VERSION = 1 as const;
+export const AGENT_PROTOCOL_VERSION = 2 as const;
 export const AGENT_REQUEST_TYPES = ["rooms", "create", "join", "reconnect", "observe", "describe", "ping", "action", "leave", "shutdown"] as const;
 export const AGENT_FRAME_TYPES = ["ready", "result", "observation", "event", "fatal"] as const;
 export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "discard", "peek-self", "peek-other", "swap", "skip", "cabo"] as const;
@@ -91,6 +91,10 @@ export const agentObservationSchema = z.object({
   knowledge: z.object({
     round: z.number().int().nonnegative(),
     slots: z.array(displayCardSchema.nullable()).length(4),
+    opponents: z.array(z.object({
+      playerId: z.string(),
+      slots: z.array(displayCardSchema.nullable()).length(4),
+    }).strict()),
     held: displayCardSchema.nullable(),
   }).strict(),
   legalActions: z.array(agentActionSchema),
@@ -139,8 +143,8 @@ export const agentWireSchema = z.union([agentRequestSchema, agentFrameSchema]);
 export function agentProtocolJsonSchema(): Record<string, unknown> {
   return {
     ...z.toJSONSchema(agentWireSchema),
-    $id: "urn:cabo:agent-protocol:v1",
-    title: "Cabo Agent JSONL Protocol v1",
+    $id: `urn:cabo:agent-protocol:v${AGENT_PROTOCOL_VERSION}`,
+    title: `Cabo Agent JSONL Protocol v${AGENT_PROTOCOL_VERSION}`,
     description: "A single request or output frame in the Cabo Agent JSONL protocol.",
   };
 }

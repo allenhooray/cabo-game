@@ -8,14 +8,14 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   const bob = await bobContext.newPage();
 
   await alice.goto("/");
-  await alice.getByLabel("Player name").fill("Alice");
+  await alice.getByRole("textbox", { name: "Player name" }).fill("Alice");
   await alice.getByRole("button", { name: "Create room" }).click();
   await alice.getByRole("button", { name: "Create table" }).click();
   const roomText = await alice.locator(".room-code").innerText();
   const roomId = roomText.replace(/^Room\s+/i, "").trim();
 
   await bob.goto("/");
-  await bob.getByLabel("Player name").fill("Bob");
+  await bob.getByRole("textbox", { name: "Player name" }).fill("Bob");
   await bob.getByRole("button", { name: "Join by code" }).click();
   await bob.getByLabel("Room code").fill(roomId);
   await bob.getByRole("button", { name: "Join table" }).click();
@@ -36,6 +36,18 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
     maxDiffPixelRatio: 0.02,
   });
 
+  const aliceActs = await alice.getByRole("heading", { name: "Draw with intention." }).isVisible();
+  const actor = aliceActs ? alice : bob;
+  const observer = aliceActs ? bob : alice;
+  await actor.getByRole("button", { name: /Draw pile/ }).click();
+  await expect(actor.locator(".decision-card.occupied")).toBeVisible();
+  await expect(observer.locator(".opponent-decision.occupied")).toBeVisible();
+  await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText("drew a hidden card");
+
+  await actor.getByRole("button", { name: "Replace a card" }).click();
+  await actor.locator(".hand-slot").first().click();
+  await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText("position 1");
+
   await alice.reload();
   await expect(alice.getByText("Live")).toBeVisible();
   await expect(alice.getByRole("region", { name: "Your hand and actions" })).toBeVisible();
@@ -54,7 +66,7 @@ test("private room requires its six-digit password", async ({ browser }) => {
   const guest = await guestContext.newPage();
 
   await host.goto("/");
-  await host.getByLabel("Player name").fill("Host");
+  await host.getByRole("textbox", { name: "Player name" }).fill("Host");
   await host.getByRole("button", { name: "Create room" }).click();
   await host.getByRole("button", { name: "Private" }).click();
   await host.getByLabel("Six-digit password").fill("123456");
@@ -62,7 +74,7 @@ test("private room requires its six-digit password", async ({ browser }) => {
   const roomId = (await host.locator(".room-code").innerText()).replace(/^Room\s+/i, "").trim();
 
   await guest.goto("/");
-  await guest.getByLabel("Player name").fill("Guest");
+  await guest.getByRole("textbox", { name: "Player name" }).fill("Guest");
   await guest.getByRole("button", { name: "Join by code" }).click();
   await guest.getByLabel("Room code").fill(roomId);
   await guest.getByLabel(/Password/).fill("000000");

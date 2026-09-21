@@ -20,6 +20,36 @@ export interface Card {
   label: string;
 }
 
+export interface KnownCard {
+  rank: number;
+  label: string;
+}
+
+export type KnownSlots = [KnownCard | null, KnownCard | null, KnownCard | null, KnownCard | null];
+
+export interface OpponentKnowledge {
+  playerId: string;
+  slots: KnownSlots;
+}
+
+export interface PrivateKnowledgeSnapshot {
+  round: number;
+  slots: KnownSlots;
+  opponents: OpponentKnowledge[];
+  held: KnownCard | null;
+}
+
+export type PublicActionEvent =
+  | { type: "action"; action: "draw-deck"; playerId: string }
+  | { type: "action"; action: "draw-discard"; playerId: string; position: Position; takenCard: KnownCard; discardedCard: KnownCard }
+  | { type: "action"; action: "replace"; playerId: string; position: Position; discardedCard: KnownCard }
+  | { type: "action"; action: "discard"; playerId: string; discardedCard: KnownCard }
+  | { type: "action"; action: "peek-self"; playerId: string; position: Position }
+  | { type: "action"; action: "peek-other"; playerId: string; targetPlayerId: string; position: Position }
+  | { type: "action"; action: "swap"; playerId: string; targetPlayerId: string; position: Position }
+  | { type: "action"; action: "skip"; playerId: string }
+  | { type: "action"; action: "cabo"; playerId: string };
+
 export interface EnginePlayer {
   id: string;
   name: string;

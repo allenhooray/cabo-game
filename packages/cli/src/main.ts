@@ -105,6 +105,19 @@ function renderState(): void {
 function formatEvent(event: any): string {
   switch (event?.type) {
     case "turn": return `Turn: ${playerLabel(event.playerId)}${event.finalTurn ? " (final)" : ""}`;
+    case "action": {
+      const actor = playerLabel(event.playerId);
+      if (event.action === "draw-deck") return `${actor} drew from the deck.`;
+      if (event.action === "draw-discard") return `${actor} took the discard into position ${event.position}.`;
+      if (event.action === "replace") return `${actor} put the drawn card in position ${event.position}.`;
+      if (event.action === "discard") return `${actor} discarded the drawn card.`;
+      if (event.action === "peek-self") return `${actor} peeked at own position ${event.position}.`;
+      if (event.action === "peek-other") return `${actor} peeked at ${playerLabel(event.targetPlayerId)} position ${event.position}.`;
+      if (event.action === "swap") return `${actor} swapped position ${event.position} with ${playerLabel(event.targetPlayerId)}.`;
+      if (event.action === "skip") return `${actor} skipped the power.`;
+      if (event.action === "cabo") return `${actor} called CABO!`;
+      return JSON.stringify(event);
+    }
     case "discard": return `${playerLabel(event.playerId)} discarded ${event.card.label}.`;
     case "swap": return `${playerLabel(event.playerId)} blind-swapped position ${event.position} with ${playerLabel(event.targetPlayerId)}.`;
     case "cabo": return `${playerLabel(event.playerId)} called CABO!`;
@@ -160,6 +173,10 @@ const gameClient = new CaboClientCore({
       knowledge = gameClient.knowledge;
       if (message.reason === "draw") addEvent(`You drew ${message.card.label} (${message.card.rank} pts).`);
       else addEvent(`Private reveal${message.position ? ` at position ${message.position}` : ""}: ${message.card.label} (${message.card.rank} pts).`);
+      renderNow();
+    },
+    knowledge: (nextKnowledge) => {
+      knowledge = nextKnowledge;
       renderNow();
     },
     error: (message: ErrorMessage) => {

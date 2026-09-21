@@ -15,10 +15,16 @@ const state: CaboStateLike = {
 
 describe("terminal rendering", () => {
   it("renders the table, known cards, recent events, and contextual actions", () => {
-    const knowledge = createKnowledge(2, { round: 2, slots: [{ label: "4♣", rank: 4 }, null, null, null] });
+    const knowledge = createKnowledge(2, {
+      round: 2,
+      slots: [{ label: "4♣", rank: 4 }, null, null, null],
+      opponents: [{ playerId: "b", slots: [null, { label: "9H", rank: 9 }, null, null] }],
+    });
     const output = renderDashboard({ state, selfId: "a", roomId: "room", knowledge, events: ["Bob joined."], flow: { kind: "idle" } });
     expect(output).toContain("YOUR TURN");
     expect(output).toContain("[1] 4♣ (4 pts)");
+    expect(output).toContain("Known opponent cards");
+    expect(output).toContain("Bob: [1] ?   [2] 9♡ (9 pts)");
     expect(output).toContain("[OFFLINE (60s grace)]");
     expect(output).toContain("[1] Draw from deck");
     expect(output).toContain("Bob joined.");

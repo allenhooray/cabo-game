@@ -206,7 +206,7 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Requests run serially, but pushed events and observations may appear before the matching result.</li>
           <li>The first frame is always <code>ready</code>; startup failures use a <code>fatal</code> frame and a non-zero exit.</li>
         </ul>
-        <CodeBlock>{`{"type":"ready","protocolVersion":1,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+        <CodeBlock>{`{"type":"ready","protocolVersion":2,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}`}</CodeBlock>
       </Section>
@@ -220,7 +220,7 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Repeat when a newer observation arrives.</li>
         </ol>
         <CodeBlock>{`{"id":"create","type":"create","visibility":"public","targetScore":100}
-{"type":"observation","roomId":"abc123","selfId":"session-id","revision":3,"state":{"phase":"TURN_START","round":1,"targetScore":100,"currentPlayerId":"session-id","caboCallerId":null,"discardTop":{"label":"6H","rank":6},"deckCount":43,"players":[],"winners":[]},"knowledge":{"round":1,"slots":[{"label":"4C","rank":4},null,null,null],"held":null},"legalActions":[{"type":"draw-deck"}]}
+{"type":"observation","roomId":"abc123","selfId":"session-id","revision":3,"state":{"phase":"TURN_START","round":1,"targetScore":100,"currentPlayerId":"session-id","caboCallerId":null,"discardTop":{"label":"6H","rank":6},"deckCount":43,"players":[],"winners":[]},"knowledge":{"round":1,"slots":[{"label":"4C","rank":4},null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
 {"id":"move-1","type":"action","action":{"type":"draw-deck"}}
 {"type":"result","id":"move-1","ok":true,"data":{"revision":4}}`}</CodeBlock>
       </Section>

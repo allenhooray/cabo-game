@@ -1,6 +1,6 @@
-import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo-game/shared";
+import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage } from "@cabo-game/shared";
 import { Client, type Room } from "@colyseus/sdk";
-import { applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
+import { applyKnowledgeSnapshot, applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom } from "./model.js";
 import type { SavedSession, SessionStore } from "./session.js";
 
@@ -10,6 +10,7 @@ export interface ClientCoreHandlers {
   attached?(room: Room<any, CaboStateLike>, saved?: SavedSession): void;
   state?(state: CaboStateLike): void;
   reveal?(message: PrivateRevealMessage): void;
+  knowledge?(knowledge: KnowledgeState): void;
   event?(event: any): void;
   error?(message: ErrorMessage): void;
   dropped?(): void;
@@ -204,6 +205,11 @@ export class CaboClientCore {
       if (message.reason === "peek") this.pendingGameAction = undefined;
       this.queueSessionPersist();
       this.handlers.reveal?.(message);
+    });
+    nextRoom.onMessage<PrivateKnowledgeSnapshot>("knowledge", (message) => {
+      this.knowledge = applyKnowledgeSnapshot(message);
+      this.queueSessionPersist();
+      this.handlers.knowledge?.(this.knowledge);
     });
     nextRoom.onMessage<ErrorMessage>("error", (message) => {
       this.pendingGameAction = undefined;
