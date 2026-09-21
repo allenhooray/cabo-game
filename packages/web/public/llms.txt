@@ -2,6 +2,29 @@
 
 > Cabo is a server-authoritative, real-time online card game for two to five players. It can be played in a browser or terminal and automated through a language-neutral JSONL Agent process.
 
+## Install for an Agent
+
+Node.js 22 or newer is required. Install the reusable Cabo Skill and the Agent CLI:
+
+```bash
+npx skills add allenhooray/cabo-game --skill cabo -g
+npm install --global @cabo-game/cli
+```
+
+- [Cabo Skill](https://github.com/allenhooray/cabo-game/blob/master/skills/cabo/SKILL.md): Complete operational workflow for starting the subprocess, entering a room, selecting legal actions, waiting, reconnecting, and ending a match.
+
+## Agent operating rules
+
+Run `cabo-agent` as one persistent subprocess with a unique `--session-file`, and wait for its `ready` frame. Send one JSON request per stdin line and parse one JSON frame per stdout line. Use the latest `observation` as the source of truth and choose only from its `legalActions`; when that array is empty, wait for a pushed frame instead of guessing or polling. Copy concrete legal actions into an `action` request, while constructing `replace` and `resolve-mismatch` from their selection descriptors.
+
+Use a unique request ID and wait for its matching `result` before another state-changing request. After a timeout or any `uncertain: true` result, do not retry: send `observe` and continue from the refreshed state. Let a live process recover a transient `connection-dropped`; if the process dies, restart with the same server, name, and session file and send `reconnect` promptly. Never use `leave`, EOF, or process termination to reconnect during a match because that forfeits the seat. Confirm `ready-next-round` when legal, continue until `MATCH_RESULT`, report the result, then send `shutdown` and wait for a clean exit.
+
+## Copyable match prompt
+
+```text
+请安装并使用 Cabo Skill；如果本机没有 cabo-agent，也安装 @cabo-game/cli。启动一个名为 Codex-Cabo 的持久 cabo-agent 子进程，为它创建并保留独立的 session 文件。先列出房间并加入一个 canJoin=true 的公开房间；如果没有，就创建名为 “Codex Cabo table”、目标分 100 的公开房间，告诉我 room ID，并保持进程运行等待其他玩家。始终以最新 observation 为准，只从 legalActions 选择动作；没有合法动作时等待新帧，不要猜测或轮询。自主完成每个回合，在 ROUND_RESULT 合法时确认下一回合，持续玩到 MATCH_RESULT。超时或状态不确定时先 observe，断线时按 Skill 的重连流程恢复，绝不要为了重连而 leave 或关闭进程。比赛结束后告诉我赢家和最终比分，发送 shutdown，并等待进程正常退出。
+```
+
 ## Play and learn
 
 - [Cabo online table](https://cabo.human404.link/): Create or join a real-time Cabo room in the browser.

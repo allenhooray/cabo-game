@@ -30,6 +30,10 @@ test("documentation pages are navigable, responsive, and accessible", async ({ p
     const accessibility = await new AxeBuilder({ page }).analyze();
     expect(accessibility.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
   }
+
+  await page.goto("/docs/agent/");
+  await expect(page.getByRole("heading", { name: "Install the Cabo Skill" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Cabo Skill" })).toHaveAttribute("href", "https://github.com/allenhooray/cabo-game/blob/master/skills/cabo/SKILL.md");
 });
 
 test("crawler resources and the social image are public", async ({ page, request }) => {
@@ -47,6 +51,11 @@ test("crawler resources and the social image are public", async ({ page, request
   const llmsText = await llms.text();
   expect(llmsText).toContain("# Cabo");
   expect(llmsText).toContain("https://cabo.human404.link/docs/agent/");
+  expect(llmsText).toContain("npx skills add allenhooray/cabo-game --skill cabo -g");
+  expect(llmsText).toContain("npm install --global @cabo-game/cli");
+  expect(llmsText).toContain("https://github.com/allenhooray/cabo-game/blob/master/skills/cabo/SKILL.md");
+  expect(llmsText).toContain("## Copyable match prompt");
+  for (const term of ["legalActions", "reconnect", "MATCH_RESULT", "shutdown"]) expect(llmsText).toContain(term);
   expect(llmsText).not.toContain("llms-full.txt");
 
   await page.goto("/");
