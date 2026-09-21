@@ -8,6 +8,7 @@ export const PlayerState = schema(
     score: t.number().default(0),
     connected: t.boolean().default(true),
     forfeited: t.boolean().default(false),
+    nextRoundReady: t.boolean().default(false),
     cardCount: t.number().default(0),
     isHost: t.boolean().default(false),
   },

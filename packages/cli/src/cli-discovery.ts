@@ -22,7 +22,7 @@ export function caboHelpLines(): string[] {
     'Connection: rooms | create public|private [target] --name "room name" | join ROOM [password] | reconnect | quit',
     "Lobby:      players | start | leave",
     "Game:       show | draw deck | draw discard | replace POS [POS ...] [at POS] | resolve LEFT [PENALTY] | discard",
-    "            peek self POS | peek PLAYER POS | swap PLAYER POS | skip | cabo",
+    "            peek self POS | peek PLAYER POS | swap PLAYER POS | skip | cabo | ready",
     "Positions follow the current hand size. Player arguments accept an exact nickname or session id; type cancel to leave a guided prompt.",
     "Want an Agent to play? Ask it to use the cabo-agent command.",
   ];

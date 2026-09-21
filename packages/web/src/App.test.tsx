@@ -60,7 +60,7 @@ describe("Cabo home", () => {
 
     const { container } = render(<App />);
 
-    expect(await screen.findByText("Room legacy123")).toBeVisible();
+    expect(await screen.findByText("Unnamed room")).toBeVisible();
     expect(screen.getByText(/Open · Waiting · 1 \/ 4 players/)).toBeVisible();
     expect(within(container).getByRole("button", { name: "Join" })).toBeEnabled();
   });
@@ -119,10 +119,32 @@ describe("Cabo game table additions", () => {
     expect(onLeave).toHaveBeenCalledOnce();
   });
 
+  it("shows readiness progress and lets the local player confirm the next round", () => {
+    const onReady = vi.fn();
+    const players = new Map([
+      ["alice", { id: "alice", name: "Alice", seat: 0, score: 4, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
+      ["bob", { id: "bob", name: "Bob", seat: 1, score: 8, connected: false, forfeited: false, nextRoundReady: true, cardCount: 4, isHost: false }],
+    ]);
+    render(
+      <__test.Results
+        result={{ type: "round-result", hands: [], roundScores: {}, totals: {}, outcome: { type: "cabo", callerId: "alice", succeeded: true } }}
+        state={{ round: 1, players } as any}
+        selfId="alice"
+        playerName={(id) => id}
+        busy={false}
+        onReady={onReady}
+        onLeave={vi.fn(async () => undefined)}
+      />,
+    );
+    expect(screen.getByText("1 of 2 active players ready")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Ready for next round" }));
+    expect(onReady).toHaveBeenCalledOnce();
+  });
+
   it("shows the local player's running score", () => {
     const players = new Map([
-      ["alice", { id: "alice", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, cardCount: 4, isHost: true }],
-      ["bob", { id: "bob", name: "Bob", seat: 1, score: 7, connected: true, forfeited: false, cardCount: 4, isHost: false }],
+      ["alice", { id: "alice", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
+      ["bob", { id: "bob", name: "Bob", seat: 1, score: 7, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false }],
     ]);
     const { container } = render(
       <__test.GameTable
@@ -158,8 +180,8 @@ describe("Cabo game table additions", () => {
 
   it("submits a multi-card replacement with the chosen destination", () => {
     const players = new Map([
-      ["alice", { id: "alice", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: true }],
-      ["bob", { id: "bob", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: false }],
+      ["alice", { id: "alice", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
+      ["bob", { id: "bob", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false }],
     ]);
     const onExecute = vi.fn();
     const { container } = render(

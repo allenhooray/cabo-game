@@ -120,11 +120,12 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       this.dispatch(this.engine.forfeit(client.sessionId));
       this.sendAllKnowledge();
       this.syncFromEngine();
+      this.startNextRoundIfReady();
     }
   }
 
   private handleCommand(client: Client, rawPayload: unknown): void {
-    const parsed = clientCommandSchema.safeParse(rawPayload);
+    const parsed = clientCommandSchema.safeParse(normalizeLegacyClientCommand(rawPayload));
     if (!parsed.success) {
       this.sendError(client, "INVALID_COMMAND", parsed.error.issues[0]?.message ?? "Invalid command.");
       return;
@@ -174,9 +175,15 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       if (this.engine) this.dispatch(this.engine.forfeit(client.sessionId));
       this.sendAllKnowledge();
       this.syncFromEngine();
+      this.startNextRoundIfReady();
       return;
     }
     if (!this.engine) throw new GameRuleError("INVALID_PHASE", "The game has not started.");
+
+    if (command.type === "ready-next-round") {
+      this.readyNextRound(client.sessionId);
+      return;
+    }
 
     let events: EngineEvent[];
     const discardBefore = this.engine.getSnapshot().discardTop;
@@ -257,18 +264,32 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
         if (event.type === "forfeit") this.knowledge.removePlayer(event.playerId);
         this.broadcast("event", event);
       }
-      if (event.type === "round-result" && this.engine?.phase === "ROUND_RESULT") {
-        this.clock.setTimeout(() => {
-          if (this.engine?.phase !== "ROUND_RESULT") return;
-          const nextEvents = this.engine.startNextRound();
-          const snapshot = this.engine.getSnapshot();
-          this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id));
-          this.dispatch(nextEvents);
-          this.sendAllKnowledge();
-          this.syncFromEngine();
-        }, 5_000);
-      }
     }
+  }
+
+  private readyNextRound(playerId: string): void {
+    if (!this.engine || this.engine.phase !== "ROUND_RESULT") {
+      throw new GameRuleError("INVALID_PHASE", "The next round is not waiting for confirmations.");
+    }
+    const player = this.state.players.get(playerId);
+    if (!player || player.forfeited) throw new GameRuleError("INVALID_TARGET", "Only active players can confirm the next round.");
+    if (player.nextRoundReady) return;
+    player.nextRoundReady = true;
+    this.bumpRevision();
+    this.startNextRoundIfReady();
+  }
+
+  private startNextRoundIfReady(): void {
+    if (!this.engine || this.engine.phase !== "ROUND_RESULT") return;
+    const activePlayers = [...this.state.players.values()].filter((player) => !player.forfeited);
+    if (activePlayers.length === 0 || activePlayers.some((player) => !player.nextRoundReady)) return;
+    for (const player of this.state.players.values()) player.nextRoundReady = false;
+    const nextEvents = this.engine.startNextRound();
+    const snapshot = this.engine.getSnapshot();
+    this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id));
+    this.dispatch(nextEvents);
+    this.sendAllKnowledge();
+    this.syncFromEngine();
   }
 
   private sendKnowledge(playerId: string): void {
@@ -346,4 +367,13 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private sendAgentResult(client: Client, payload: AgentCommandResult): void {
     client.send("agent-result", payload);
   }
+}
+
+function normalizeLegacyClientCommand(rawPayload: unknown): unknown {
+  if (typeof rawPayload !== "object" || rawPayload === null) return rawPayload;
+  const command = rawPayload as { type?: unknown; positions?: unknown; replacementPosition?: unknown };
+  if (command.type !== "replace" || command.replacementPosition !== undefined || !Array.isArray(command.positions)) return rawPayload;
+  const [firstPosition] = command.positions;
+  if (typeof firstPosition !== "number") return rawPayload;
+  return { ...command, replacementPosition: firstPosition };
 }

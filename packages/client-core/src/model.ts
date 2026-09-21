@@ -7,6 +7,7 @@ export interface StatePlayer {
   score: number;
   connected: boolean;
   forfeited: boolean;
+  nextRoundReady: boolean;
   cardCount: number;
   isHost: boolean;
 }

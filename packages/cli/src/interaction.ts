@@ -4,6 +4,7 @@ import type { CaboStateLike, ListedRoom, StatePlayer } from "./model.js";
 export type MenuAction =
   | "rooms" | "create-public" | "create-private" | "join" | "reconnect"
   | "start" | "players" | "leave"
+  | "ready-next-round"
   | "draw-deck" | "draw-discard" | "replace" | "resolve-mismatch" | "discard" | "cabo"
   | "peek-self" | "peek-other" | "swap" | "skip";
 
@@ -51,7 +52,7 @@ export const ROOM_PAGE_SIZE = 10;
 export function stateGuard(context: InteractionContext): string {
   const state = context.state;
   if (!state) return "disconnected";
-  const players = [...state.players.values()].map((player) => `${player.id}:${player.connected}:${player.forfeited}:${player.cardCount}`).join("|");
+  const players = [...state.players.values()].map((player) => `${player.id}:${player.connected}:${player.forfeited}:${player.nextRoundReady}:${player.cardCount}`).join("|");
   return [state.phase, state.round, state.currentPlayerId, state.caboCallerId, state.drawSource, state.mismatchPenaltyCardPending, state.discardLabel, players].join(":");
 }
 
@@ -74,6 +75,12 @@ export function menuFor(context: InteractionContext): MenuItem[] {
       { key: self?.isHost ? "3" : "2", label: "Leave room", action: "leave" },
     );
     return items;
+  }
+
+  if (state.phase === "ROUND_RESULT") {
+    return self && !self.forfeited && !self.nextRoundReady
+      ? [{ key: "1", label: "Ready for next round", action: "ready-next-round" }]
+      : [];
   }
 
   if (state.currentPlayerId !== selfId) return [];
@@ -130,9 +137,9 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
       ];
     case "room-browser": {
       const start = flow.page * ROOM_PAGE_SIZE;
-      return [...flow.rooms.slice(start, start + ROOM_PAGE_SIZE).map((room) => ({
-        value: room.roomId,
-        label: `${escapeTerminalText(room.roomName)}  ${escapeTerminalText(room.roomId)}  ${roomStatus(room)}  ${room.playerCount}/${room.maxClients}`,
+      return [...flow.rooms.slice(start, start + ROOM_PAGE_SIZE).map((room, index) => ({
+        value: String(index + 1),
+        label: `${escapeTerminalText(room.roomName)}  ID ${escapeTerminalText(room.roomId)}  ${roomStatus(room)}  ${room.playerCount}/${room.maxClients}`,
       })), { value: "cancel", label: "Back to main menu" }];
     }
     case "create-name":
@@ -160,6 +167,7 @@ export function selectMenu(input: string, context: InteractionContext): Interact
   switch (item.action) {
     case "rooms": case "reconnect": case "start": case "players": case "leave":
       return { kind: "local", command: item.action };
+    case "ready-next-round": return { kind: "game", command: { type: "ready-next-round" } };
     case "create-public": case "create-private":
       return {
         kind: "flow",
@@ -202,7 +210,11 @@ export function advanceFlow(input: string, flow: InteractionFlow, context: Inter
   }
   if (flow.kind === "room-browser") {
     const start = flow.page * ROOM_PAGE_SIZE;
-    const room = flow.rooms.slice(start, start + ROOM_PAGE_SIZE).find((candidate) => candidate.roomId === value);
+    const rooms = flow.rooms.slice(start, start + ROOM_PAGE_SIZE);
+    const selectedIndex = Number(value) - 1;
+    const room = Number.isInteger(selectedIndex) && selectedIndex >= 0
+      ? rooms[selectedIndex]
+      : rooms.find((candidate) => candidate.roomId === value);
     if (!room) return { kind: "flow", flow, message: "Choose a room from the current page." };
     return { kind: "listed-room", room };
   }

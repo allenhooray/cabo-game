@@ -3,8 +3,8 @@ import { ROOM_PAGE_SIZE, advanceFlow, escapeTerminalText, menuFor, moveRoomPage,
 import type { ListedRoom } from "./model.js";
 import type { CaboStateLike, StatePlayer } from "./model.js";
 
-const alice: StatePlayer = { id: "a", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: true };
-const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: false };
+const alice: StatePlayer = { id: "a", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true };
+const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false };
 
 function context(phase: string, currentPlayerId = "a", discardRank = 5): InteractionContext {
   const state: CaboStateLike = {
@@ -22,6 +22,8 @@ describe("context actions", () => {
     expect(menuFor(context("DRAWN")).map((item) => item.action)).toEqual(["replace", "discard"]);
     expect(menuFor(context("TURN_START", "b"))).toEqual([]);
     expect(menuFor(context("POWER_PENDING", "a", 10)).map((item) => item.action)).toEqual(["peek-other", "skip"]);
+    expect(menuFor(context("ROUND_RESULT", ""))).toEqual([{ key: "1", label: "Ready for next round", action: "ready-next-round" }]);
+    expect(selectMenu("1", context("ROUND_RESULT", ""))).toEqual({ kind: "game", command: { type: "ready-next-round" } });
   });
 
   it("turns numeric choices into guided position commands", () => {
@@ -93,6 +95,21 @@ describe("context actions", () => {
     expect(advanceFlow("150", named.flow, {})).toEqual({ kind: "create", visibility: "public", targetScore: 150, roomName: "Friday night" });
   });
 
+  it("always includes the destination position in replacement commands", () => {
+    const ctx = context("DRAWN");
+    const guard = stateGuard(ctx);
+    expect(advanceFlow("2", { kind: "replace-positions", guard }, ctx)).toEqual({
+      kind: "game",
+      command: { type: "replace", positions: [2], replacementPosition: 2 },
+    });
+    const selected = advanceFlow("1 3", { kind: "replace-positions", guard }, ctx);
+    if (selected.kind !== "flow") throw new Error("missing replacement position flow");
+    expect(advanceFlow("3", selected.flow, ctx)).toEqual({
+      kind: "game",
+      command: { type: "replace", positions: [1, 3], replacementPosition: 3 },
+    });
+  });
+
   it("paginates room browsing in groups of ten and stops at page boundaries", () => {
     const rooms: ListedRoom[] = Array.from({ length: 21 }, (_, index) => ({
       roomId: `id-${index + 1}`, roomName: `Room ${index + 1}`, targetScore: 100, playerCount: 1, maxClients: 5,
@@ -100,6 +117,10 @@ describe("context actions", () => {
     }));
     const first = { kind: "room-browser", rooms, page: 0 } as const;
     expect(selectionOptionsFor(first, {})).toHaveLength(ROOM_PAGE_SIZE + 1);
+    expect(selectionOptionsFor(first, {})[0]).toMatchObject({ value: "1" });
+    expect(selectionOptionsFor(first, {})[0]?.label).toContain("Room 1  ID id-1");
+    expect(advanceFlow("1", first, {})).toEqual({ kind: "listed-room", room: rooms[0] });
+    expect(advanceFlow("id-2", first, {})).toEqual({ kind: "listed-room", room: rooms[1] });
     expect(moveRoomPage(first, -1)).toMatchObject({ page: 0 });
     const second = moveRoomPage(first, 1);
     expect(selectionOptionsFor(second, {})).toHaveLength(11);

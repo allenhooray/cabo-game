@@ -7,8 +7,8 @@ const state: CaboStateLike = {
   revision: 1, roomName: "Friends' room", phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
   deckCount: 39,
   players: new Map([
-    ["a", { id: "a", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, cardCount: 4, isHost: true }],
-    ["b", { id: "b", name: "Bob", seat: 1, score: 8, connected: false, forfeited: false, cardCount: 4, isHost: false }],
+    ["a", { id: "a", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
+    ["b", { id: "b", name: "Bob", seat: 1, score: 8, connected: false, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false }],
   ]),
   winners: [],
 };
@@ -87,6 +87,21 @@ describe("terminal rendering", () => {
   it("keeps plain rendering free of terminal control codes", () => {
     const output = renderPlainState(state, "a", createKnowledge(2), "room");
     expect(output).not.toMatch(/\x1b\[/);
+  });
+
+  it("shows round readiness progress and marks confirmed players", () => {
+    const roundState = {
+      ...state,
+      phase: "ROUND_RESULT" as const,
+      currentPlayerId: "",
+      players: new Map([
+        ["a", { ...state.players.get("a")!, nextRoundReady: true }],
+        ["b", { ...state.players.get("b")!, nextRoundReady: false }],
+      ]),
+    };
+    const output = renderDashboard({ state: roundState, selfId: "a", roomId: "room", knowledge: createKnowledge(2), events: [], flow: { kind: "idle" } });
+    expect(output).toContain("1/2 active players ready");
+    expect(output).toContain("[READY]");
   });
 
   it("shows the cabo-agent hint only after joining a lobby", () => {

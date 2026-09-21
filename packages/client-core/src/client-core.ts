@@ -354,7 +354,7 @@ function normalizeListedRoom(room: ListedRoomResponse): ListedRoom {
   const phase = room.phase ?? "LOBBY";
   const isFull = room.isFull ?? room.playerCount >= room.maxClients;
   const isStarted = room.isStarted ?? phase !== "LOBBY";
-  const roomName = typeof room.roomName === "string" && room.roomName.trim() ? room.roomName : `Room ${room.roomId}`;
+  const roomName = typeof room.roomName === "string" && room.roomName.trim() ? room.roomName : "Unnamed room";
   return {
     roomId: room.roomId,
     roomName,

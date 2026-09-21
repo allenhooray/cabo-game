@@ -35,7 +35,7 @@ export function renderDashboard(input: DashboardInput): string {
     ...renderPlayers(state, input.selfId),
   );
 
-  if (input.roundResult) lines.push("", ...input.roundResult.lines.map(formatCardText), ...(input.roundResult.nextRoundPending ? ["Next round begins in about 5 seconds..."] : []));
+  if (input.roundResult) lines.push("", ...input.roundResult.lines.map(formatCardText), ...(input.roundResult.nextRoundPending ? [nextRoundProgress(state)] : []));
   lines.push("", ...renderEvents(input.events));
   if (state.phase !== "LOBBY") {
     lines.push("", "Your cards", renderCards(input.knowledge));
@@ -58,7 +58,7 @@ export function renderPlainState(state: CaboStateLike, selfId: string, knowledge
 
 function statusLine(state: CaboStateLike, selfId: string): string {
   if (state.phase === "LOBBY") return "Status: Waiting for the host to start";
-  if (state.phase === "ROUND_RESULT") return "Status: Round complete";
+  if (state.phase === "ROUND_RESULT") return `Status: Round complete — ${nextRoundProgress(state)}`;
   if (state.phase === "MATCH_RESULT") return `Status: Match complete — winner${state.winners.length === 1 ? "" : "s"}: ${state.winners.map((id) => playerName(state, id)).join(", ")}`;
   const turn = state.currentPlayerId ? playerName(state, state.currentPlayerId) : "-";
   if (state.currentPlayerId !== selfId) return `Status: ${turn}'s turn${state.phase === "FINAL_TURNS" ? " (final turn)" : ""}`;
@@ -84,7 +84,14 @@ function playerFlags(player: StatePlayer, state: CaboStateLike, selfId: string):
     player.isHost ? "HOST" : "",
     !player.connected ? "OFFLINE (60s grace)" : "",
     player.forfeited ? "DNF" : "",
+    player.nextRoundReady ? "READY" : "",
   ].filter(Boolean).map((flag) => `[${flag}]`).join(" ");
+}
+
+function nextRoundProgress(state: CaboStateLike): string {
+  const active = [...state.players.values()].filter((player) => !player.forfeited);
+  const ready = active.filter((player) => player.nextRoundReady).length;
+  return `Waiting for next round: ${ready}/${active.length} active players ready.`;
 }
 
 function renderCards(knowledge: KnowledgeState): string {

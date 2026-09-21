@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { GAME_PHASES } from "./types.js";
 
-export const AGENT_PROTOCOL_VERSION = 4 as const;
+export const AGENT_PROTOCOL_VERSION = 5 as const;
 export const AGENT_REQUEST_TYPES = ["rooms", "create", "join", "reconnect", "observe", "describe", "ping", "action", "leave", "shutdown"] as const;
 export const AGENT_FRAME_TYPES = ["ready", "result", "observation", "event", "fatal"] as const;
-export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "resolve-mismatch", "discard", "peek-self", "peek-other", "swap", "skip", "cabo"] as const;
+export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "resolve-mismatch", "discard", "peek-self", "peek-other", "swap", "skip", "cabo", "ready-next-round"] as const;
 
 const position = z.number().int().min(1);
 const placement = z.enum(["left", "right"]);
@@ -47,6 +47,7 @@ const agentActionVariants = [
   z.object({ type: z.literal("swap"), targetPlayerId: z.string().min(1), position }).strict(),
   z.object({ type: z.literal("skip") }).strict(),
   z.object({ type: z.literal("cabo") }).strict(),
+  z.object({ type: z.literal("ready-next-round") }).strict(),
 ] as const;
 
 export const agentActionSchema = z.discriminatedUnion("type", agentActionVariants);
@@ -61,6 +62,7 @@ const legalActionSchema = z.union([
   agentActionVariants[8],
   agentActionVariants[9],
   agentActionVariants[10],
+  agentActionVariants[11],
   z.object({
     type: z.literal("replace"),
     selectablePositions: z.array(position),
@@ -107,6 +109,7 @@ const playerObservationSchema = z.object({
   score: z.number(),
   connected: z.boolean(),
   forfeited: z.boolean(),
+  nextRoundReady: z.boolean(),
   cardCount: z.number().int().nonnegative(),
   isHost: z.boolean(),
 }).strict();

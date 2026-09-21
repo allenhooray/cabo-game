@@ -4,8 +4,8 @@ import { AgentProtocolError, buildObservation, legalActions, parseAgentRequest }
 import { createKnowledge } from "./knowledge.js";
 import type { CaboStateLike, StatePlayer } from "./model.js";
 
-const alice: StatePlayer = { id: "a", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: true };
-const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: false };
+const alice: StatePlayer = { id: "a", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true };
+const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false };
 
 function state(overrides: Partial<CaboStateLike> = {}): CaboStateLike {
   return {
@@ -48,6 +48,7 @@ describe("agent JSONL protocol", () => {
     ]);
     expect(legalActions(state({ phase: "FINAL_TURNS", currentPlayerId: "a", caboCallerId: "b" }), "a"))
       .not.toContainEqual({ type: "cabo" });
+    expect(legalActions(state({ phase: "ROUND_RESULT" }), "a")).toEqual([{ type: "ready-next-round" }]);
   });
 
   it("enumerates every power target and always permits skipping", () => {
@@ -67,6 +68,7 @@ describe("agent JSONL protocol", () => {
     expect(observation.state.currentPlayerId).toBeNull();
     expect(observation.state.caboCallerId).toBeNull();
     expect(observation.state.discardTop).toBeNull();
+    expect(observation.state.players[0]?.nextRoundReady).toBe(false);
     expect(observation.knowledge.slots).toEqual([null, null, null, null]);
     expect(observation.knowledge.opponents).toEqual([]);
     expect(() => agentFrameSchema.parse({ type: "observation", ...observation })).not.toThrow();
@@ -83,6 +85,7 @@ describe("agent JSONL protocol", () => {
     expect(serialized).toContain('"canJoin"');
     expect(serialized).toContain('"selectablePositions"');
     expect(serialized).toContain('"resolve-mismatch"');
+    expect(serialized).toContain('"ready-next-round"');
   });
 
   it("validates every output frame family", () => {

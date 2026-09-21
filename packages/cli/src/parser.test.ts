@@ -20,6 +20,7 @@ describe("parseCommand", () => {
       command: { type: "peek-other", targetPlayerId: "", position: 2 },
     });
     expect(parseCommand("cabo")).toEqual({ kind: "game", command: { type: "cabo" } });
+    expect(parseCommand("ready")).toEqual({ kind: "game", command: { type: "ready-next-round" } });
   });
 
   it("rejects invalid positions and target scores", () => {

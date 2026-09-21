@@ -73,6 +73,8 @@ export function parseCommand(input: string): LocalCommand {
       return { kind: "quit" };
     case "start":
       return { kind: "game", command: { type: "start" } };
+    case "ready":
+      return { kind: "game", command: { type: "ready-next-round" } };
     case "draw":
       if (args[0] === "deck") return { kind: "game", command: { type: "draw-deck" } };
       if (args[0] === "discard" && args.length === 1) return { kind: "game", command: { type: "draw-discard" } };

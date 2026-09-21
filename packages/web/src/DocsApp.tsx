@@ -176,6 +176,7 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
           ["swap PLAYER POS", "Use a J/Q power to blind-swap the same position."],
           ["skip", "Skip the pending card power."],
           ["cabo", "Call Cabo at the beginning of your turn."],
+          ["ready", "Confirm the next round after reviewing a round result."],
         ]} />
       </Section>
       <Section id="interaction" title="Interaction notes">
@@ -211,7 +212,7 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Requests run serially, but pushed events and observations may appear before the matching result.</li>
           <li>The first frame is always <code>ready</code>; startup failures use a <code>fatal</code> frame and a non-zero exit.</li>
         </ul>
-        <CodeBlock>{`{"type":"ready","protocolVersion":4,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+        <CodeBlock>{`{"type":"ready","protocolVersion":5,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}`}</CodeBlock>
       </Section>

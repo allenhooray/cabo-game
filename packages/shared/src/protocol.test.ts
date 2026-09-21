@@ -23,13 +23,14 @@ describe("room names", () => {
   });
 });
 
-describe("agent protocol v4", () => {
+describe("agent protocol v5", () => {
   it("uses multi-position replacement commands and rejects the v3 shape", () => {
-    expect(AGENT_PROTOCOL_VERSION).toBe(4);
+    expect(AGENT_PROTOCOL_VERSION).toBe(5);
     expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "replace", positions: [1, 3], replacementPosition: 3 } }).success).toBe(true);
     expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "replace", position: 1 } }).success).toBe(false);
     expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "draw-discard", position: 1 } }).success).toBe(false);
     expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "draw-discard" } }).success).toBe(true);
     expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "resolve-mismatch", drawnPlacement: "left", penaltyPlacement: "right" } }).success).toBe(true);
+    expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "ready-next-round" } }).success).toBe(true);
   });
 });

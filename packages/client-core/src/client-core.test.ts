@@ -36,7 +36,7 @@ function room(state = legacyState()) {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("legacy server compatibility", () => {
-  it("normalizes old room listings so their names render and open rooms can be joined", async () => {
+  it("marks old room listings without names clearly and keeps open rooms joinable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
       roomId: "abc123", targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY",
     }]), { status: 200 })));
@@ -44,7 +44,7 @@ describe("legacy server compatibility", () => {
 
     await expect(core.listRooms()).resolves.toEqual([{
       roomId: "abc123",
-      roomName: "Room abc123",
+      roomName: "Unnamed room",
       targetScore: 100,
       playerCount: 1,
       maxClients: 4,
@@ -67,7 +67,7 @@ describe("legacy server compatibility", () => {
     const [listed, legacyLocked] = await core.listRooms();
     expect(listed?.canJoin).toBe(false);
     expect(listed?.roomName).toBe("Invite only");
-    expect(legacyLocked).toMatchObject({ roomName: "Room legacy-locked", canJoin: false });
+    expect(legacyLocked).toMatchObject({ roomName: "Unnamed room", canJoin: false });
   });
 
   it("keeps legacy full and started rooms disabled", async () => {
@@ -79,11 +79,11 @@ describe("legacy server compatibility", () => {
 
     await expect(core.listRooms()).resolves.toEqual([
       {
-        roomId: "full", roomName: "Room full", targetScore: 100, playerCount: 4, maxClients: 4,
+        roomId: "full", roomName: "Unnamed room", targetScore: 100, playerCount: 4, maxClients: 4,
         phase: "LOBBY", isFull: true, isStarted: false, canJoin: false,
       },
       {
-        roomId: "started", roomName: "Room started", targetScore: 100, playerCount: 2, maxClients: 4,
+        roomId: "started", roomName: "Unnamed room", targetScore: 100, playerCount: 2, maxClients: 4,
         phase: "TURN_START", isFull: false, isStarted: true, canJoin: false,
       },
     ]);

@@ -8,6 +8,9 @@ export function legalActions(state: CaboStateLike, selfId: string): LegalAction[
     const activeCount = [...state.players.values()].filter((player) => player.connected && !player.forfeited).length;
     return self.isHost && activeCount >= 2 ? [{ type: "start" }] : [];
   }
+  if (state.phase === "ROUND_RESULT") {
+    return self.nextRoundReady ? [] : [{ type: "ready-next-round" }];
+  }
   if (state.currentPlayerId !== selfId) return [];
   const positions = Array.from({ length: self.cardCount }, (_, index) => index + 1);
   if (state.phase === "TURN_START" || state.phase === "FINAL_TURNS") {

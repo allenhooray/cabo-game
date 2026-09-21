@@ -65,6 +65,7 @@ function serializePlayer(player: StatePlayer): StatePlayer {
     score: player.score,
     connected: player.connected,
     forfeited: player.forfeited,
+    nextRoundReady: player.nextRoundReady,
     cardCount: player.cardCount,
     isHost: player.isHost,
   };
