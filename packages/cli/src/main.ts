@@ -7,11 +7,11 @@ import type { Room } from "@colyseus/sdk";
 import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
 import { caboDiscoveryMode, caboHelpLines, readCliVersion, renderCaboHelp } from "./cli-discovery.js";
 import { createFileSessionStore, defaultSessionPath } from "./config.js";
-import { advanceFlow, isGuardedFlow, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
+import { advanceFlow, isGuardedFlow, moveSelection, selectionOptionsFor, selectionSignature, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
 import { createKnowledge, type KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, RoundResultView, StatePlayer } from "./model.js";
 import { parseCommand, type LocalCommand } from "./parser.js";
-import { renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
+import { formatCardText, renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
 
 const discoveryMode = caboDiscoveryMode(process.argv.slice(2));
 if (discoveryMode === "help") {
@@ -41,6 +41,8 @@ let knowledge: KnowledgeState = createKnowledge();
 let notice: string | undefined;
 let recentEvents: string[] = [];
 let roundResult: RoundResultView | undefined;
+let selectionIndex = 0;
+let currentSelectionSignature = "";
 
 const readlineOutput = new Writable({
   write(chunk, encoding, callback) {
@@ -64,7 +66,7 @@ function printHelp(): void {
 }
 
 function addEvent(message: string): void {
-  recentEvents.push(message);
+  recentEvents.push(formatCardText(message));
   if (recentEvents.length > 8) recentEvents = recentEvents.slice(-8);
   if (!interactive) stdout.write(`${message}\n`);
 }
@@ -82,9 +84,10 @@ function renderNow(): void {
     rl.prompt();
     return;
   }
+  syncSelection();
   stdout.write("\x1b[2J\x1b[H");
   stdout.write(renderDashboard({
-    ...context(), knowledge, events: recentEvents, flow,
+    ...context(), knowledge, events: recentEvents, flow, selectionIndex,
     ...(notice ? { notice } : {}),
     ...(room ? { roomId: room.roomId } : {}),
     ...(roundResult ? { roundResult } : {}),
@@ -118,7 +121,7 @@ function formatEvent(event: any): string {
 function makeRoundResult(event: any): RoundResultView {
   const lines = ["Round result"];
   for (const hand of event.hands ?? []) {
-    const cards = hand.cards.map((card: { label: string }) => card.label).join(" ");
+    const cards = hand.cards.map((card: { label: string }) => formatCardText(card.label)).join(" ");
     lines.push(`  ${playerLabel(hand.playerId).padEnd(12)} ${cards.padEnd(16)} hand ${String(hand.handScore).padStart(2)}  round +${event.roundScores[hand.playerId]}  total ${event.totals[hand.playerId]}`);
   }
   lines.push(`  CABO ${event.caboSucceeded ? "succeeded" : "failed"}.`);
@@ -320,6 +323,11 @@ async function applyInteraction(result: InteractionResult): Promise<boolean> {
 
 async function handleInput(line: string): Promise<boolean> {
   notice = undefined;
+  if (!line.trim()) {
+    syncSelection();
+    const selected = selectionOptionsFor(flow, context())[selectionIndex];
+    if (selected) line = selected.value;
+  }
   if (flow.kind !== "idle") return applyInteraction(advanceFlow(line, flow, context()));
   if (!line.trim()) { renderNow(); return true; }
   const menuResult = selectMenu(line, context());
@@ -330,6 +338,20 @@ async function handleInput(line: string): Promise<boolean> {
 addEvent(`Server ${serverUrl} — player ${playerName}`);
 if (!interactive) printHelp();
 renderNow();
+
+if (interactive) {
+  emitKeypressEvents(stdin);
+  stdin.on("keypress", (_character, key) => {
+    if (readingSecret || (key.name !== "up" && key.name !== "down")) return;
+    const options = selectionOptionsFor(flow, context());
+    if (!options.length) return;
+    selectionIndex = moveSelection(selectionIndex, key.name === "up" ? -1 : 1, options.length);
+    notice = undefined;
+    rl.write(null, { ctrl: true, name: "u" });
+    renderNow();
+  });
+}
+
 let queue = Promise.resolve(true);
 rl.on("line", (line) => {
   if (readingSecret) return;
@@ -343,3 +365,13 @@ rl.on("line", (line) => {
     return true;
   });
 });
+
+function syncSelection(): void {
+  const nextSignature = selectionSignature(flow, context());
+  if (nextSignature !== currentSelectionSignature) {
+    currentSelectionSignature = nextSignature;
+    selectionIndex = 0;
+  }
+  const optionCount = selectionOptionsFor(flow, context()).length;
+  if (selectionIndex >= optionCount) selectionIndex = 0;
+}

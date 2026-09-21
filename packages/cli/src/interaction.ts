@@ -13,6 +13,11 @@ export interface MenuItem {
   action: MenuAction;
 }
 
+export interface SelectionOption {
+  value: string;
+  label: string;
+}
+
 export type InteractionFlow =
   | { kind: "idle" }
   | { kind: "create-target"; visibility: "public" | "private" }
@@ -87,6 +92,37 @@ export function menuFor(context: InteractionContext): MenuItem[] {
   return [];
 }
 
+export function selectionOptionsFor(flow: InteractionFlow, context: InteractionContext): SelectionOption[] {
+  switch (flow.kind) {
+    case "idle":
+      return menuFor(context).map((item) => ({ value: item.key, label: item.label }));
+    case "position":
+      return positions().map((position) => ({ value: position, label: `Card position ${position}` }));
+    case "target":
+      return activeTargets(context).map((player, index) => ({ value: String(index + 1), label: player.name }));
+    case "target-position":
+      return positions().map((position) => ({ value: position, label: `${flow.target.name}'s position ${position}` }));
+    case "confirm-cabo":
+      return [
+        { value: "n", label: "No, keep playing" },
+        { value: "y", label: "Yes, call CABO" },
+      ];
+    case "create-target":
+    case "join-room":
+      return [];
+  }
+}
+
+export function moveSelection(current: number, direction: -1 | 1, optionCount: number): number {
+  if (optionCount <= 0) return 0;
+  const normalized = ((current % optionCount) + optionCount) % optionCount;
+  return (normalized + direction + optionCount) % optionCount;
+}
+
+export function selectionSignature(flow: InteractionFlow, context: InteractionContext): string {
+  return `${flow.kind}:${selectionOptionsFor(flow, context).map((option) => `${option.value}:${option.label}`).join("|")}`;
+}
+
 export function selectMenu(input: string, context: InteractionContext): InteractionResult | undefined {
   const item = menuFor(context).find((entry) => entry.key === input.trim());
   if (!item) return undefined;
@@ -158,13 +194,17 @@ export function flowPrompt(flow: InteractionFlow, context: InteractionContext): 
     case "idle": return undefined;
     case "create-target": return `Target score for ${flow.visibility} room (20-500, Enter = 100):`;
     case "join-room": return "Room code:";
-    case "position": return "Choose card position: [1] [2] [3] [4]  (cancel to go back)";
-    case "target": return `Choose player: ${activeTargets(context).map((player, index) => `[${index + 1}] ${player.name}`).join("  ")}  (cancel to go back)`;
-    case "target-position": return `Choose ${flow.target.name}'s position: [1] [2] [3] [4]  (cancel to go back)`;
-    case "confirm-cabo": return "Call CABO? Every other active player gets one final turn. [y/N]";
+    case "position": return "Choose a card position (type cancel to go back):";
+    case "target": return "Choose a player (type cancel to go back):";
+    case "target-position": return `Choose ${flow.target.name}'s card position (type cancel to go back):`;
+    case "confirm-cabo": return "Call CABO? Every other active player gets one final turn:";
   }
 }
 
 export function isGuardedFlow(flow: InteractionFlow): flow is Exclude<InteractionFlow, { kind: "idle" } | { kind: "create-target" } | { kind: "join-room" }> {
   return "guard" in flow;
+}
+
+function positions(): string[] {
+  return ["1", "2", "3", "4"];
 }

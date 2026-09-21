@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createKnowledge } from "./knowledge.js";
 import type { CaboStateLike } from "./model.js";
-import { renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
+import { formatCardText, renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
 
 const state: CaboStateLike = {
   revision: 1, phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
@@ -22,6 +22,60 @@ describe("terminal rendering", () => {
     expect(output).toContain("[OFFLINE (60s grace)]");
     expect(output).toContain("[1] Draw from deck");
     expect(output).toContain("Bob joined.");
+  });
+
+  it("formats letter suits with the requested glyphs without changing existing glyphs", () => {
+    expect(formatCardText("AS 2D 3H 4C")).toBe("A♠ 2♢ 3♡ 4♣");
+    expect(formatCardText("A♠ 2♢ 3♡ 4♣ Black Joker K-A")).toBe("A♠ 2♢ 3♡ 4♣ Black Joker K-A");
+
+    const letterState = { ...state, discardLabel: "6H" };
+    const knowledge = createKnowledge(2, { round: 2, slots: [
+      { label: "AS", rank: 1 },
+      { label: "2D", rank: 2 },
+      { label: "3H", rank: 3 },
+      { label: "4C", rank: 4 },
+    ] });
+    const output = renderDashboard({ state: letterState, selfId: "a", roomId: "room", knowledge, events: ["Bob discarded 10D."], flow: { kind: "idle" } });
+
+    expect(output).toContain("Discard 6♡");
+    expect(output).toContain("[1] A♠ (1 pts)");
+    expect(output).toContain("[2] 2♢ (2 pts)");
+    expect(output).toContain("[3] 3♡ (3 pts)");
+    expect(output).toContain("[4] 4♣ (4 pts)");
+    expect(output).toContain("Bob discarded 10♢.");
+  });
+
+  it("places events above cards and renders a bordered action selector", () => {
+    const output = renderDashboard({
+      state,
+      selfId: "a",
+      roomId: "room",
+      knowledge: createKnowledge(2),
+      events: ["Bob joined."],
+      flow: { kind: "idle" },
+      selectionIndex: 1,
+    });
+
+    const events = output.indexOf("Recent events");
+    const divider = output.indexOf("────────────────");
+    const cards = output.indexOf("Your cards");
+    const actions = output.indexOf("┌─ Actions");
+    expect(events).toBeGreaterThan(-1);
+    expect(events).toBeLessThan(divider);
+    expect(divider).toBeLessThan(cards);
+    expect(cards).toBeLessThan(actions);
+    expect(output).toContain("│> [2] Take discard 6♥");
+    expect(output).toContain("└────────────────");
+  });
+
+  it("keeps the event divider and action border in lobby and disconnected views", () => {
+    const lobby = renderDashboard({ state: { ...state, phase: "LOBBY" }, selfId: "a", knowledge: createKnowledge(), events: [], flow: { kind: "idle" } });
+    const disconnected = renderDashboard({ knowledge: createKnowledge(), events: [], flow: { kind: "idle" } });
+
+    for (const output of [lobby, disconnected]) {
+      expect(output.indexOf("Recent events")).toBeLessThan(output.indexOf("────────────────"));
+      expect(output).toContain("┌─ Actions");
+    }
   });
 
   it("keeps plain rendering free of terminal control codes", () => {

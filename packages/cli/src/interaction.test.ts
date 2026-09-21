@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceFlow, menuFor, selectMenu, stateGuard, type InteractionContext } from "./interaction.js";
+import { advanceFlow, menuFor, moveSelection, selectionOptionsFor, selectMenu, stateGuard, type InteractionContext } from "./interaction.js";
 import type { CaboStateLike, StatePlayer } from "./model.js";
 
 const alice: StatePlayer = { id: "a", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: true };
@@ -47,5 +47,39 @@ describe("context actions", () => {
     expect(advanceFlow("n", result.flow, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
     expect(advanceFlow("yes", result.flow, ctx)).toEqual({ kind: "game", command: { type: "cabo" } });
     expect(result.flow).toMatchObject({ guard: stateGuard(ctx) });
+  });
+
+  it("exposes keyboard options for every guided selection step", () => {
+    const ctx = context("POWER_PENDING", "a", 11);
+    const guard = stateGuard(ctx);
+
+    expect(selectionOptionsFor({ kind: "idle" }, ctx).map((option) => option.value)).toEqual(["1", "2"]);
+    expect(selectionOptionsFor({ kind: "position", action: "replace", guard }, ctx).map((option) => option.value)).toEqual(["1", "2", "3", "4"]);
+    expect(selectionOptionsFor({ kind: "target", action: "swap", guard }, ctx)).toEqual([{ value: "1", label: "Bob" }]);
+    expect(selectionOptionsFor({ kind: "target-position", action: "swap", target: bob, guard }, ctx).map((option) => option.value)).toEqual(["1", "2", "3", "4"]);
+    expect(selectionOptionsFor({ kind: "confirm-cabo", guard }, ctx)).toEqual([
+      { value: "n", label: "No, keep playing" },
+      { value: "y", label: "Yes, call CABO" },
+    ]);
+    expect(selectionOptionsFor({ kind: "join-room" }, ctx)).toEqual([]);
+    expect(selectionOptionsFor({ kind: "create-target", visibility: "public" }, ctx)).toEqual([]);
+  });
+
+  it("wraps keyboard selection in both directions", () => {
+    expect(moveSelection(0, -1, 4)).toBe(3);
+    expect(moveSelection(3, 1, 4)).toBe(0);
+    expect(moveSelection(1, 1, 4)).toBe(2);
+    expect(moveSelection(5, -1, 0)).toBe(0);
+  });
+
+  it("keeps typed shortcuts, cancellation, and the safe CABO default compatible", () => {
+    const ctx = context("TURN_START");
+    const guard = stateGuard(ctx);
+    const confirm = { kind: "confirm-cabo", guard } as const;
+
+    expect(selectionOptionsFor(confirm, ctx)[0]?.value).toBe("n");
+    expect(advanceFlow(selectionOptionsFor(confirm, ctx)[0]?.value ?? "", confirm, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
+    expect(selectMenu("2", ctx)?.kind).toBe("flow");
+    expect(advanceFlow("cancel", { kind: "position", action: "replace", guard }, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
   });
 });

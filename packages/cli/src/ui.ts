@@ -1,12 +1,13 @@
 import type { CaboStateLike, RoundResultView, StatePlayer } from "./model.js";
 import type { KnowledgeState } from "./knowledge.js";
-import { activeTargets, flowPrompt, menuFor, type InteractionContext, type InteractionFlow } from "./interaction.js";
+import { flowPrompt, selectionOptionsFor, type InteractionContext, type InteractionFlow } from "./interaction.js";
 
 export interface DashboardInput extends InteractionContext {
   knowledge: KnowledgeState;
   events: string[];
   notice?: string;
   flow: InteractionFlow;
+  selectionIndex?: number;
   roomId?: string;
   roundResult?: RoundResultView;
 }
@@ -26,18 +27,19 @@ export function renderDashboard(input: DashboardInput): string {
   lines.push(
     `Room ${input.roomId ?? "-"}  Round ${state.round || "-"}  Target ${state.targetScore}`,
     statusLine(state, input.selfId),
-    `Deck ${state.deckCount}  Discard ${state.discardLabel || "-"}${state.caboCallerId ? `  CABO: ${playerName(state, state.caboCallerId)}` : ""}`,
+    `Deck ${state.deckCount}  Discard ${formatCardText(state.discardLabel || "-")}${state.caboCallerId ? `  CABO: ${playerName(state, state.caboCallerId)}` : ""}`,
     "",
     "Players",
     ...renderPlayers(state, input.selfId),
   );
 
+  if (input.roundResult) lines.push("", ...input.roundResult.lines.map(formatCardText), ...(input.roundResult.nextRoundPending ? ["Next round begins in about 5 seconds..."] : []));
+  lines.push("", ...renderEvents(input.events));
   if (state.phase !== "LOBBY") {
     lines.push("", "Your cards", renderCards(input.knowledge));
     if (input.knowledge.held) lines.push(`Drawn card: ${cardLabel(input.knowledge.held)}`);
   }
-  if (input.roundResult) lines.push("", ...input.roundResult.lines, ...(input.roundResult.nextRoundPending ? ["Next round begins in about 5 seconds..."] : []));
-  lines.push("", ...renderEvents(input.events), "", ...renderActions(input));
+  lines.push("", ...renderActions(input));
   return lines.join("\n");
 }
 
@@ -80,28 +82,48 @@ function renderCards(knowledge: KnowledgeState): string {
 }
 
 function cardLabel(card: { label: string; rank: number }): string {
-  return `${card.label} (${card.rank} pts)`;
+  return `${formatCardText(card.label)} (${card.rank} pts)`;
 }
 
 function renderEvents(events: string[]): string[] {
-  return ["Recent events", ...(events.length ? events.slice(-8).map((event) => `  • ${event}`) : ["  • No events yet."])];
+  return [
+    "Recent events",
+    ...(events.length ? events.slice(-8).map((event) => `  • ${formatCardText(event)}`) : ["  • No events yet."]),
+    "─".repeat(48),
+  ];
 }
 
 function renderActions(input: DashboardInput): string[] {
   const prompt = flowPrompt(input.flow, input);
-  if (prompt) return ["Action", `  ${prompt}`, ...(input.notice ? [`  ! ${input.notice}`] : [])];
-  const menu = menuFor(input);
-  const lines = ["Actions"];
-  if (menu.length) lines.push(...menu.map((item) => `  [${item.key}] ${item.label}`));
-  else lines.push("  Waiting for another player...");
-  lines.push("  Type help for all commands.");
-  if (input.state?.phase === "LOBBY" && input.selfId) {
+  const options = selectionOptionsFor(input.flow, input);
+  const selected = options.length ? Math.min(Math.max(input.selectionIndex ?? 0, 0), options.length - 1) : 0;
+  const lines: string[] = [];
+  if (prompt) lines.push(`  ${prompt}`);
+  if (options.length) {
+    lines.push(...options.map((option, index) => `${index === selected ? ">" : " "} [${option.value}] ${formatCardText(option.label)}`));
+    lines.push("  Use ↑/↓ to move and Enter to select.");
+  } else if (!prompt) {
+    lines.push("  Waiting for another player...");
+  }
+  if (input.flow.kind === "idle") lines.push("  Type help for all commands.");
+  if (input.flow.kind === "idle" && input.state?.phase === "LOBBY" && input.selfId) {
     lines.push("  Want an Agent to play? Ask it to use the cabo-agent command.");
   }
   if (input.notice) lines.push(`  ! ${input.notice}`);
-  return lines;
+  return renderBorder("Actions", lines);
 }
 
 function playerName(state: CaboStateLike, id: string): string {
   return state.players.get(id)?.name ?? id;
+}
+
+export function formatCardText(text: string): string {
+  const suits: Record<string, string> = { S: "♠", D: "♢", H: "♡", C: "♣" };
+  return text.replace(/\b(A|[2-9]|10|J|Q|K)([SDHC])\b/g, (_match, rank: string, suit: string) => `${rank}${suits[suit]}`);
+}
+
+function renderBorder(title: string, lines: string[]): string[] {
+  const innerWidth = Math.max(44, title.length + 3, ...lines.map((line) => line.length));
+  const top = `┌─ ${title} ${"─".repeat(innerWidth - title.length - 3)}┐`;
+  return [top, ...lines.map((line) => `│${line.padEnd(innerWidth)}│`), `└${"─".repeat(innerWidth)}┘`];
 }
