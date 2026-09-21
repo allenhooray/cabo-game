@@ -14,7 +14,7 @@ const state: CaboStateLike = {
 };
 
 describe("terminal rendering", () => {
-  it("renders the table, known cards, recent events, and contextual actions", () => {
+  it("renders the table, every hand, recent events, and contextual actions", () => {
     const knowledge = createKnowledge(2, {
       round: 2,
       slots: [{ label: "4♣", rank: 4 }, null, null, null],
@@ -23,8 +23,9 @@ describe("terminal rendering", () => {
     const output = renderDashboard({ state, selfId: "a", roomId: "room", knowledge, events: ["Bob joined."], flow: { kind: "idle" } });
     expect(output).toContain("YOUR TURN");
     expect(output).toContain("[1] 4♣ (4 pts)");
-    expect(output).toContain("Known opponent cards");
-    expect(output).toContain("Bob: [1] ?   [2] 9♡ (9 pts)");
+    expect(output).toContain("Hands");
+    expect(output).toContain("  Bob: [1] ?   [2] 9♡ (9 pts)   [3] ?   [4] ?");
+    expect(output).toContain("→ Alice (you): [1] 4♣ (4 pts)");
     expect(output).toContain("[OFFLINE (60s grace)]");
     expect(output).toContain("[1] Draw from deck");
     expect(output).toContain("Bob joined.");
@@ -64,7 +65,7 @@ describe("terminal rendering", () => {
 
     const events = output.indexOf("Recent events");
     const divider = output.indexOf("────────────────");
-    const cards = output.indexOf("Your cards");
+    const cards = output.indexOf("Hands");
     const actions = output.indexOf("┌─ Actions");
     expect(events).toBeGreaterThan(-1);
     expect(events).toBeLessThan(divider);
@@ -80,9 +81,47 @@ describe("terminal rendering", () => {
       chat: Array.from({ length: 9 }, (_, index) => ({ sequence: index + 1, playerId: index === 8 ? "a" : "b", playerName: "Bob", text: index === 8 ? "safe\u001b[2J" : `message ${index}`, sentAt: 0 })),
     });
     expect(output.indexOf("Recent events")).toBeLessThan(output.indexOf("Room chat"));
-    expect(output.indexOf("Room chat")).toBeLessThan(output.indexOf("Your cards"));
+    expect(output.indexOf("Room chat")).toBeLessThan(output.indexOf("Hands"));
     expect(output).not.toContain("message 0");
     expect(output).toContain("You: safe\\u001b[2J");
+  });
+
+  it("wraps long chat text instead of widening the chat panel", () => {
+    const message = "这是一条很长的聊天消息".repeat(12);
+    const output = renderDashboard({
+      state,
+      selfId: "a",
+      roomId: "room",
+      knowledge: createKnowledge(2),
+      events: [],
+      flow: { kind: "idle" },
+      chat: [{ sequence: 1, playerId: "b", playerName: "Bob", text: message, sentAt: 0 }],
+    });
+    const chat = output.slice(output.indexOf("┌─ Room chat"), output.indexOf("\n\nHands"));
+    const chatLines = chat.split("\n");
+
+    expect(chatLines[0]).toHaveLength(74);
+    expect(chatLines.at(-1)).toBe(`└${"─".repeat(72)}┘`);
+    expect(chatLines.length).toBeGreaterThan(4);
+    expect(chat).not.toContain(message);
+  });
+
+  it("shows hidden hands for every player, puts opponents first, and joins the own hand to Actions", () => {
+    const output = renderDashboard({
+      state,
+      selfId: "a",
+      roomId: "room",
+      knowledge: createKnowledge(2),
+      events: [],
+      flow: { kind: "idle" },
+    });
+    const opponent = "  Bob: [1] ?   [2] ?   [3] ?   [4] ?";
+    const own = "→ Alice (you): [1] ?   [2] ?   [3] ?   [4] ?";
+
+    expect(output).toContain(opponent);
+    expect(output.indexOf(opponent)).toBeLessThan(output.indexOf(own));
+    expect(output).toContain(`${own}\n┌─ Actions`);
+    expect(output).not.toContain("[TURN]");
   });
 
   it("keeps the event divider and action border in lobby and disconnected views", () => {

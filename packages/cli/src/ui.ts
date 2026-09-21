@@ -14,6 +14,8 @@ export interface DashboardInput extends InteractionContext {
   roundResult?: RoundResultView;
 }
 
+const CHAT_INNER_WIDTH = 72;
+
 export function renderCommandPrompt(interactive: boolean): string {
   return interactive ? "\x1b[7m cabo> \x1b[0m " : "cabo> ";
 }
@@ -41,17 +43,12 @@ export function renderDashboard(input: DashboardInput): string {
   lines.push("", ...renderEvents(input.events));
   lines.push("", ...renderChat(input.chat ?? [], input.selfId));
   if (state.phase !== "LOBBY") {
-    lines.push("", "Your cards", renderCards(input.knowledge));
-    if (input.knowledge.held) lines.push(`Drawn card: ${cardLabel(input.knowledge.held)}`);
-    const knownOpponents = input.knowledge.opponents.filter((opponent) => opponent.slots.some(Boolean));
-    if (knownOpponents.length) {
-      lines.push("", "Known opponent cards", ...knownOpponents.map((opponent) => {
-        const name = state.players.get(opponent.playerId)?.name ?? opponent.playerId;
-        return `${name}: ${opponent.slots.map((card, index) => `[${index + 1}] ${card ? cardLabel(card) : "?"}`).join("   ")}`;
-      }));
-    }
+    lines.push("", "Hands", ...renderHands(state, input.selfId, input.knowledge));
+    if (input.knowledge.held) lines.push(`  Drawn card: ${cardLabel(input.knowledge.held)}`);
+    lines.push(...renderActions(input));
+  } else {
+    lines.push("", ...renderActions(input));
   }
-  lines.push("", ...renderActions(input));
   return lines.join("\n");
 }
 
@@ -75,15 +72,14 @@ function renderPlayers(state: CaboStateLike, selfId: string): string[] {
   const rows = [...state.players.values()].sort((a, b) => a.seat - b.seat);
   const nameWidth = Math.max(6, ...rows.map((player) => player.name.length));
   return rows.map((player) => {
-    const flags = playerFlags(player, state, selfId);
+    const flags = playerFlags(player, selfId);
     return `${String(player.seat + 1).padStart(2)}  ${player.name.padEnd(nameWidth)}  ${String(player.score).padStart(3)} pts  ${player.cardCount} cards${flags ? `  ${flags}` : ""}`;
   });
 }
 
-function playerFlags(player: StatePlayer, state: CaboStateLike, selfId: string): string {
+function playerFlags(player: StatePlayer, selfId: string): string {
   return [
     player.id === selfId ? "YOU" : "",
-    player.id === state.currentPlayerId ? "TURN" : "",
     player.isHost ? "HOST" : "",
     !player.connected ? "OFFLINE (60s grace)" : "",
     player.forfeited ? "DNF" : "",
@@ -97,8 +93,22 @@ function nextRoundProgress(state: CaboStateLike): string {
   return `Waiting for next round: ${ready}/${active.length} active players ready.`;
 }
 
-function renderCards(knowledge: KnowledgeState): string {
-  return knowledge.slots.map((card, index) => `[${index + 1}] ${card ? cardLabel(card) : "?"}`).join("   ");
+function renderHands(state: CaboStateLike, selfId: string, knowledge: KnowledgeState): string[] {
+  const players = [...state.players.values()].sort((a, b) => {
+    if (a.id === selfId) return 1;
+    if (b.id === selfId) return -1;
+    return a.seat - b.seat;
+  });
+  return players.map((player) => {
+    const knownSlots = player.id === selfId
+      ? knowledge.slots
+      : knowledge.opponents.find((opponent) => opponent.playerId === player.id)?.slots ?? [];
+    const slots = Array.from({ length: player.cardCount }, (_, index) => knownSlots[index] ?? null);
+    const turnMarker = player.id === state.currentPlayerId ? "→" : " ";
+    const selfMarker = player.id === selfId ? " (you)" : "";
+    const cards = slots.map((card, index) => `[${index + 1}] ${card ? cardLabel(card) : "?"}`).join("   ");
+    return `${turnMarker} ${escapeTerminalText(player.name)}${selfMarker}: ${cards}`;
+  });
 }
 
 function cardLabel(card: { label: string; rank: number }): string {
@@ -114,13 +124,13 @@ function renderEvents(events: string[]): string[] {
 }
 
 function renderChat(messages: RoomChatMessage[], selfId: string): string[] {
-  const lines = messages.slice(-8).map((message) => {
+  const lines = messages.slice(-8).flatMap((message) => {
     const date = new Date(message.sentAt);
     const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
     const sender = message.playerId === selfId ? "You" : escapeTerminalText(message.playerName);
-    return `  ${time}  ${sender}: ${escapeTerminalText(message.text)}`;
+    return wrapPrefixedText(`  ${time}  ${sender}: `, escapeTerminalText(message.text), CHAT_INNER_WIDTH);
   });
-  return renderBorder("Room chat", lines.length ? lines : ["  No messages yet. Press t to chat."]);
+  return renderBorder("Room chat", lines.length ? lines : ["  No messages yet. Press t to chat."], CHAT_INNER_WIDTH);
 }
 
 function renderActions(input: DashboardInput): string[] {
@@ -153,8 +163,59 @@ export function formatCardText(text: string): string {
   return text.replace(/\b(A|[2-9]|10|J|Q|K)([SDHC])\b/g, (_match, rank: string, suit: string) => `${rank}${suits[suit]}`);
 }
 
-function renderBorder(title: string, lines: string[]): string[] {
-  const innerWidth = Math.max(44, title.length + 3, ...lines.map((line) => line.length));
-  const top = `┌─ ${title} ${"─".repeat(innerWidth - title.length - 3)}┐`;
-  return [top, ...lines.map((line) => `│${line.padEnd(innerWidth)}│`), `└${"─".repeat(innerWidth)}┘`];
+function renderBorder(title: string, lines: string[], fixedInnerWidth?: number): string[] {
+  const innerWidth = fixedInnerWidth ?? Math.max(44, terminalWidth(title) + 3, ...lines.map(terminalWidth));
+  const top = `┌─ ${title} ${"─".repeat(innerWidth - terminalWidth(title) - 3)}┐`;
+  return [top, ...lines.map((line) => `│${padTerminalEnd(line, innerWidth)}│`), `└${"─".repeat(innerWidth)}┘`];
+}
+
+function wrapPrefixedText(prefix: string, text: string, maxWidth: number): string[] {
+  const prefixWidth = terminalWidth(prefix);
+  const continuation = " ".repeat(Math.min(prefixWidth, maxWidth - 1));
+  const lines: string[] = [];
+  let line = prefix;
+  let width = prefixWidth;
+
+  for (const character of text) {
+    const characterWidth = terminalCharacterWidth(character);
+    if (width + characterWidth > maxWidth && width > 0) {
+      lines.push(line);
+      line = continuation;
+      width = terminalWidth(continuation);
+    }
+    line += character;
+    width += characterWidth;
+  }
+  lines.push(line);
+  return lines;
+}
+
+function padTerminalEnd(text: string, width: number): string {
+  return text + " ".repeat(Math.max(0, width - terminalWidth(text)));
+}
+
+function terminalWidth(text: string): number {
+  return [...text].reduce((width, character) => width + terminalCharacterWidth(character), 0);
+}
+
+function terminalCharacterWidth(character: string): number {
+  const codePoint = character.codePointAt(0) ?? 0;
+  if (/\p{Mark}/u.test(character) || codePoint === 0x200d || (codePoint >= 0xfe00 && codePoint <= 0xfe0f)) return 0;
+  if (
+    codePoint >= 0x1100 && (
+      codePoint <= 0x115f
+      || codePoint === 0x2329
+      || codePoint === 0x232a
+      || (codePoint >= 0x2e80 && codePoint <= 0xa4cf && codePoint !== 0x303f)
+      || (codePoint >= 0xac00 && codePoint <= 0xd7a3)
+      || (codePoint >= 0xf900 && codePoint <= 0xfaff)
+      || (codePoint >= 0xfe10 && codePoint <= 0xfe19)
+      || (codePoint >= 0xfe30 && codePoint <= 0xfe6f)
+      || (codePoint >= 0xff00 && codePoint <= 0xff60)
+      || (codePoint >= 0xffe0 && codePoint <= 0xffe6)
+      || (codePoint >= 0x1f300 && codePoint <= 0x1faff)
+      || (codePoint >= 0x20000 && codePoint <= 0x3fffd)
+    )
+  ) return 2;
+  return codePoint < 0x20 || (codePoint >= 0x7f && codePoint < 0xa0) ? 0 : 1;
 }
