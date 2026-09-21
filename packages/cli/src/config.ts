@@ -1,15 +1,9 @@
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { isStoredKnowledge, type StoredKnowledge } from "./knowledge.js";
+import { parseSavedSession, type SavedSession, type SessionStore } from "@cabo/client-core";
 
-export interface SavedSession {
-  server: string;
-  name: string;
-  roomId: string;
-  token: string;
-  knowledge?: StoredKnowledge;
-}
+export type { SavedSession } from "@cabo/client-core";
 
 export function defaultSessionPath(): string {
   return join(homedir(), ".config", "cabo", "session.json");
@@ -23,13 +17,7 @@ export async function saveSession(session: SavedSession, path = defaultSessionPa
 
 export async function loadSession(path = defaultSessionPath()): Promise<SavedSession | undefined> {
   try {
-    const data = JSON.parse(await readFile(path, "utf8")) as Partial<SavedSession>;
-    if (typeof data.server !== "string" || typeof data.name !== "string" || typeof data.roomId !== "string" || typeof data.token !== "string") {
-      return undefined;
-    }
-    const base: SavedSession = { server: data.server, name: data.name, roomId: data.roomId, token: data.token };
-    if (isStoredKnowledge(data.knowledge)) base.knowledge = data.knowledge;
-    return base;
+    return parseSavedSession(JSON.parse(await readFile(path, "utf8")));
   } catch {
     return undefined;
   }
@@ -37,4 +25,12 @@ export async function loadSession(path = defaultSessionPath()): Promise<SavedSes
 
 export async function clearSession(path = defaultSessionPath()): Promise<void> {
   await rm(path, { force: true });
+}
+
+export function createFileSessionStore(path = defaultSessionPath()): SessionStore {
+  return {
+    load: () => loadSession(path),
+    save: (session) => saveSession(session, path),
+    clear: () => clearSession(path),
+  };
 }

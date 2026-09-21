@@ -16,6 +16,7 @@ import { AgentOptionError, parseAgentOptions, renderAgentHelp, type AgentCliOpti
 import { AgentProtocolError, buildObservation, parseAgentRequest, type AgentRequest } from "./agent-protocol.js";
 import { AgentRequestGate } from "./agent-request-gate.js";
 import { AgentRequestTimeoutError, CaboClientCore } from "./client-core.js";
+import { createFileSessionStore } from "./config.js";
 
 const CAPABILITIES = ["describe", "ping", "json-schema", "request-timeout"] as const;
 
@@ -85,7 +86,7 @@ async function run(options: Extract<AgentCliOptions, { mode: "run" }>, cliVersio
   core = new CaboClientCore({
     serverUrl: options.serverUrl,
     playerName: options.playerName,
-    ...(options.sessionPath ? { sessionPath: options.sessionPath } : {}),
+    ...(options.sessionPath ? { sessionStore: createFileSessionStore(options.sessionPath) } : {}),
     handlers: {
       state: () => emitObservation(),
       reveal: (message: PrivateRevealMessage) => {

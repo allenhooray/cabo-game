@@ -19,6 +19,7 @@
     "dev:agent": "tsx src/agent-main.ts"
   },
   "dependencies": {
+    "@cabo/client-core": "workspace:*",
     "@cabo/shared": "workspace:*",
     "@colyseus/sdk": "0.18.2"
   }

@@ -1,6 +1,6 @@
-# Cabo CLI
+# Cabo
 
-一个服务端权威的在线 Cabo 桌游 MVP。Colyseus 负责房间、状态同步和断线重连，玩家通过终端 REPL 进行游戏。
+一个服务端权威的在线 Cabo 桌游。Colyseus 负责房间、状态同步和断线重连，玩家可以使用 Web 牌桌或终端 REPL 进行游戏。
 
 ## 环境与启动
 
@@ -12,6 +12,22 @@ pnpm install
 pnpm build
 pnpm dev:server
 ```
+
+在另一个终端启动 Web 玩家端：
+
+```bash
+pnpm dev:web
+```
+
+访问 `http://localhost:5173`。Web 端默认连接 `http://localhost:2567`，也可以在进入页的 **Server settings** 中覆盖；自定义地址会保存在浏览器 `localStorage`，点击 Reset 可恢复构建默认值。
+
+生产构建：
+
+```bash
+VITE_CABO_SERVER_URL=https://game.example.com pnpm build:web
+```
+
+静态文件输出到 `packages/web/dist`，应独立部署。HTTPS 页面必须连接 HTTPS/WSS 游戏服务。
 
 在两个或更多独立终端启动客户端：
 
@@ -43,6 +59,14 @@ cabo-agent --print-schema
 ```bash
 pnpm dev:cli -- --server http://host:2567 --name Alice
 ```
+
+独立 Web Origin 通过服务端环境变量配置，多个来源用逗号分隔：
+
+```bash
+WEB_ORIGINS=https://play.example.com,https://staging.example.com pnpm dev:server
+```
+
+未设置时默认允许 `http://localhost:5173` 和 `http://127.0.0.1:5173`。反向代理需要同时转发 HTTP matchmaking 请求和 WebSocket upgrade。
 
 ## 快速体验
 
@@ -97,12 +121,17 @@ cabo
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm test:e2e
 ```
+
+E2E 测试会启动独立的服务端与 Web 预览，并以桌面和手机 Chromium 项目验证多人流程、私密房密码、刷新恢复和基础无障碍规则。
 
 项目结构：
 
 - `packages/shared`：共享协议、牌组与纯规则引擎
+- `packages/client-core`：CLI 与 Web 共用的连接、断线恢复、合法动作和私密牌面知识
 - `packages/server`：Colyseus 房间、公开房间列表和连接生命周期
 - `packages/cli`：命令解析、终端客户端和重连令牌存储
+- `packages/web`：React/Vite 玩家牌桌
 
 暗牌只存在于服务端规则引擎中；公共 Schema 仅同步牌数和公开桌面状态。私密看牌结果通过点对点消息发送，不会进入其他客户端的状态数据。

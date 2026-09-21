@@ -3,12 +3,32 @@ import type { Request, Response } from "express";
 import { CaboRoom } from "./CaboRoom.js";
 
 const port = Number.parseInt(process.env.PORT ?? "2567", 10);
+const allowedOrigins = (process.env.WEB_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+function corsOrigin(origin: string | null | undefined): string {
+  if (!origin) return "*";
+  if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) return origin;
+  return "null";
+}
+
+matchMaker.controller.getCorsHeaders = (headers) => ({
+  "Access-Control-Allow-Origin": corsOrigin(headers.get("origin")),
+  Vary: "Origin",
+});
 
 export const server = defineServer({
   rooms: {
     cabo: defineRoom(CaboRoom),
   },
   express: (app) => {
+    app.use((request, response, next) => {
+      response.setHeader("Access-Control-Allow-Origin", corsOrigin(request.headers.origin));
+      response.setHeader("Vary", "Origin");
+      next();
+    });
     app.get("/rooms", async (_request: Request, response: Response) => {
       const rooms = await matchMaker.query({ name: "cabo" });
       response.json(

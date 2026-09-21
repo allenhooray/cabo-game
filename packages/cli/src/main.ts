@@ -5,7 +5,7 @@ import { Writable } from "node:stream";
 import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo/shared";
 import type { Room } from "@colyseus/sdk";
 import { CaboClientCore } from "./client-core.js";
-import { defaultSessionPath } from "./config.js";
+import { createFileSessionStore, defaultSessionPath } from "./config.js";
 import { advanceFlow, isGuardedFlow, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
 import { createKnowledge, type KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, RoundResultView, StatePlayer } from "./model.js";
@@ -124,7 +124,7 @@ function makeRoundResult(event: any): RoundResultView {
 const gameClient = new CaboClientCore({
   serverUrl,
   playerName,
-  sessionPath: defaultSessionPath(),
+  sessionStore: createFileSessionStore(defaultSessionPath()),
   handlers: {
     attached: (nextRoom) => {
       room = nextRoom;

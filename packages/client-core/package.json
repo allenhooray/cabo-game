@@ -1,0 +1,23 @@
+{
+  "name": "@cabo/client-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.json && vitest run"
+  },
+  "dependencies": {
+    "@cabo/shared": "workspace:*",
+    "@colyseus/sdk": "0.18.2"
+  }
+}
