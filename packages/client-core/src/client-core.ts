@@ -1,4 +1,4 @@
-import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage } from "@cabo-game/shared";
+import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage, RoomChatMessage } from "@cabo-game/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { applyKnowledgeSnapshot, applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, ListedRoomResponse } from "./model.js";
@@ -12,6 +12,7 @@ export interface ClientCoreHandlers {
   reveal?(message: PrivateRevealMessage): void;
   knowledge?(knowledge: KnowledgeState): void;
   event?(event: any): void;
+  chat?(message: RoomChatMessage): void;
   error?(message: ErrorMessage): void;
   dropped?(): void;
   reconnected?(): void;
@@ -125,6 +126,11 @@ export class CaboClientCore {
     if (!this.room) throw new Error("Join a room first.");
     this.rememberPending(command);
     this.room.send("command", command);
+  }
+
+  sendChat(text: string): void {
+    if (!this.room) throw new Error("Join a room first.");
+    this.room.send("chat", { text });
   }
 
   execute(command: ClientCommand, options: ExecuteOptions = {}): Promise<AgentCommandResult> {
@@ -251,6 +257,7 @@ export class CaboClientCore {
       if (event.type === "cabo" || event.type === "turn") this.pendingGameAction = undefined;
       this.handlers.event?.(event);
     });
+    nextRoom.onMessage<RoomChatMessage>("chat", (message) => this.handlers.chat?.(message));
     nextRoom.onDrop(() => this.handlers.dropped?.());
     nextRoom.onReconnect(() => {
       this.queueSessionPersist();

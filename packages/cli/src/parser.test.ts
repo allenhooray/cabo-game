@@ -23,6 +23,11 @@ describe("parseCommand", () => {
     expect(parseCommand("ready")).toEqual({ kind: "game", command: { type: "ready-next-round" } });
   });
 
+  it("parses direct and guided room chat", () => {
+    expect(parseCommand("chat hello room")).toEqual({ kind: "chat", text: "hello room" });
+    expect(parseCommand("chat")).toEqual({ kind: "chat" });
+  });
+
   it("rejects invalid positions and target scores", () => {
     expect(() => parseCommand("replace 0")).toThrow("Position");
     expect(() => parseCommand("create public 10")).toThrow("Target");

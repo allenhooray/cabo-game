@@ -74,6 +74,17 @@ describe("terminal rendering", () => {
     expect(output).toContain("└────────────────");
   });
 
+  it("renders recent chat between events and cards with terminal escaping", () => {
+    const output = renderDashboard({
+      state, selfId: "a", roomId: "room", knowledge: createKnowledge(2), events: ["event"], flow: { kind: "idle" },
+      chat: Array.from({ length: 9 }, (_, index) => ({ sequence: index + 1, playerId: index === 8 ? "a" : "b", playerName: "Bob", text: index === 8 ? "safe\u001b[2J" : `message ${index}`, sentAt: 0 })),
+    });
+    expect(output.indexOf("Recent events")).toBeLessThan(output.indexOf("Room chat"));
+    expect(output.indexOf("Room chat")).toBeLessThan(output.indexOf("Your cards"));
+    expect(output).not.toContain("message 0");
+    expect(output).toContain("You: safe\\u001b[2J");
+  });
+
   it("keeps the event divider and action border in lobby and disconnected views", () => {
     const lobby = renderDashboard({ state: { ...state, phase: "LOBBY" }, selfId: "a", knowledge: createKnowledge(), events: [], flow: { kind: "idle" } });
     const disconnected = renderDashboard({ knowledge: createKnowledge(), events: [], flow: { kind: "idle" } });

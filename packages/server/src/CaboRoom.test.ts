@@ -52,6 +52,54 @@ describe("interactive command compatibility", () => {
   });
 });
 
+describe("room chat", () => {
+  function chatRoom() {
+    const room = new CaboRoom();
+    room.state.players.set("a", new PlayerState().assign({ id: "a", name: "Alice", connected: true }));
+    room.state.players.set("b", new PlayerState().assign({ id: "b", name: "Bob", connected: true }));
+    const broadcast = vi.fn();
+    const internals = room as unknown as {
+      broadcast(type: string, payload: unknown): void;
+      handleChat(client: Client, payload: unknown): void;
+    };
+    internals.broadcast = broadcast;
+    return { room, internals, broadcast, client: { sessionId: "a", send: vi.fn() } as unknown as Client };
+  }
+
+  it("broadcasts authoritative identity without changing revision", () => {
+    const { room, internals, broadcast, client } = chatRoom();
+    const now = vi.spyOn(Date, "now").mockReturnValue(1234);
+    internals.handleChat(client, { text: "  hello 👋  " });
+    expect(broadcast).toHaveBeenCalledWith("chat", {
+      sequence: 1, playerId: "a", playerName: "Alice", text: "hello 👋", sentAt: 1234,
+    });
+    expect(room.state.revision).toBe(0);
+    now.mockRestore();
+  });
+
+  it("rejects invalid messages without consuming rate-limit capacity", () => {
+    const { internals, broadcast, client } = chatRoom();
+    const send = client.send as ReturnType<typeof vi.fn>;
+    internals.handleChat(client, { text: "bad\nline" });
+    expect(send).toHaveBeenCalledWith("error", expect.objectContaining({ code: "INVALID_CHAT_MESSAGE" }));
+    for (const text of ["one", "two", "three"]) internals.handleChat(client, { text });
+    expect(broadcast).toHaveBeenCalledTimes(3);
+  });
+
+  it("allows three-message bursts, limits the fourth, and refills over time", () => {
+    const { internals, broadcast, client } = chatRoom();
+    const send = client.send as ReturnType<typeof vi.fn>;
+    const now = vi.spyOn(Date, "now").mockReturnValue(10_000);
+    for (const text of ["one", "two", "three", "four"]) internals.handleChat(client, { text });
+    expect(broadcast).toHaveBeenCalledTimes(3);
+    expect(send).toHaveBeenCalledWith("error", expect.objectContaining({ code: "CHAT_RATE_LIMITED" }));
+    now.mockReturnValue(11_000);
+    internals.handleChat(client, { text: "five" });
+    expect(broadcast).toHaveBeenCalledTimes(4);
+    now.mockRestore();
+  });
+});
+
 describe("round history synchronization", () => {
   it("records each completed round once in authoritative room state", () => {
     const room = new CaboRoom();

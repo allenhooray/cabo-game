@@ -2,7 +2,7 @@
 import { createInterface, emitKeypressEvents } from "node:readline";
 import { stdin, stdout } from "node:process";
 import { Writable } from "node:stream";
-import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo-game/shared";
+import type { ClientCommand, ErrorMessage, PrivateRevealMessage, RoomChatMessage } from "@cabo-game/shared";
 import type { Room } from "@colyseus/sdk";
 import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
 import { caboDiscoveryMode, caboHelpLines, readCliVersion, renderCaboHelp } from "./cli-discovery.js";
@@ -41,6 +41,7 @@ let flow: InteractionFlow = { kind: "idle" };
 let knowledge: KnowledgeState = createKnowledge();
 let notice: string | undefined;
 let recentEvents: string[] = [];
+let recentChat: RoomChatMessage[] = [];
 let roundResult: RoundResultView | undefined;
 let selectionIndex = 0;
 let currentSelectionSignature = "";
@@ -93,7 +94,7 @@ function renderNow(): void {
   syncSelection();
   stdout.write("\x1b[2J\x1b[H");
   stdout.write(renderDashboard({
-    ...context(), knowledge, events: recentEvents, flow, selectionIndex,
+    ...context(), knowledge, events: recentEvents, chat: recentChat, flow, selectionIndex,
     ...(notice ? { notice } : {}),
     ...(room ? { roomId: room.roomId } : {}),
     ...(roundResult ? { roundResult } : {}),
@@ -193,6 +194,10 @@ const gameClient = new CaboClientCore({
       flow = { kind: "idle" };
       inform(`${friendlyError(message.code)} ${message.message}`, true);
     },
+    chat: (message) => {
+      recentChat = [...recentChat, message].slice(-50);
+      renderNow();
+    },
     event: (event: any) => {
       knowledge = gameClient.knowledge;
       if (event.type === "round-result") roundResult = makeRoundResult(event);
@@ -208,6 +213,7 @@ const gameClient = new CaboClientCore({
       room = undefined;
       latestState = undefined;
       flow = { kind: "idle" };
+      recentChat = [];
       renderNow();
     },
     persistenceError: (error) => inform(`Could not save the reconnect session: ${error instanceof Error ? error.message : String(error)}`, true),
@@ -300,6 +306,7 @@ async function execute(command: LocalCommand): Promise<boolean> {
     }
     case "create": {
       if (room) throw new Error("Leave the current room first.");
+      recentChat = [];
       const password = command.visibility === "private" ? await readSecret("Six digit password: ") : undefined;
       if (password !== undefined && !/^\d{6}$/.test(password)) throw new Error("Password must contain exactly six digits.");
       await gameClient.create({
@@ -312,6 +319,7 @@ async function execute(command: LocalCommand): Promise<boolean> {
     }
     case "join": {
       if (room) throw new Error("Leave the current room first.");
+      recentChat = [];
       const publicRooms = await listRooms();
       const isPublic = publicRooms.some((item) => item.roomId === command.roomId);
       const password = command.password ?? (isPublic ? undefined : await readSecret("Six digit password: "));
@@ -334,12 +342,28 @@ async function execute(command: LocalCommand): Promise<boolean> {
       } else sendGame(gameCommand);
       break;
     }
+    case "chat": {
+      if (!interactive) throw new Error("Room chat is available only in the interactive cabo CLI.");
+      if (!room) throw new Error("Join a room before chatting.");
+      if (command.text === undefined) {
+        flow = { kind: "chat-message" };
+        renderNow();
+        break;
+      }
+      const text = command.text.trim();
+      if (!text) throw new Error("Chat messages cannot be empty.");
+      if (Array.from(text).length > 200) throw new Error("Chat messages must contain at most 200 characters.");
+      gameClient.sendChat(text);
+      notice = undefined;
+      break;
+    }
     case "leave":
       if (!room) throw new Error("Not in a room.");
       await gameClient.leave();
       room = undefined;
       latestState = undefined;
       knowledge = createKnowledge();
+      recentChat = [];
       addEvent("Left the room.");
       break;
     case "quit": await gameClient.close(); return false;
@@ -379,6 +403,11 @@ async function applyInteraction(result: InteractionResult): Promise<boolean> {
   flow = { kind: "idle" };
   notice = undefined;
   if (result.kind === "game") { sendGame(result.command); return true; }
+  if (result.kind === "chat") {
+    if (!interactive) throw new Error("Room chat is available only in the interactive cabo CLI.");
+    gameClient.sendChat(result.text);
+    return true;
+  }
   return execute(parseCommand(result.command));
 }
 
@@ -402,8 +431,16 @@ renderNow();
 
 if (interactive) {
   emitKeypressEvents(stdin);
-  stdin.on("keypress", (_character, key) => {
+  stdin.on("keypress", (character, key) => {
     if (readingSecret) return;
+    const emptyBeforeKeypress = rl.line.length === 0 || (rl.line === "t" && rl.cursor === 1);
+    if (character === "t" && room && flow.kind === "idle" && emptyBeforeKeypress) {
+      flow = { kind: "chat-message" };
+      notice = undefined;
+      rl.write(null, { ctrl: true, name: "u" });
+      renderNow();
+      return;
+    }
     if (flow.kind === "room-browser" && (key.name === "left" || key.name === "right")) {
       flow = moveRoomPage(flow, key.name === "left" ? -1 : 1);
       selectionIndex = 0;

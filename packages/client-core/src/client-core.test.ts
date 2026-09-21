@@ -113,3 +113,31 @@ describe("legacy server compatibility", () => {
     expect(core.room?.roomId).toBe("abc123");
   });
 });
+
+describe("room chat transport", () => {
+  it("registers the optional chat handler and sends on the independent channel", async () => {
+    const chat = vi.fn();
+    const core = new CaboClientCore({ serverUrl: "http://localhost", playerName: "Alice", handlers: { chat } });
+    const nextRoom = room();
+    vi.spyOn(core.client, "joinById").mockResolvedValue(nextRoom as any);
+
+    await core.join("abc123");
+    const registration = nextRoom.onMessage.mock.calls.find(([type]) => type === "chat");
+    expect(registration).toBeDefined();
+    const message = { sequence: 1, playerId: "a", playerName: "Alice", text: "hello", sentAt: 1 };
+    registration?.[1](message);
+    expect(chat).toHaveBeenCalledWith(message);
+
+    core.sendChat("hello");
+    expect(nextRoom.send).toHaveBeenCalledWith("chat", { text: "hello" });
+  });
+
+  it("keeps chat optional for older consumers", async () => {
+    const core = new CaboClientCore({ serverUrl: "http://localhost", playerName: "Alice" });
+    const nextRoom = room();
+    vi.spyOn(core.client, "joinById").mockResolvedValue(nextRoom as any);
+    await core.join("abc123");
+    const registration = nextRoom.onMessage.mock.calls.find(([type]) => type === "chat");
+    expect(() => registration?.[1]({ sequence: 1 })).not.toThrow();
+  });
+});

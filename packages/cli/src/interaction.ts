@@ -24,6 +24,7 @@ export type InteractionFlow =
   | { kind: "create-name"; visibility: "public" | "private"; defaultRoomName: string }
   | { kind: "create-target"; visibility: "public" | "private"; roomName?: string }
   | { kind: "join-room" }
+  | { kind: "chat-message" }
   | { kind: "room-browser"; rooms: ListedRoom[]; page: number; message?: string }
   | { kind: "position"; action: "peek-self"; guard: string }
   | { kind: "replace-positions"; guard: string }
@@ -45,6 +46,7 @@ export type InteractionResult =
   | { kind: "local"; command: string }
   | { kind: "create"; visibility: "public" | "private"; targetScore: number; roomName?: string }
   | { kind: "listed-room"; room: ListedRoom }
+  | { kind: "chat"; text: string }
   | { kind: "game"; command: ClientCommand };
 
 export const ROOM_PAGE_SIZE = 10;
@@ -145,6 +147,7 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
     case "create-name":
     case "create-target":
     case "join-room":
+    case "chat-message":
     case "replace-positions":
       return [];
   }
@@ -207,6 +210,12 @@ export function advanceFlow(input: string, flow: InteractionFlow, context: Inter
   if (flow.kind === "join-room") {
     if (!value) return { kind: "flow", flow, message: "Enter a room code." };
     return { kind: "local", command: `join ${value}` };
+  }
+  if (flow.kind === "chat-message") {
+    if (!context.state || !context.selfId) return { kind: "flow", flow: { kind: "idle" }, message: "Join a room before chatting." };
+    if (!value) return { kind: "flow", flow, message: "Enter a chat message, or type cancel." };
+    if (Array.from(value).length > 200) return { kind: "flow", flow, message: "Chat messages must contain at most 200 characters." };
+    return { kind: "chat", text: value };
   }
   if (flow.kind === "room-browser") {
     const start = flow.page * ROOM_PAGE_SIZE;
@@ -283,6 +292,7 @@ export function flowPrompt(flow: InteractionFlow, context: InteractionContext): 
     case "create-name": return `Room name (Enter = ${escapeTerminalText(flow.defaultRoomName)}):`;
     case "create-target": return `Target score for ${flow.visibility} room (20-500, Enter = 100):`;
     case "join-room": return "Room code:";
+    case "chat-message": return "Chat message (type cancel to go back):";
     case "room-browser": return `Public rooms — page ${flow.page + 1}/${Math.max(1, Math.ceil(flow.rooms.length / ROOM_PAGE_SIZE))} (←/→ pages, ↑/↓ options, Enter selects):`;
     case "position": return "Choose a card position (type cancel to go back):";
     case "replace-positions": return "Enter 1-4 card positions separated by spaces or commas (type cancel to go back):";

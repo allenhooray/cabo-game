@@ -9,6 +9,7 @@ export type LocalCommand =
   | { kind: "show" }
   | { kind: "players" }
   | { kind: "leave" }
+  | { kind: "chat"; text?: string }
   | { kind: "quit" }
   | { kind: "game"; command: ClientCommand; targetName?: string };
 
@@ -24,6 +25,8 @@ const placement = (raw: string | undefined): "left" | "right" => {
 };
 
 export function parseCommand(input: string): LocalCommand {
+  const chat = input.trim().match(/^chat(?:\s+([\s\S]*))?$/i);
+  if (chat) return { kind: "chat", ...(chat[1] !== undefined ? { text: chat[1] } : {}) };
   const parts = tokenize(input);
   const [verb, ...args] = parts;
   switch (verb?.toLowerCase()) {

@@ -1,10 +1,12 @@
 import type { CaboStateLike, RoundResultView, StatePlayer } from "./model.js";
 import type { KnowledgeState } from "./knowledge.js";
 import { escapeTerminalText, flowPrompt, selectionOptionsFor, type InteractionContext, type InteractionFlow } from "./interaction.js";
+import type { RoomChatMessage } from "@cabo-game/shared";
 
 export interface DashboardInput extends InteractionContext {
   knowledge: KnowledgeState;
   events: string[];
+  chat?: RoomChatMessage[];
   notice?: string;
   flow: InteractionFlow;
   selectionIndex?: number;
@@ -37,6 +39,7 @@ export function renderDashboard(input: DashboardInput): string {
 
   if (input.roundResult) lines.push("", ...input.roundResult.lines.map(formatCardText), ...(input.roundResult.nextRoundPending ? [nextRoundProgress(state)] : []));
   lines.push("", ...renderEvents(input.events));
+  lines.push("", ...renderChat(input.chat ?? [], input.selfId));
   if (state.phase !== "LOBBY") {
     lines.push("", "Your cards", renderCards(input.knowledge));
     if (input.knowledge.held) lines.push(`Drawn card: ${cardLabel(input.knowledge.held)}`);
@@ -108,6 +111,16 @@ function renderEvents(events: string[]): string[] {
     ...(events.length ? events.slice(-8).map((event) => `  • ${formatCardText(event)}`) : ["  • No events yet."]),
     "─".repeat(48),
   ];
+}
+
+function renderChat(messages: RoomChatMessage[], selfId: string): string[] {
+  const lines = messages.slice(-8).map((message) => {
+    const date = new Date(message.sentAt);
+    const time = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+    const sender = message.playerId === selfId ? "You" : escapeTerminalText(message.playerName);
+    return `  ${time}  ${sender}: ${escapeTerminalText(message.text)}`;
+  });
+  return renderBorder("Room chat", lines.length ? lines : ["  No messages yet. Press t to chat."]);
 }
 
 function renderActions(input: DashboardInput): string[] {

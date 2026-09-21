@@ -10,7 +10,7 @@ import {
   validateServerUrl,
 } from "./browser-session.js";
 import { CaboClientCore, legalActions, type CaboStateLike, type ListedRoom, type StatePlayer } from "@cabo-game/client-core";
-import type { ClientCommand, KnownCard, PrivateRevealMessage, PublicActionEvent } from "@cabo-game/shared";
+import type { ClientCommand, KnownCard, PrivateRevealMessage, PublicActionEvent, RoomChatMessage } from "@cabo-game/shared";
 
 type ConnectionState = "idle" | "connecting" | "live" | "reconnecting" | "offline";
 type Selection = "idle" | "replace" | "peek-other" | "swap";
@@ -64,11 +64,17 @@ export function App() {
   const [motionQueue, setMotionQueue] = useState<CardMotion[]>([]);
   const [concealed, setConcealed] = useState(document.visibilityState !== "visible");
   const [readOnly, setReadOnly] = useState(false);
+  const [chatMessages, setChatMessages] = useState<RoomChatMessage[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const [chatDraft, setChatDraft] = useState("");
   const reconnectAttempted = useRef(false);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const motionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const motionId = useRef(0);
   const roomChannel = useRef<BroadcastChannel | undefined>(undefined);
+  const chatOpenRef = useRef(false);
+  const chatTriggerRef = useRef<HTMLButtonElement>(null);
 
   const state = core?.state;
   const room = core?.room;
@@ -130,6 +136,10 @@ export function App() {
           setRevisionTick((value) => value + 1);
         },
         error: (error) => setNotice(error.message),
+        chat: (message) => {
+          setChatMessages((current) => [...current, message].slice(-50));
+          if (window.innerWidth <= 760 && !chatOpenRef.current) setChatUnread((current) => current + 1);
+        },
         dropped: () => {
           setConnection("offline");
           setNotice("Connection lost. Your seat is reserved for 60 seconds.");
@@ -143,6 +153,11 @@ export function App() {
           setCore(undefined);
           setSelection("idle");
           setTargetId(undefined);
+          setChatMessages([]);
+          setChatUnread(0);
+          setChatOpen(false);
+          setChatDraft("");
+          chatOpenRef.current = false;
         },
         persistenceError: () => setNotice("This browser could not save the reconnect session."),
       },
@@ -220,6 +235,9 @@ export function App() {
     const normalizedName = savePlayerName(name);
     if (!normalizedName) throw new Error("Enter a player name.");
     const next = makeCore(normalizedName, serverUrl);
+    setChatMessages([]);
+    setChatUnread(0);
+    setChatDraft("");
     setName(normalizedName);
     setCore(next);
     setConnection("connecting");
@@ -266,6 +284,11 @@ export function App() {
       setEvents([]);
       setResult(undefined);
       setReadOnly(false);
+      setChatMessages([]);
+      setChatUnread(0);
+      setChatOpen(false);
+      setChatDraft("");
+      chatOpenRef.current = false;
       await refreshRooms();
     } catch (error) {
       setNotice(errorMessage(error));
@@ -319,6 +342,17 @@ export function App() {
   const players = [...state.players.values()].sort((a, b) => a.seat - b.seat);
   const self = state.players.get(selfId);
   const activePlayers = players.filter((player) => player.connected && !player.forfeited);
+  const chatEnabled = connection === "live" && !readOnly;
+  const openChat = () => {
+    chatOpenRef.current = true;
+    setChatOpen(true);
+    setChatUnread(0);
+  };
+  const closeChat = () => {
+    chatOpenRef.current = false;
+    setChatOpen(false);
+    requestAnimationFrame(() => chatTriggerRef.current?.focus());
+  };
 
   return (
     <div className={`app-shell ${concealed ? "is-concealed" : ""}`}>
@@ -326,6 +360,9 @@ export function App() {
         <button className="wordmark" type="button" onClick={() => setNotice(`${state.roomName} · Room ${room.roomId}`)}>CABO</button>
         <div className="room-meta"><strong className="room-title">{state.roomName}</strong> <span /> Room <b className="room-id">{room.roomId}</b> <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
         <div className="topbar-actions">
+          <button ref={chatTriggerRef} className="chat-trigger" type="button" aria-haspopup="dialog" aria-expanded={chatOpen} onClick={openChat}>
+            Chat{chatUnread > 0 ? ` (${chatUnread})` : ""}
+          </button>
           {state.phase !== "LOBBY" && <ScoreHistoryPanel state={state} />}
           <RulesPopover />
           <div className={`connection connection-${connection}`}><i />{connectionLabel(connection)}</div>
@@ -343,8 +380,10 @@ export function App() {
         </div>
       )}
 
-      {state.phase === "LOBBY" ? (
-        <Lobby
+      <div className="room-layout">
+        <main className="room-main">
+        {state.phase === "LOBBY" ? (
+          <Lobby
           roomId={room.roomId}
           roomName={state.roomName}
           targetScore={state.targetScore}
@@ -354,9 +393,9 @@ export function App() {
           busy={busy || readOnly}
           onStart={() => void execute({ type: "start" })}
           onLeave={() => setConfirmation({ title: "Leave this room?", body: "Your seat will be released.", label: "Leave room", action: leave })}
-        />
-      ) : (
-        <GameTable
+          />
+        ) : (
+          <GameTable
           state={state}
           selfId={selfId}
           players={players}
@@ -373,7 +412,21 @@ export function App() {
           onLeave={() => setConfirmation({ title: "Leave the match?", body: "Leaving an active match counts as a forfeit.", label: "Forfeit and leave", action: leave })}
           onConcealStart={() => setConcealed(true)}
           onConcealEnd={() => setConcealed(document.visibilityState !== "visible")}
-        />
+          />
+        )}
+        </main>
+        <aside className="chat-sidebar" aria-label="Room chat">
+          <RoomChat messages={chatMessages} selfId={selfId} enabled={chatEnabled} status={chatStatus(connection, readOnly)} draft={chatDraft} onDraft={setChatDraft} onSend={(text) => core.sendChat(text)} />
+        </aside>
+      </div>
+
+      {chatOpen && (
+        <div className="chat-drawer-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeChat(); }}>
+          <section className="chat-drawer" role="dialog" aria-modal="true" aria-label="Room chat">
+            <button className="chat-close" type="button" aria-label="Close chat" onClick={closeChat}>×</button>
+            <RoomChat messages={chatMessages} selfId={selfId} enabled={chatEnabled} status={chatStatus(connection, readOnly)} draft={chatDraft} onDraft={setChatDraft} autoFocus onClose={closeChat} onSend={(text) => core.sendChat(text)} />
+          </section>
+        </div>
       )}
 
       {privateReveal && <PrivateReveal message={privateReveal} onClose={() => setPrivateReveal(undefined)} />}
@@ -403,6 +456,115 @@ export function App() {
       )}
     </div>
   );
+}
+
+interface RoomChatProps {
+  messages: RoomChatMessage[];
+  selfId: string;
+  enabled: boolean;
+  status: string;
+  draft: string;
+  onDraft(value: string): void;
+  autoFocus?: boolean;
+  onClose?(): void;
+  onSend(text: string): void;
+}
+
+function RoomChat({ messages, selfId, enabled, status, draft, onDraft, autoFocus, onClose, onSend }: RoomChatProps) {
+  const [validation, setValidation] = useState<string>();
+  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const stickToBottom = useRef(true);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && onClose) onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (stickToBottom.current && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
+  }, [messages]);
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const text = draft.trim();
+    if (!text) {
+      setValidation("Enter a message.");
+      return;
+    }
+    if (Array.from(text).length > 200) {
+      setValidation("Messages can contain at most 200 characters.");
+      return;
+    }
+    if (!enabled) return;
+    onSend(text);
+    onDraft("");
+    setValidation(undefined);
+  };
+
+  const count = Array.from(draft.trim()).length;
+  const validationId = autoFocus ? "chat-validation-drawer" : "chat-validation-sidebar";
+  return (
+    <div className="room-chat">
+      <div className="chat-heading"><div><span>Room chat</span><small>Ephemeral · not saved</small></div></div>
+      <div
+        ref={listRef}
+        className="chat-messages"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+        }}
+      >
+        {messages.length === 0 && <p className="chat-empty">No messages yet.</p>}
+        {messages.map((message) => (
+          <article className="chat-message" key={message.sequence}>
+            <div><strong>{message.playerId === selfId ? "You" : message.playerName}</strong><time dateTime={new Date(message.sentAt).toISOString()}>{formatChatTime(message.sentAt)}</time></div>
+            <p>{message.text}</p>
+          </article>
+        ))}
+      </div>
+      <form className="chat-compose" onSubmit={submit}>
+        <label htmlFor={autoFocus ? "chat-message-drawer" : "chat-message-sidebar"}>Message</label>
+        <div>
+          <input
+            ref={inputRef}
+            id={autoFocus ? "chat-message-drawer" : "chat-message-sidebar"}
+            value={draft}
+            disabled={!enabled}
+            autoComplete="off"
+            placeholder={enabled ? "Say something…" : status}
+            aria-describedby={validation ? validationId : undefined}
+            onChange={(event) => {
+              onDraft(event.target.value);
+              setValidation(Array.from(event.target.value.trim()).length > 200 ? "Messages can contain at most 200 characters." : undefined);
+            }}
+          />
+          <button type="submit" disabled={!enabled || !draft.trim() || count > 200}>Send</button>
+        </div>
+        <small id={validation ? validationId : undefined} className={validation ? "chat-validation" : "chat-count"}>{validation ?? `${count}/200`}</small>
+      </form>
+    </div>
+  );
+}
+
+function formatChatTime(sentAt: number): string {
+  return new Date(sentAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function chatStatus(connection: ConnectionState, readOnly: boolean): string {
+  if (readOnly) return "Chat paused in this tab";
+  if (connection === "offline" || connection === "reconnecting") return "Chat unavailable while reconnecting";
+  return "Chat unavailable";
 }
 
 interface HomeProps {
@@ -1074,4 +1236,4 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, ScoreHistoryPanel, GameTable, Lobby };
+export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, ScoreHistoryPanel, GameTable, Lobby, RoomChat };

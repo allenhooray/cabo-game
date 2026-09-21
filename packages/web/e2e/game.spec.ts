@@ -1,5 +1,19 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+async function roomChat(page: Page): Promise<Locator> {
+  const trigger = page.getByRole("button", { name: /^Chat/ });
+  if (await trigger.isVisible()) {
+    await trigger.click();
+    return page.getByRole("dialog", { name: "Room chat" });
+  }
+  return page.getByRole("complementary", { name: "Room chat" });
+}
+
+async function closeChatIfDrawer(chat: Locator): Promise<void> {
+  const close = chat.getByRole("button", { name: "Close chat" });
+  if (await close.isVisible()) await close.click();
+}
 
 test("two isolated players create, join, start, and reconnect", async ({ browser }) => {
   const aliceContext = await browser.newContext();
@@ -20,6 +34,24 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await bob.getByRole("button", { name: "Join table" }).click();
 
   await expect(alice.getByText("Bob")).toBeVisible();
+
+  const aliceChat = await roomChat(alice);
+  await aliceChat.getByRole("textbox", { name: "Message" }).fill("Ready to play?");
+  await aliceChat.getByRole("button", { name: "Send" }).click();
+  await expect(aliceChat).toContainText("You");
+  await closeChatIfDrawer(aliceChat);
+
+  const bobChat = await roomChat(bob);
+  await expect(bobChat).toContainText("Ready to play?");
+  await bobChat.getByRole("textbox", { name: "Message" }).fill("Ready!");
+  await bobChat.getByRole("button", { name: "Send" }).click();
+  await expect(bobChat).toContainText("You");
+  await closeChatIfDrawer(bobChat);
+
+  const aliceReply = await roomChat(alice);
+  await expect(aliceReply).toContainText("Ready!");
+  await closeChatIfDrawer(aliceReply);
+
   await alice.getByRole("button", { name: "Start game" }).click();
   await expect(alice.getByRole("region", { name: "Your hand and actions" })).toBeVisible();
   await expect(bob.getByRole("region", { name: "Your hand and actions" })).toBeVisible();

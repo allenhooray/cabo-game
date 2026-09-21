@@ -5,6 +5,7 @@ import {
   GameEngine,
   GameRuleError,
   joinOptionsSchema,
+  roomChatInputSchema,
   roomOptionsSchema,
   type ClientCommand,
   type AgentCommandResult,
@@ -12,6 +13,7 @@ import {
   type EngineEvent,
   type ErrorMessage,
   type Position,
+  type RoomChatMessage,
 } from "@cabo-game/shared";
 import { type Client, Room } from "colyseus";
 import { CaboState, PlayerState, RoundHistoryCardState, RoundHistoryEntryState, RoundHistoryPlayerState } from "./state.js";
@@ -37,10 +39,13 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private visibility: "public" | "private" = "public";
   private targetScore = 100;
   private readonly knowledge = new PrivateKnowledgeStore();
+  private chatSequence = 0;
+  private readonly chatBuckets = new Map<string, { tokens: number; updatedAt: number }>();
 
   messages = {
     command: (client: Client, payload: unknown) => this.handleCommand(client, payload),
     "agent-command": (client: Client, payload: unknown) => this.handleAgentCommand(client, payload),
+    chat: (client: Client, payload: unknown) => this.handleChat(client, payload),
   };
 
   async onCreate(rawOptions: unknown): Promise<void> {
@@ -109,6 +114,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   }
 
   async onLeave(client: Client): Promise<void> {
+    this.chatBuckets.delete(client.sessionId);
     if (this.state.phase === "LOBBY") {
       this.state.players.delete(client.sessionId);
       if (this.hostId === client.sessionId) this.transferHost();
@@ -139,6 +145,43 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
         this.sendError(client, "INVALID_COMMAND", error instanceof Error ? error.message : "Command failed.");
       }
     }
+  }
+
+  private handleChat(client: Client, rawPayload: unknown): void {
+    const player = this.state.players.get(client.sessionId);
+    if (!player) {
+      this.sendError(client, "INVALID_CHAT_MESSAGE", "Only seated players can send room chat messages.");
+      return;
+    }
+    const parsed = roomChatInputSchema.safeParse(rawPayload);
+    if (!parsed.success) {
+      this.sendError(client, "INVALID_CHAT_MESSAGE", parsed.error.issues[0]?.message ?? "Invalid chat message.");
+      return;
+    }
+    if (!this.takeChatToken(client.sessionId)) {
+      this.sendError(client, "CHAT_RATE_LIMITED", "You are sending messages too quickly. Try again in a moment.");
+      return;
+    }
+    const message: RoomChatMessage = {
+      sequence: ++this.chatSequence,
+      playerId: player.id,
+      playerName: player.name,
+      text: parsed.data.text,
+      sentAt: Date.now(),
+    };
+    this.broadcast("chat", message);
+  }
+
+  private takeChatToken(sessionId: string): boolean {
+    const now = Date.now();
+    const previous = this.chatBuckets.get(sessionId);
+    const tokens = previous ? Math.min(3, previous.tokens + Math.max(0, now - previous.updatedAt) / 1_000) : 3;
+    if (tokens < 1) {
+      this.chatBuckets.set(sessionId, { tokens, updatedAt: now });
+      return false;
+    }
+    this.chatBuckets.set(sessionId, { tokens: tokens - 1, updatedAt: now });
+    return true;
   }
 
   private handleAgentCommand(client: Client, rawPayload: unknown): void {

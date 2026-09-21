@@ -38,6 +38,9 @@ describe("agent JSONL protocol", () => {
       .toThrowError(expect.objectContaining<Partial<AgentProtocolError>>({ code: "INVALID_REQUEST", id: "r2" }));
     expect(() => parseAgentRequest('{"id":"r3","type":"action","action":{"type":"leave"}}'))
       .toThrowError(expect.objectContaining<Partial<AgentProtocolError>>({ code: "INVALID_REQUEST", id: "r3" }));
+    expect(() => parseAgentRequest('{"id":"r4","type":"chat","text":"hello"}'))
+      .toThrowError(expect.objectContaining<Partial<AgentProtocolError>>({ code: "INVALID_REQUEST", id: "r4" }));
+    expect(() => agentFrameSchema.parse({ type: "chat", text: "hello" })).toThrow();
   });
 
   it("enumerates lobby, draw, replacement and final-turn actions", () => {
@@ -95,6 +98,7 @@ describe("agent JSONL protocol", () => {
     expect(serialized).toContain('"resolve-mismatch"');
     expect(serialized).toContain('"ready-next-round"');
     expect(serialized).toContain('"roundHistory"');
+    expect(serialized).not.toContain('"const":"chat"');
   });
 
   it("validates every output frame family", () => {

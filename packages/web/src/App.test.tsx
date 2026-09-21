@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App, __test } from "./App.js";
 
@@ -67,6 +68,41 @@ describe("Cabo home", () => {
 });
 
 describe("Cabo game table additions", () => {
+  it("sends plain room chat only on submit and validates Unicode code points", () => {
+    const onSend = vi.fn();
+    function Harness() {
+      const [draft, setDraft] = useState("");
+      return <__test.RoomChat messages={[]} selfId="alice" enabled status="" draft={draft} onDraft={setDraft} onSend={onSend} />;
+    }
+    render(<Harness />);
+    const input = screen.getByRole("textbox", { name: "Message" });
+    fireEvent.change(input, { target: { value: "hello room" } });
+    expect(onSend).not.toHaveBeenCalled();
+    fireEvent.submit(input.closest("form")!);
+    expect(onSend).toHaveBeenCalledWith("hello room");
+    expect(input).toHaveValue("");
+
+    fireEvent.change(input, { target: { value: "😀".repeat(201) } });
+    expect(screen.getByText(/at most 200/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+  });
+
+  it("labels the current player as You, renders text literally, and closes on Escape", () => {
+    const onClose = vi.fn();
+    const messages = [
+      { sequence: 1, playerId: "alice", playerName: "Alice", text: "<b>safe</b>", sentAt: 0 },
+      { sequence: 2, playerId: "bob", playerName: "Bob", text: "hello", sentAt: 1 },
+    ];
+    const { container } = render(<__test.RoomChat messages={messages} selfId="alice" enabled status="" draft="" onDraft={vi.fn()} autoFocus onClose={onClose} onSend={vi.fn()} />);
+    expect(screen.getByText("You")).toBeVisible();
+    expect(screen.getByText("Bob")).toBeVisible();
+    expect(screen.getByText("<b>safe</b>")).toBeVisible();
+    expect(container.querySelector("b")).not.toBeInTheDocument();
+    expect(within(container).getByRole("textbox", { name: "Message" })).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("shows the room name and a separate room id in the lobby", () => {
     const { container } = render(
       <__test.Lobby

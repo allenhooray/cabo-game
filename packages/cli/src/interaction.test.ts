@@ -42,6 +42,14 @@ describe("context actions", () => {
     expect(advanceFlow("cancel", target.flow, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
   });
 
+  it("collects and validates guided chat messages", () => {
+    const ctx = context("LOBBY");
+    expect(advanceFlow("hello", { kind: "chat-message" }, ctx)).toEqual({ kind: "chat", text: "hello" });
+    expect(advanceFlow("", { kind: "chat-message" }, ctx)).toMatchObject({ kind: "flow", flow: { kind: "chat-message" } });
+    expect(advanceFlow("x".repeat(201), { kind: "chat-message" }, ctx)).toMatchObject({ kind: "flow", message: expect.stringContaining("200") });
+    expect(advanceFlow("cancel", { kind: "chat-message" }, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
+  });
+
   it("requires an explicit yes before CABO", () => {
     const ctx = context("TURN_START");
     const result = selectMenu("3", ctx);
