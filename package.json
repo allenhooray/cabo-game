@@ -14,6 +14,7 @@
     "dev:agent": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/client-core build && pnpm --filter @cabo-game/cli dev:agent",
     "dev:web": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/client-core build && pnpm --filter @cabo-game/web dev",
     "build:web": "pnpm --filter @cabo-game/web build",
+    "build:vercel": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/client-core build && VITE_CABO_SERVER_URL=https://cabo-api.human404.link pnpm --filter @cabo-game/web build",
     "test:e2e": "pnpm build && pnpm --filter @cabo-game/web test:e2e"
   },
   "devDependencies": {

@@ -29,6 +29,16 @@ VITE_CABO_SERVER_URL=https://game.example.com pnpm build:web
 
 静态文件输出到 `packages/web/dist`，应独立部署。HTTPS 页面必须连接 HTTPS/WSS 游戏服务。
 
+### Vercel 部署
+
+仓库根目录的 `vercel.json` 已配置 Vercel Web 构建。将仓库导入 Vercel，保持 **Root Directory** 为仓库根目录，其余构建选项无需手动覆盖。每次推送后 Vercel 会自动运行：
+
+```bash
+pnpm run build:vercel
+```
+
+该命令依次构建 Web 所需的 workspace 包，并将默认游戏服务地址设为 `https://cabo-api.human404.link`；静态产物从 `packages/web/dist` 发布。
+
 在两个或更多独立终端启动客户端：
 
 ```bash
