@@ -987,7 +987,9 @@ function GameTable(props: GameTableProps) {
       <section className="player-dock" aria-label="Your hand and actions">
         <div className="hand-block">
           <div className="hand-heading"><div><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length)} hidden</span></div><button className="privacy-button" type="button" onPointerDown={props.onConcealStart} onPointerUp={props.onConcealEnd} onPointerCancel={props.onConcealEnd}>Hold to conceal</button></div>
-          {canReplace && exchangePositions.length > 0 && <div className="exchange-controls"><span>Selected: {exchangePositions.join(", ")} · Drawn card → {exchangePositions[0]}</span><div><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: exchangePositions[0] as number })}>Confirm exchange</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>Clear</button></div></div>}
+          <div className={`exchange-controls ${canReplace && exchangePositions.length > 0 ? "" : "is-empty"}`} aria-hidden={canReplace && exchangePositions.length > 0 ? undefined : true}>
+            {canReplace && exchangePositions.length > 0 && <><span>Selected: {exchangePositions.join(", ")} · Drawn card → {exchangePositions[0]}</span><div><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: exchangePositions[0] as number })}>Confirm exchange</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>Clear</button></div></>}
+          </div>
           <div className="own-hand">
             {Array.from({ length: self?.cardCount ?? props.core.knowledge.slots.length }, (_, index) => props.core.knowledge.slots[index] ?? null).map((card, index) => {
               const position = index + 1;
@@ -1047,7 +1049,7 @@ function MotionLayer(props: { motion: CardMotion }) {
           "--motion-height": `${flight.to.height}px`,
           animationDelay: `${flight.delay ?? 0}ms`,
         } as CSSProperties;
-        return <div className={`motion-card ${flight.card ? "face" : "back"} ${flight.peek ? "peek" : ""}`} style={style} key={flight.key}>{flight.card ? formatCardLabel(flight.card.label) : <span>C</span>}</div>;
+        return <div className={`motion-card motion-${props.motion.action} ${flight.card ? "face" : "back"} ${flight.peek ? "peek" : ""}`} style={style} key={flight.key}>{flight.card ? formatCardLabel(flight.card.label) : <span>C</span>}</div>;
       })}
     </div>
   );
