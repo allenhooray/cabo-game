@@ -22,11 +22,11 @@ describe("private card knowledge", () => {
   it("updates replacements and discard draws only after their public event", () => {
     let state = createKnowledge(1);
     state = applyReveal(state, { reason: "draw", card: { id: "a", label: "J♣", rank: 11 } }, 1, "DRAWN");
-    state = applyOwnActionEvent(state, { command: { type: "replace", position: 2 } });
+    state = applyOwnActionEvent(state, { command: { type: "replace", positions: [2], replacementPosition: 2 } });
     expect(state.slots[1]).toEqual({ label: "J♣", rank: 11 });
     expect(state.held).toBeNull();
-    state = applyOwnActionEvent(state, { command: { type: "draw-discard", position: 4 }, discard: { label: "3♠", rank: 3 } });
-    expect(state.slots[3]).toEqual({ label: "3♠", rank: 3 });
+    state = applyReveal(state, { reason: "draw", card: { id: "b", label: "3♠", rank: 3 } }, 1, "DRAWN");
+    expect(state.held).toEqual({ label: "3♠", rank: 3 });
   });
 
   it("forgets a position involved in a blind swap", () => {

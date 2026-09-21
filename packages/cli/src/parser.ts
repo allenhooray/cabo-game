@@ -14,8 +14,13 @@ export type LocalCommand =
 
 const position = (raw: string | undefined): number => {
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1 || value > 4) throw new Error("Position must be 1, 2, 3, or 4.");
+  if (!Number.isInteger(value) || value < 1) throw new Error("Position must be a positive integer.");
   return value;
+};
+
+const placement = (raw: string | undefined): "left" | "right" => {
+  if (raw !== "left" && raw !== "right") throw new Error("Placement must be left or right.");
+  return raw;
 };
 
 export function parseCommand(input: string): LocalCommand {
@@ -70,10 +75,29 @@ export function parseCommand(input: string): LocalCommand {
       return { kind: "game", command: { type: "start" } };
     case "draw":
       if (args[0] === "deck") return { kind: "game", command: { type: "draw-deck" } };
-      if (args[0] === "discard") return { kind: "game", command: { type: "draw-discard", position: position(args[1]) } };
-      throw new Error("Usage: draw deck | draw discard POSITION.");
-    case "replace":
-      return { kind: "game", command: { type: "replace", position: position(args[0]) } };
+      if (args[0] === "discard" && args.length === 1) return { kind: "game", command: { type: "draw-discard" } };
+      throw new Error("Usage: draw deck | draw discard.");
+    case "replace": {
+      const at = args.indexOf("at");
+      const rawPositions = at >= 0 ? args.slice(0, at) : args;
+      if (!rawPositions.length || rawPositions.length > 4 || (at >= 0 && at !== args.length - 2)) {
+        throw new Error("Usage: replace POS [POS ...] [at POS].");
+      }
+      const positions = rawPositions.map(position);
+      const replacementPosition = at >= 0 ? position(args[at + 1]) : positions[0] as number;
+      if (new Set(positions).size !== positions.length) throw new Error("Positions must be unique.");
+      if (!positions.includes(replacementPosition)) throw new Error("The replacement position must be selected.");
+      return { kind: "game", command: { type: "replace", positions, replacementPosition } };
+    }
+    case "resolve":
+      return {
+        kind: "game",
+        command: {
+          type: "resolve-mismatch",
+          drawnPlacement: placement(args[0]),
+          ...(args[1] ? { penaltyPlacement: placement(args[1]) } : {}),
+        },
+      };
     case "discard":
       return { kind: "game", command: { type: "discard" } };
     case "peek":

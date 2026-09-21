@@ -62,7 +62,8 @@ function statusLine(state: CaboStateLike, selfId: string): string {
   if (state.phase === "MATCH_RESULT") return `Status: Match complete — winner${state.winners.length === 1 ? "" : "s"}: ${state.winners.map((id) => playerName(state, id)).join(", ")}`;
   const turn = state.currentPlayerId ? playerName(state, state.currentPlayerId) : "-";
   if (state.currentPlayerId !== selfId) return `Status: ${turn}'s turn${state.phase === "FINAL_TURNS" ? " (final turn)" : ""}`;
-  if (state.phase === "DRAWN") return "Status: YOUR TURN — replace a card or discard the drawn card";
+  if (state.phase === "DRAWN") return `Status: YOUR TURN — replace 1-4 cards${state.drawSource === "deck" ? " or discard the drawn card" : ""}`;
+  if (state.phase === "MISMATCH_PENDING") return "Status: YOUR TURN — place the mismatch card and penalty";
   if (state.phase === "POWER_PENDING") return "Status: YOUR TURN — choose how to use the discarded card's power";
   return `Status: YOUR TURN — choose where to draw${state.phase === "FINAL_TURNS" ? " (final turn)" : ""}`;
 }

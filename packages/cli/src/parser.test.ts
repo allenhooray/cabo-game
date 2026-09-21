@@ -11,7 +11,9 @@ describe("parseCommand", () => {
   });
 
   it("parses game actions", () => {
-    expect(parseCommand("draw discard 3")).toEqual({ kind: "game", command: { type: "draw-discard", position: 3 } });
+    expect(parseCommand("draw discard")).toEqual({ kind: "game", command: { type: "draw-discard" } });
+    expect(parseCommand("replace 1 3 at 3")).toEqual({ kind: "game", command: { type: "replace", positions: [1, 3], replacementPosition: 3 } });
+    expect(parseCommand("resolve left right")).toEqual({ kind: "game", command: { type: "resolve-mismatch", drawnPlacement: "left", penaltyPlacement: "right" } });
     expect(parseCommand("peek Alice 2")).toEqual({
       kind: "game",
       targetName: "Alice",
@@ -21,7 +23,7 @@ describe("parseCommand", () => {
   });
 
   it("rejects invalid positions and target scores", () => {
-    expect(() => parseCommand("replace 5")).toThrow("Position");
+    expect(() => parseCommand("replace 0")).toThrow("Position");
     expect(() => parseCommand("create public 10")).toThrow("Target");
     expect(() => parseCommand("create public --name")).toThrow("requires");
     expect(() => parseCommand('create public --name "a" --name "b"')).toThrow("only");

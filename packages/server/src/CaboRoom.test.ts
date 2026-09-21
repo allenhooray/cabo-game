@@ -31,6 +31,10 @@ describe("agent command acknowledgements", () => {
 });
 
 describe("room names", () => {
+  it("allows five seats", () => {
+    expect(new CaboRoom().maxClients).toBe(5);
+  });
+
   it("normalizes custom names and stores the same value in state and metadata", async () => {
     const room = new CaboRoom();
     const setMetadata = vi.fn(async () => undefined);

@@ -185,7 +185,7 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .hand-heading strong { font-size: 13px; }
 .hand-heading span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .privacy-button { min-height: 36px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 10px; cursor: pointer; }
-.own-hand { display: flex; gap: 8px; }
+.own-hand { display: flex; flex-wrap: wrap; gap: 8px; }
 .hand-slot { width: 72px; height: 84px; position: relative; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); transition: transform 160ms ease, box-shadow 160ms ease; }
 .decision-card { width: 72px; height: 84px; margin-left: 8px; padding: 8px; position: relative; display: flex; flex-direction: column; justify-content: space-between; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
 .decision-card.occupied { border-style: solid; background: var(--surface); color: var(--ink); box-shadow: 0 12px 26px var(--shadow); transform: translateY(-5px) rotate(2deg); animation: decision-reveal 480ms cubic-bezier(.2, .8, .2, 1) both; }
@@ -196,6 +196,7 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .hand-slot.known { animation: slot-reveal 420ms cubic-bezier(.2, .8, .2, 1) both; transform-style: preserve-3d; }
 .hand-slot.selectable:not(:disabled) { cursor: pointer; box-shadow: inset 0 0 0 1px var(--ink); }
 .hand-slot.selectable:hover:not(:disabled) { transform: translateY(-4px); }
+.hand-slot.selected { border-color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink), 0 8px 20px var(--shadow); transform: translateY(-4px); }
 .hand-slot.motion-draw-discard, .hand-slot.motion-replace { animation: hand-replace 560ms cubic-bezier(.2, .8, .2, 1) both; }
 .hand-slot.motion-swap { animation: hand-swap 620ms cubic-bezier(.2, .8, .2, 1) both; }
 .player-card.motion-discard { animation: player-discard 520ms cubic-bezier(.2, .8, .2, 1) both; }
@@ -309,7 +310,7 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
   .cabo-button, .leave-button { bottom: 4px; }
   .player-dock { width: calc(100% - 18px); margin-bottom: 8px; padding: 14px; grid-template-columns: 1fr; gap: 14px; }
   .own-hand { justify-content: space-between; gap: 5px; }
-  .hand-slot, .decision-card { width: calc((100% - 20px) / 5); height: 76px; }
+  .hand-slot, .decision-card { width: min(64px, calc((100% - 20px) / 5)); height: 76px; }
   .decision-card { margin-left: 0; }
   .action-zone { min-height: 0; padding: 14px 0 0; border-left: 0; border-top: 1px solid var(--soft-line); }
   .action-buttons { display: grid; grid-template-columns: 1fr 1fr; }

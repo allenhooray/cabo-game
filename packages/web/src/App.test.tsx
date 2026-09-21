@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App, __test } from "./App.js";
 
@@ -44,12 +44,12 @@ describe("Cabo home", () => {
 
   it("shows room names and statuses and disables rooms that cannot be joined", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
-      roomId: "abc123", roomName: "Friday night", targetScore: 100, playerCount: 4, maxClients: 4,
+      roomId: "abc123", roomName: "Friday night", targetScore: 100, playerCount: 5, maxClients: 5,
       phase: "TURN_START", isFull: true, isStarted: true, canJoin: false,
     }]), { status: 200, headers: { "content-type": "application/json" } })));
     render(<App />);
     expect(await screen.findByText("Friday night")).toBeVisible();
-    expect(screen.getByText(/Full · Started · 4 \/ 4 players/)).toBeVisible();
+    expect(screen.getByText(/Full · Started · 5 \/ 5 players/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Join" })).toBeDisabled();
   });
 });
@@ -71,6 +71,7 @@ describe("Cabo game table additions", () => {
     );
     expect(container.querySelector(".room-name")).toHaveTextContent("Friday night");
     expect(container.querySelector(".room-id")).toHaveTextContent("abc123");
+    expect(container.querySelectorAll(".seat")).toHaveLength(5);
   });
 
   it("opens quick rules on hover and links to the full rules", () => {
@@ -93,7 +94,7 @@ describe("Cabo game table additions", () => {
 
   it("offers a route back to rooms after a match", () => {
     const onLeave = vi.fn(async () => undefined);
-    render(
+    const { container } = render(
       <__test.Results
         result={{ type: "match-result", winners: ["alice"], totals: { alice: 8, bob: 24 } }}
         state={{ round: 3 } as any}
@@ -113,7 +114,7 @@ describe("Cabo game table additions", () => {
     ]);
     const { container } = render(
       <__test.GameTable
-        state={{ revision: 2, roomName: "Alice's room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
+        state={{ revision: 2, roomName: "Alice's room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
         selfId="alice"
         players={[...players.values()]}
         core={{ knowledge: { slots: [null, null, null, null], opponents: [{ playerId: "bob", slots: [{ label: "9H", rank: 9 }, null, null, null] }], held: null } } as any}
@@ -139,10 +140,42 @@ describe("Cabo game table additions", () => {
       type: "action",
       action: "draw-discard",
       playerId: "alice",
-      position: 2,
       takenCard: { label: "4H", rank: 4 },
-      discardedCard: { label: "KC", rank: 13 },
-    }).map((flight) => flight.key)).toEqual(["take-discard", "replace-discard"]);
+    }).map((flight) => flight.key)).toEqual(["take-discard"]);
+  });
+
+  it("submits a multi-card replacement with the chosen destination", () => {
+    const players = new Map([
+      ["alice", { id: "alice", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: true }],
+      ["bob", { id: "bob", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: false }],
+    ]);
+    const onExecute = vi.fn();
+    const { container } = render(
+      <__test.GameTable
+        state={{ revision: 2, roomName: "Room", phase: "DRAWN", round: 1, targetScore: 100, currentPlayerId: "alice", caboCallerId: "", drawSource: "deck", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
+        selfId="alice"
+        players={[...players.values()]}
+        core={{ knowledge: { slots: [null, null, null, null], opponents: [], held: { label: "2S", rank: 2 } } } as any}
+        busy={false}
+        selection="replace"
+        targetId={undefined}
+        events={[]}
+        cardMotion={undefined}
+        onSelection={vi.fn()}
+        onTarget={vi.fn()}
+        onExecute={onExecute}
+        onConfirm={vi.fn()}
+        onLeave={vi.fn()}
+        onConcealStart={vi.fn()}
+        onConcealEnd={vi.fn()}
+      />,
+    );
+    const slots = container.querySelectorAll<HTMLButtonElement>(".hand-slot");
+    fireEvent.click(slots[0]!);
+    fireEvent.click(slots[2]!);
+    fireEvent.click(within(container).getByRole("button", { name: "Position 3" }));
+    fireEvent.click(within(container).getByRole("button", { name: "Confirm exchange" }));
+    expect(onExecute).toHaveBeenCalledWith({ type: "replace", positions: [1, 3], replacementPosition: 3 });
   });
 
 });

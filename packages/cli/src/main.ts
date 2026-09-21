@@ -108,8 +108,10 @@ function formatEvent(event: any): string {
     case "action": {
       const actor = playerLabel(event.playerId);
       if (event.action === "draw-deck") return `${actor} drew from the deck.`;
-      if (event.action === "draw-discard") return `${actor} took the discard into position ${event.position}.`;
-      if (event.action === "replace") return `${actor} put the drawn card in position ${event.position}.`;
+      if (event.action === "draw-discard") return `${actor} took ${event.takenCard.label} from the discard pile.`;
+      if (event.action === "replace") return `${actor} replaced positions ${event.positions.join(", ")} and placed the drawn card at ${event.replacementPosition}.`;
+      if (event.action === "exchange-mismatch") return `${actor}'s positions ${event.positions.join(", ")} did not match and were revealed.`;
+      if (event.action === "resolve-mismatch") return `${actor} placed the mismatch card at the ${event.drawnPlacement} end${event.penaltyPlacement ? ` and the penalty at the ${event.penaltyPlacement} end` : ""}.`;
       if (event.action === "discard") return `${actor} discarded the drawn card.`;
       if (event.action === "peek-self") return `${actor} peeked at own position ${event.position}.`;
       if (event.action === "peek-other") return `${actor} peeked at ${playerLabel(event.targetPlayerId)} position ${event.position}.`;
@@ -125,7 +127,7 @@ function formatEvent(event: any): string {
     case "joined": return `${event.name} joined.`;
     case "disconnected": return `${playerLabel(event.playerId)} disconnected (${event.graceSeconds}s grace).`;
     case "reconnected": return `${playerLabel(event.playerId)} reconnected.`;
-    case "round-result": return `Round result: ${Object.entries(event.roundScores).map(([id, score]) => `${playerLabel(id)} +${score}`).join(", ")}${event.caboSucceeded ? " — CABO succeeded" : " — CABO failed"}`;
+    case "round-result": return `Round result: ${Object.entries(event.roundScores).map(([id, score]) => `${playerLabel(id)} +${score}`).join(", ")}${event.outcome.type === "shooting-the-moon" ? ` — ${playerLabel(event.outcome.playerId)} shot the moon` : ` — CABO ${event.outcome.succeeded ? "succeeded" : "failed"}`}`;
     case "match-result": return `Match over. Winner(s): ${event.winners.map(playerLabel).join(", ")}`;
     default: return JSON.stringify(event);
   }
@@ -137,7 +139,9 @@ function makeRoundResult(event: any): RoundResultView {
     const cards = hand.cards.map((card: { label: string }) => formatCardText(card.label)).join(" ");
     lines.push(`  ${playerLabel(hand.playerId).padEnd(12)} ${cards.padEnd(16)} hand ${String(hand.handScore).padStart(2)}  round +${event.roundScores[hand.playerId]}  total ${event.totals[hand.playerId]}`);
   }
-  lines.push(`  CABO ${event.caboSucceeded ? "succeeded" : "failed"}.`);
+  lines.push(event.outcome.type === "shooting-the-moon"
+    ? `  ${playerLabel(event.outcome.playerId)} shot the moon.`
+    : `  CABO ${event.outcome.succeeded ? "succeeded" : "failed"}.`);
   return { lines, nextRoundPending: true };
 }
 

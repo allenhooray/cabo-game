@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentRequestSchema, roomNameSchema, roomOptionsSchema } from "./protocol.js";
+import { AGENT_PROTOCOL_VERSION, agentRequestSchema, roomNameSchema, roomOptionsSchema } from "./protocol.js";
 
 describe("room names", () => {
   it("accepts omitted, blank, duplicate-looking, Unicode, and control-character names", () => {
@@ -20,5 +20,16 @@ describe("room names", () => {
   it("accepts roomName on strict agent create requests", () => {
     expect(agentRequestSchema.parse({ id: "1", type: "create", visibility: "public", targetScore: 100, roomName: "Friends" }))
       .toMatchObject({ roomName: "Friends" });
+  });
+});
+
+describe("agent protocol v4", () => {
+  it("uses multi-position replacement commands and rejects the v3 shape", () => {
+    expect(AGENT_PROTOCOL_VERSION).toBe(4);
+    expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "replace", positions: [1, 3], replacementPosition: 3 } }).success).toBe(true);
+    expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "replace", position: 1 } }).success).toBe(false);
+    expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "draw-discard", position: 1 } }).success).toBe(false);
+    expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "draw-discard" } }).success).toBe(true);
+    expect(agentRequestSchema.safeParse({ id: "1", type: "action", action: { type: "resolve-mismatch", drawnPlacement: "left", penaltyPlacement: "right" } }).success).toBe(true);
   });
 });

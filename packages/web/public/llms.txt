@@ -1,6 +1,6 @@
 # Cabo
 
-> Cabo is a server-authoritative, real-time online card game for two to four players. It can be played in a browser or terminal and automated through a language-neutral JSONL Agent process.
+> Cabo is a server-authoritative, real-time online card game for two to five players. It can be played in a browser or terminal and automated through a language-neutral JSONL Agent process.
 
 ## Play and learn
 

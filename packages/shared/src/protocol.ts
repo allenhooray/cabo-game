@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { GAME_PHASES } from "./types.js";
 
-export const AGENT_PROTOCOL_VERSION = 3 as const;
+export const AGENT_PROTOCOL_VERSION = 4 as const;
 export const AGENT_REQUEST_TYPES = ["rooms", "create", "join", "reconnect", "observe", "describe", "ping", "action", "leave", "shutdown"] as const;
 export const AGENT_FRAME_TYPES = ["ready", "result", "observation", "event", "fatal"] as const;
-export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "discard", "peek-self", "peek-other", "swap", "skip", "cabo"] as const;
+export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "resolve-mismatch", "discard", "peek-self", "peek-other", "swap", "skip", "cabo"] as const;
 
-const position = z.number().int().min(1).max(4);
+const position = z.number().int().min(1);
+const placement = z.enum(["left", "right"]);
 const targetScore = z.number().int().min(20).max(500);
 export const roomNameSchema = z.string().refine(
   (value) => Array.from(value.trim()).length <= 40,
@@ -27,19 +28,51 @@ export const joinOptionsSchema = z.object({
 });
 
 const agentActionVariants = [
-  z.object({ type: z.literal("start") }),
-  z.object({ type: z.literal("draw-deck") }),
-  z.object({ type: z.literal("draw-discard"), position }),
-  z.object({ type: z.literal("replace"), position }),
-  z.object({ type: z.literal("discard") }),
-  z.object({ type: z.literal("peek-self"), position }),
-  z.object({ type: z.literal("peek-other"), targetPlayerId: z.string().min(1), position }),
-  z.object({ type: z.literal("swap"), targetPlayerId: z.string().min(1), position }),
-  z.object({ type: z.literal("skip") }),
-  z.object({ type: z.literal("cabo") }),
+  z.object({ type: z.literal("start") }).strict(),
+  z.object({ type: z.literal("draw-deck") }).strict(),
+  z.object({ type: z.literal("draw-discard") }).strict(),
+  z.object({
+    type: z.literal("replace"),
+    positions: z.array(position).min(1).max(4),
+    replacementPosition: position,
+  }).strict(),
+  z.object({
+    type: z.literal("resolve-mismatch"),
+    drawnPlacement: placement,
+    penaltyPlacement: placement.optional(),
+  }).strict(),
+  z.object({ type: z.literal("discard") }).strict(),
+  z.object({ type: z.literal("peek-self"), position }).strict(),
+  z.object({ type: z.literal("peek-other"), targetPlayerId: z.string().min(1), position }).strict(),
+  z.object({ type: z.literal("swap"), targetPlayerId: z.string().min(1), position }).strict(),
+  z.object({ type: z.literal("skip") }).strict(),
+  z.object({ type: z.literal("cabo") }).strict(),
 ] as const;
 
 export const agentActionSchema = z.discriminatedUnion("type", agentActionVariants);
+
+const legalActionSchema = z.union([
+  agentActionVariants[0],
+  agentActionVariants[1],
+  agentActionVariants[2],
+  agentActionVariants[5],
+  agentActionVariants[6],
+  agentActionVariants[7],
+  agentActionVariants[8],
+  agentActionVariants[9],
+  agentActionVariants[10],
+  z.object({
+    type: z.literal("replace"),
+    selectablePositions: z.array(position),
+    minSelections: z.literal(1),
+    maxSelections: z.number().int().min(1).max(4),
+  }).strict(),
+  z.object({
+    type: z.literal("resolve-mismatch"),
+    placements: z.tuple([z.literal("left"), z.literal("right")]),
+    penaltyCardPending: z.boolean(),
+  }).strict(),
+]);
 
 export const clientCommandSchema = z.discriminatedUnion("type", [
   ...agentActionVariants,
@@ -89,6 +122,8 @@ export const agentObservationSchema = z.object({
     targetScore,
     currentPlayerId: z.string().nullable(),
     caboCallerId: z.string().nullable(),
+    drawSource: z.enum(["deck", "discard"]).nullable(),
+    mismatchPenaltyCardPending: z.boolean(),
     discardTop: displayCardSchema.nullable(),
     deckCount: z.number().int().nonnegative(),
     players: z.array(playerObservationSchema),
@@ -96,14 +131,14 @@ export const agentObservationSchema = z.object({
   }).strict(),
   knowledge: z.object({
     round: z.number().int().nonnegative(),
-    slots: z.array(displayCardSchema.nullable()).length(4),
+    slots: z.array(displayCardSchema.nullable()),
     opponents: z.array(z.object({
       playerId: z.string(),
-      slots: z.array(displayCardSchema.nullable()).length(4),
+      slots: z.array(displayCardSchema.nullable()),
     }).strict()),
     held: displayCardSchema.nullable(),
   }).strict(),
-  legalActions: z.array(agentActionSchema),
+  legalActions: z.array(legalActionSchema),
 }).strict();
 
 export const agentReadyFrameSchema = z.object({
@@ -198,6 +233,10 @@ export function agentProtocolJsonSchema(): Record<string, unknown> {
 
 export type ClientCommand = z.infer<typeof clientCommandSchema>;
 export type AgentAction = z.infer<typeof agentActionSchema>;
+export type LegalAction =
+  | Exclude<AgentAction, { type: "replace" | "resolve-mismatch" }>
+  | { type: "replace"; selectablePositions: number[]; minSelections: 1; maxSelections: number }
+  | { type: "resolve-mismatch"; placements: ["left", "right"]; penaltyCardPending: boolean };
 export type AgentCommandRequest = z.infer<typeof agentCommandRequestSchema>;
 export type AgentRequest = z.infer<typeof agentRequestSchema>;
 export type AgentObservation = z.infer<typeof agentObservationSchema>;

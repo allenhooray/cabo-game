@@ -10,7 +10,7 @@ function context(phase: string, currentPlayerId = "a", discardRank = 5): Interac
   const state: CaboStateLike = {
     revision: 1,
     roomName: "Alice's room",
-    phase, round: 1, targetScore: 100, currentPlayerId, caboCallerId: "", discardLabel: "5♣", discardRank,
+    phase, round: 1, targetScore: 100, currentPlayerId, caboCallerId: "", drawSource: phase === "DRAWN" ? "deck" : "", mismatchPenaltyCardPending: false, discardLabel: "5♣", discardRank,
     deckCount: 43, players: new Map([["a", alice], ["b", bob]]), winners: [],
   };
   return { state, selfId: "a" };
@@ -27,9 +27,7 @@ describe("context actions", () => {
   it("turns numeric choices into guided position commands", () => {
     const ctx = context("TURN_START");
     const selected = selectMenu("2", ctx);
-    expect(selected?.kind).toBe("flow");
-    if (selected?.kind !== "flow") return;
-    expect(advanceFlow("3", selected.flow, ctx)).toEqual({ kind: "game", command: { type: "draw-discard", position: 3 } });
+    expect(selected).toEqual({ kind: "game", command: { type: "draw-discard" } });
   });
 
   it("guides target then position and supports cancellation", () => {
@@ -56,7 +54,8 @@ describe("context actions", () => {
     const guard = stateGuard(ctx);
 
     expect(selectionOptionsFor({ kind: "idle" }, ctx).map((option) => option.value)).toEqual(["1", "2"]);
-    expect(selectionOptionsFor({ kind: "position", action: "replace", guard }, ctx).map((option) => option.value)).toEqual(["1", "2", "3", "4"]);
+    expect(selectionOptionsFor({ kind: "position", action: "peek-self", guard }, ctx).map((option) => option.value)).toEqual(["1", "2", "3", "4"]);
+    expect(selectionOptionsFor({ kind: "replacement-position", positions: [1, 3], guard }, ctx).map((option) => option.value)).toEqual(["1", "3"]);
     expect(selectionOptionsFor({ kind: "target", action: "swap", guard }, ctx)).toEqual([{ value: "1", label: "Bob" }]);
     expect(selectionOptionsFor({ kind: "target-position", action: "swap", target: bob, guard }, ctx).map((option) => option.value)).toEqual(["1", "2", "3", "4"]);
     expect(selectionOptionsFor({ kind: "confirm-cabo", guard }, ctx)).toEqual([
@@ -81,8 +80,8 @@ describe("context actions", () => {
 
     expect(selectionOptionsFor(confirm, ctx)[0]?.value).toBe("n");
     expect(advanceFlow(selectionOptionsFor(confirm, ctx)[0]?.value ?? "", confirm, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
-    expect(selectMenu("2", ctx)?.kind).toBe("flow");
-    expect(advanceFlow("cancel", { kind: "position", action: "replace", guard }, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
+    expect(selectMenu("2", ctx)?.kind).toBe("game");
+    expect(advanceFlow("cancel", { kind: "replace-positions", guard }, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
   });
 
   it("collects the room name before target score without reparsing a command string", () => {
@@ -96,7 +95,7 @@ describe("context actions", () => {
 
   it("paginates room browsing in groups of ten and stops at page boundaries", () => {
     const rooms: ListedRoom[] = Array.from({ length: 21 }, (_, index) => ({
-      roomId: `id-${index + 1}`, roomName: `Room ${index + 1}`, targetScore: 100, playerCount: 1, maxClients: 4,
+      roomId: `id-${index + 1}`, roomName: `Room ${index + 1}`, targetScore: 100, playerCount: 1, maxClients: 5,
       phase: "LOBBY", isFull: false, isStarted: false, canJoin: true,
     }));
     const first = { kind: "room-browser", rooms, page: 0 } as const;

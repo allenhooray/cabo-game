@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { seededRandom } from "./deck.js";
 import { GameEngine } from "./engine.js";
-import { GameRuleError, type EngineEvent, type Position } from "./types.js";
+import { GameRuleError, type EngineEvent, type Position, type Rank } from "./types.js";
 
 const players = [
   { id: "a", name: "Alice" },
@@ -31,12 +31,13 @@ describe("GameEngine", () => {
     expect(engine.getSnapshot()).toEqual(before);
   });
 
-  it("requires a discard-pile draw to replace a hand position immediately", () => {
+  it("requires a discard-pile draw to be placed before the turn ends", () => {
     const { engine } = start(6);
     const playerId = engine.currentPlayerId as string;
     const oldCard = engine.debugHand(playerId)[2];
     const previousTop = engine.getSnapshot().discardTop;
-    engine.drawDiscard(playerId, 3);
+    engine.drawDiscard(playerId);
+    engine.replaceHeld(playerId, [3], 3);
     expect(engine.debugHand(playerId)[2]).toEqual(previousTop);
     expect(engine.getSnapshot().discardTop).toEqual(oldCard);
     expect(engine.phase).toBe("TURN_START");
@@ -67,7 +68,8 @@ describe("GameEngine", () => {
           seen.add("swap");
         }
       } else {
-        engine.replaceHeld(playerId, ((turn % 4) + 1) as Position);
+        const position = ((turn % 4) + 1) as Position;
+        engine.replaceHeld(playerId, [position], position);
       }
     }
     expect(seen).toEqual(new Set(["self", "other", "swap"]));
@@ -81,7 +83,7 @@ describe("GameEngine", () => {
     for (let index = 0; index < finalPlayers; index += 1) {
       const current = engine.currentPlayerId as string;
       engine.drawDeck(current);
-      const events = engine.replaceHeld(current, 1);
+      const events = engine.replaceHeld(current, [1], 1);
       if (index === finalPlayers - 1) {
         const result = events.find((event) => event.type === "round-result");
         expect(result?.type).toBe("round-result");
@@ -101,15 +103,123 @@ describe("GameEngine", () => {
     engine.callCabo(caller);
     const opponent = engine.currentPlayerId as string;
     engine.drawDeck(opponent);
-    const events = engine.replaceHeld(opponent, 1);
+    const events = engine.replaceHeld(opponent, [1], 1);
     const result = events.find((event) => event.type === "round-result");
     expect(result?.type).toBe("round-result");
     if (result?.type !== "round-result") return;
     const callerHand = result.hands.find((hand) => hand.playerId === caller)?.handScore as number;
     const opponentHand = result.hands.find((hand) => hand.playerId === opponent)?.handScore as number;
-    expect(result.caboSucceeded).toBe(callerHand < opponentHand);
+    expect(result.outcome).toEqual({ type: "cabo", callerId: caller, succeeded: callerHand < opponentHand });
     expect(result.roundScores[caller]).toBe(callerHand < opponentHand ? 0 : callerHand + 5);
     expect(result.roundScores[opponent]).toBe(opponentHand);
+  });
+
+  it("supports five players and rejects player counts outside 2-5", () => {
+    expect(() => new GameEngine({ players: players.slice(0, 1), targetScore: 100 })).toThrow("2 to 5");
+    const five = [...players, { id: "d", name: "Dara" }, { id: "e", name: "Eli" }];
+    const engine = new GameEngine({ players: five, targetScore: 100, random: seededRandom(2) });
+    engine.startMatch();
+    expect(engine.getSnapshot().players).toHaveLength(5);
+    expect(engine.getSnapshot().players.every((player) => player.cardCount === 4)).toBe(true);
+    expect(() => new GameEngine({ players: [...five, { id: "f", name: "Finn" }], targetScore: 100 })).toThrow("2 to 5");
+  });
+
+  it("replaces matching multiple cards and compacts the hand", () => {
+    const { engine } = start(3);
+    const playerId = engine.currentPlayerId as string;
+    const hand = engine.players.find((player) => player.id === playerId)?.hand as any[];
+    hand[0] = { id: "x1", label: "5S", rank: 5 };
+    hand[2] = { id: "x2", label: "5H", rank: 5 };
+    engine.drawDeck(playerId);
+    const held = engine.getPendingDraw()?.card;
+    engine.replaceHeld(playerId, [1, 3], 3);
+    expect(engine.debugHand(playerId)).toHaveLength(3);
+    expect(engine.debugHand(playerId)[1]).toEqual(held);
+  });
+
+  it.each([2, 3, 4])("replaces %i matching cards from either draw source", (count) => {
+    for (const source of ["deck", "discard"] as const) {
+      const { engine } = start(30 + count + (source === "discard" ? 10 : 0));
+      const playerId = engine.currentPlayerId as string;
+      const hand = engine.players.find((player) => player.id === playerId)?.hand as any[];
+      const positions = Array.from({ length: count }, (_, index) => index + 1);
+      positions.forEach((position, index) => { hand[position - 1] = { id: `${source}-${index}`, label: `${count}X`, rank: 6 }; });
+      if (source === "deck") engine.drawDeck(playerId);
+      else engine.drawDiscard(playerId);
+      const held = engine.getPendingDraw()?.card;
+      engine.replaceHeld(playerId, positions, count);
+      expect(engine.debugHand(playerId)).toHaveLength(5 - count);
+      expect(engine.debugHand(playerId)[0]).toEqual(held);
+    }
+  });
+
+  it("reveals mismatches and applies the extra-card placement penalty", () => {
+    const { engine } = start(4);
+    const playerId = engine.currentPlayerId as string;
+    const hand = engine.players.find((player) => player.id === playerId)?.hand as any[];
+    hand[0] = { id: "x1", label: "2S", rank: 2 };
+    hand[1] = { id: "x2", label: "3H", rank: 3 };
+    hand[2] = { id: "x3", label: "4D", rank: 4 };
+    engine.drawDeck(playerId);
+    const events = engine.replaceHeld(playerId, [1, 2, 3], 1);
+    expect(events[0]).toMatchObject({ type: "exchange-mismatch", penaltyCardPending: true });
+    expect(engine.phase).toBe("MISMATCH_PENDING");
+    engine.resolveMismatch(playerId, "left", "right");
+    expect(engine.debugHand(playerId)).toHaveLength(6);
+  });
+
+  it("adds no penalty for a two-card mismatch and rejects malformed selections atomically", () => {
+    const { engine } = start(5);
+    const playerId = engine.currentPlayerId as string;
+    const player = engine.players.find((entry) => entry.id === playerId) as (typeof engine.players)[number];
+    player.hand[0] = { id: "x1", label: "2S", rank: 2 };
+    player.hand[1] = { id: "x2", label: "3H", rank: 3 };
+    engine.drawDeck(playerId);
+    const before = [...engine.debugHand(playerId)];
+    expect(() => engine.replaceHeld(playerId, [1, 1], 1)).toThrow("unique");
+    expect(engine.debugHand(playerId)).toEqual(before);
+    expect(engine.replaceHeld(playerId, [1, 2], 1)[0]).toMatchObject({ type: "exchange-mismatch", penaltyCardPending: false });
+    engine.resolveMismatch(playerId, "right");
+    expect(engine.debugHand(playerId)).toHaveLength(5);
+  });
+
+  it("scores shooting the moon before Cabo and allows half points", () => {
+    const engine = new GameEngine({ players: players.slice(0, 2), targetScore: 101, random: seededRandom(8) });
+    engine.startMatch();
+    const caller = engine.currentPlayerId as string;
+    const shooter = engine.players.find((player) => player.id === caller) as (typeof engine.players)[number];
+    const other = engine.players.find((player) => player.id !== caller) as (typeof engine.players)[number];
+    other.score = 51;
+    shooter.hand = [
+      { id: "q1", label: "QS", rank: 12 }, { id: "q2", label: "QH", rank: 12 },
+      { id: "k1", label: "K-A", rank: 13 }, { id: "k2", label: "K-B", rank: 13 },
+    ];
+    engine.callCabo(caller);
+    const opponent = engine.currentPlayerId as string;
+    engine.drawDeck(opponent);
+    const result = engine.replaceHeld(opponent, [1], 1).find((event) => event.type === "round-result");
+    expect(result?.type).toBe("round-result");
+    if (result?.type !== "round-result") return;
+    expect(result.outcome).toEqual({ type: "shooting-the-moon", playerId: caller });
+    expect(result.roundScores[caller]).toBe(0);
+    expect(result.roundScores[opponent]).toBe(50.5);
+    expect(engine.phase).toBe("MATCH_RESULT");
+  });
+
+  it.each([
+    ["an extra card", [12, 12, 13, 13, 1]],
+    ["the wrong four-card combination", [12, 12, 13, 1]],
+  ])("does not shoot the moon with %s", (_name, ranks) => {
+    const engine = new GameEngine({ players: players.slice(0, 2), targetScore: 500, random: seededRandom(18) });
+    engine.startMatch();
+    const caller = engine.currentPlayerId as string;
+    const candidate = engine.players.find((player) => player.id === caller) as (typeof engine.players)[number];
+    candidate.hand = ranks.map((rank, index) => ({ id: `near-${index}`, label: `near-${rank}`, rank: rank as Rank }));
+    engine.callCabo(caller);
+    const opponent = engine.currentPlayerId as string;
+    engine.drawDeck(opponent);
+    const result = engine.replaceHeld(opponent, [1], 1).find((event) => event.type === "round-result");
+    expect(result?.type === "round-result" && result.outcome.type).toBe("cabo");
   });
 
   it("removes forfeited players and awards the match when one player remains", () => {

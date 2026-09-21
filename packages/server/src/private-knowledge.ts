@@ -9,7 +9,7 @@ import type {
   PublicActionEvent,
 } from "@cabo-game/shared";
 
-const emptySlots = (): KnownSlots => [null, null, null, null];
+const emptySlots = (length = 4): KnownSlots => Array.from({ length }, () => null);
 const displayCard = (card: Card | KnownCard): KnownCard => ({ label: card.label, rank: card.rank });
 
 export class PrivateKnowledgeStore {
@@ -48,11 +48,32 @@ export class PrivateKnowledgeStore {
   applyAction(event: PublicActionEvent): void {
     for (const [viewerId, knowledge] of this.viewers) {
       if (event.action === "draw-discard") {
-        this.slotsFor(viewerId, knowledge, event.playerId)[event.position - 1] = { ...event.takenCard };
+        continue;
       } else if (event.action === "replace") {
-        this.slotsFor(viewerId, knowledge, event.playerId)[event.position - 1] = viewerId === event.playerId && knowledge.held
+        const slots = this.slotsFor(viewerId, knowledge, event.playerId);
+        const inserted = viewerId === event.playerId && knowledge.held
           ? { ...knowledge.held }
-          : null;
+          : event.insertedCard ? { ...event.insertedCard } : null;
+        const selected = new Set(event.positions);
+        const next = slots.flatMap((card, index) => {
+          const position = index + 1;
+          if (!selected.has(position)) return [card];
+          return position === event.replacementPosition ? [inserted] : [];
+        });
+        slots.splice(0, slots.length, ...next);
+        if (viewerId === event.playerId) knowledge.held = null;
+      } else if (event.action === "exchange-mismatch") {
+        const slots = this.slotsFor(viewerId, knowledge, event.playerId);
+        event.positions.forEach((position, index) => {
+          slots[position - 1] = event.revealedCards[index] ? { ...event.revealedCards[index] } : null;
+        });
+      } else if (event.action === "resolve-mismatch") {
+        const slots = this.slotsFor(viewerId, knowledge, event.playerId);
+        const inserted = viewerId === event.playerId && knowledge.held
+          ? { ...knowledge.held }
+          : event.insertedCard ? { ...event.insertedCard } : null;
+        this.insert(slots, inserted, event.drawnPlacement);
+        if (event.penaltyPlacement) this.insert(slots, null, event.penaltyPlacement);
         if (viewerId === event.playerId) knowledge.held = null;
       } else if (event.action === "discard") {
         if (viewerId === event.playerId) knowledge.held = null;
@@ -80,10 +101,10 @@ export class PrivateKnowledgeStore {
     if (!value) return undefined;
     return {
       round: value.round,
-      slots: value.slots.map(copyCard) as KnownSlots,
+      slots: value.slots.map(copyCard),
       opponents: value.opponents.map((opponent) => ({
         playerId: opponent.playerId,
-        slots: opponent.slots.map(copyCard) as KnownSlots,
+        slots: opponent.slots.map(copyCard),
       })),
       held: copyCard(value.held),
     };
@@ -98,17 +119,55 @@ export class PrivateKnowledgeStore {
     }
     return opponent.slots;
   }
+
+  private insert(slots: KnownSlots, card: KnownCard | null, placement: "left" | "right"): void {
+    if (placement === "left") slots.unshift(card);
+    else slots.push(card);
+  }
 }
 
-export function publicAction(command: ClientCommand, playerId: string, events: EngineEvent[], discardBefore?: Card): PublicActionEvent | undefined {
-  const discarded = events.find((event): event is Extract<EngineEvent, { type: "discard" }> => event.type === "discard")?.card;
+export function publicAction(
+  command: ClientCommand,
+  playerId: string,
+  events: EngineEvent[],
+  discardBefore?: Card,
+  pendingDraw?: { card: Card; source: "deck" | "discard" },
+): PublicActionEvent | undefined {
+  const discarded = events.filter((event): event is Extract<EngineEvent, { type: "discard" }> => event.type === "discard").map((event) => event.card);
   switch (command.type) {
     case "draw-deck": return { type: "action", action: command.type, playerId };
-    case "draw-discard": return discardBefore && discarded
-      ? { type: "action", action: command.type, playerId, position: command.position as Position, takenCard: displayCard(discardBefore), discardedCard: displayCard(discarded) }
+    case "draw-discard": return discardBefore
+      ? { type: "action", action: command.type, playerId, takenCard: displayCard(discardBefore) }
       : undefined;
-    case "replace": return discarded ? { type: "action", action: command.type, playerId, position: command.position as Position, discardedCard: displayCard(discarded) } : undefined;
-    case "discard": return discarded ? { type: "action", action: command.type, playerId, discardedCard: displayCard(discarded) } : undefined;
+    case "replace": {
+      const mismatch = events.find((event): event is Extract<EngineEvent, { type: "exchange-mismatch" }> => event.type === "exchange-mismatch");
+      if (mismatch) return {
+        type: "action",
+        action: "exchange-mismatch",
+        playerId,
+        positions: [...mismatch.positions],
+        revealedCards: mismatch.cards.map(displayCard),
+        penaltyCardPending: mismatch.penaltyCardPending,
+      };
+      return discarded.length ? {
+        type: "action",
+        action: command.type,
+        playerId,
+        positions: [...command.positions] as Position[],
+        replacementPosition: command.replacementPosition as Position,
+        discardedCards: discarded.map(displayCard),
+        ...(pendingDraw?.source === "discard" ? { insertedCard: displayCard(pendingDraw.card) } : {}),
+      } : undefined;
+    }
+    case "resolve-mismatch": return {
+      type: "action",
+      action: command.type,
+      playerId,
+      drawnPlacement: command.drawnPlacement,
+      ...(command.penaltyPlacement ? { penaltyPlacement: command.penaltyPlacement } : {}),
+      ...(pendingDraw?.source === "discard" ? { insertedCard: displayCard(pendingDraw.card) } : {}),
+    };
+    case "discard": return discarded[0] ? { type: "action", action: command.type, playerId, discardedCard: displayCard(discarded[0]) } : undefined;
     case "peek-self": return { type: "action", action: command.type, playerId, position: command.position as Position };
     case "peek-other": return { type: "action", action: command.type, playerId, targetPlayerId: command.targetPlayerId, position: command.position as Position };
     case "swap": return { type: "action", action: command.type, playerId, targetPlayerId: command.targetPlayerId, position: command.position as Position };

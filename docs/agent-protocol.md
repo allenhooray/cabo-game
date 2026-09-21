@@ -1,6 +1,6 @@
 # Cabo Agent JSONL 协议
 
-`cabo-agent` 是供任意语言通过子进程控制 Cabo 玩家使用的稳定机器接口。协议版本为 `3`。
+`cabo-agent` 是供任意语言通过子进程控制 Cabo 玩家使用的稳定机器接口。协议版本为 `4`，不兼容 v3 的换牌命令。
 
 ## 启动
 
@@ -23,7 +23,7 @@ stdout 只包含 JSONL 协议帧。stderr 只包含不属于协议的诊断信�
 进程启动后的第一帧为：
 
 ```json
-{"type":"ready","protocolVersion":3,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":4,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 ```
 
 ## 请求与结果
@@ -50,8 +50,9 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 
 - `start`
 - `draw-deck`
-- `draw-discard`，带 `position`
-- `replace`，带 `position`
+- `draw-discard`，不带位置；拿牌后再发送 `replace`
+- `replace`，带 `positions`（1–4 个位置）和 `replacementPosition`
+- `resolve-mismatch`，带 `drawnPlacement`，有罚牌时还带 `penaltyPlacement`
 - `discard`
 - `peek-self`，带 `position`
 - `peek-other`，带 `targetPlayerId` 和 `position`
@@ -91,6 +92,8 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
     "targetScore": 100,
     "currentPlayerId": "session-id",
     "caboCallerId": null,
+    "drawSource": null,
+    "mismatchPenaltyCardPending": false,
     "discardTop": {"label":"6♥","rank":6},
     "deckCount": 43,
     "players": [],
@@ -104,13 +107,13 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
   },
   "legalActions": [
     {"type":"draw-deck"},
-    {"type":"draw-discard","position":1},
+    {"type":"draw-discard"},
     {"type":"cabo"}
   ]
 }
 ```
 
-`players` 和 `knowledge.opponents` 始终按座位排序。没有当前玩家、Cabo 宣告者或弃牌时，对应值为 `null`。`opponents` 为每位对手保留四个位置，只有该 Agent 合法看过并仍能追踪的牌为非空值。`legalActions` 是完整的具体动作枚举，包含所有合法位置及目标组合。
+`players` 和 `knowledge.opponents` 始终按座位排序。没有当前玩家、Cabo 宣告者、抽牌来源或弃牌时，对应值为 `null`。知识位置数组随手牌数量动态变化，只有该 Agent 合法看过并仍能追踪的牌为非空值。`replace` 的合法动作使用选择描述符（`selectablePositions`、`minSelections`、`maxSelections`），避免枚举所有组合；其余动作仍给出具体合法参数。
 
 公共状态的 `revision` 单调递增。成功动作的 `result` 只会在客户端已经观察到回执中的 revision 后输出，因此收到成功结果后即可安全提交下一动作。私有知识可能在公共 revision 不变时产生新的 observation。
 
@@ -138,7 +141,7 @@ Agent 应以 observation 作为决策状态，以 event 作为增量通知和日
 ## 完整交互片段
 
 ```jsonl
-{"type":"ready","protocolVersion":3,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":4,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"1","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
 {"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"a","revision":1,"state":{"phase":"LOBBY"},"knowledge":{"round":0,"slots":[null,null,null,null],"opponents":[],"held":null},"legalActions":[]}
 {"type":"result","id":"1","ok":true,"data":{"roomId":"abc123","roomName":"Bots' room","selfId":"a"}}

@@ -113,7 +113,7 @@ describe("terminal rendering", () => {
       flow: {
         kind: "room-browser",
         page: 0,
-        rooms: [{ roomId: "room", roomName: "AS room", targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY", isFull: false, isStarted: false, canJoin: true }],
+        rooms: [{ roomId: "room", roomName: "AS room", targetScore: 100, playerCount: 1, maxClients: 5, phase: "LOBBY", isFull: false, isStarted: false, canJoin: true }],
       },
     });
     expect(output).toContain("AS room");

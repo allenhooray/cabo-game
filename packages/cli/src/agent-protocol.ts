@@ -37,6 +37,8 @@ export function buildObservation(
       targetScore: state.targetScore,
       currentPlayerId: state.currentPlayerId || null,
       caboCallerId: state.caboCallerId || null,
+      drawSource: state.drawSource || null,
+      mismatchPenaltyCardPending: state.mismatchPenaltyCardPending,
       discardTop: state.discardLabel ? { label: state.discardLabel, rank: state.discardRank } : null,
       deckCount: state.deckCount,
       players: [...state.players.values()].sort((a, b) => a.seat - b.seat).map(serializePlayer),

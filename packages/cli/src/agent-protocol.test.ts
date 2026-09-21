@@ -16,6 +16,8 @@ function state(overrides: Partial<CaboStateLike> = {}): CaboStateLike {
     targetScore: 100,
     currentPlayerId: "",
     caboCallerId: "",
+    drawSource: "",
+    mismatchPenaltyCardPending: false,
     discardLabel: "",
     discardRank: -1,
     deckCount: 0,
@@ -40,10 +42,9 @@ describe("agent JSONL protocol", () => {
 
   it("enumerates lobby, draw, replacement and final-turn actions", () => {
     expect(legalActions(state(), "a")).toEqual([{ type: "start" }]);
-    expect(legalActions(state({ phase: "TURN_START", currentPlayerId: "a" }), "a")).toHaveLength(6);
-    expect(legalActions(state({ phase: "DRAWN", currentPlayerId: "a" }), "a")).toEqual([
-      { type: "replace", position: 1 }, { type: "replace", position: 2 },
-      { type: "replace", position: 3 }, { type: "replace", position: 4 }, { type: "discard" },
+    expect(legalActions(state({ phase: "TURN_START", currentPlayerId: "a" }), "a")).toEqual([{ type: "draw-deck" }, { type: "draw-discard" }, { type: "cabo" }]);
+    expect(legalActions(state({ phase: "DRAWN", currentPlayerId: "a", drawSource: "deck" }), "a")).toEqual([
+      { type: "replace", selectablePositions: [1, 2, 3, 4], minSelections: 1, maxSelections: 4 }, { type: "discard" },
     ]);
     expect(legalActions(state({ phase: "FINAL_TURNS", currentPlayerId: "a", caboCallerId: "b" }), "a"))
       .not.toContainEqual({ type: "cabo" });
@@ -80,6 +81,8 @@ describe("agent JSONL protocol", () => {
     expect(serialized).toContain('"roomName"');
     expect(serialized).toContain('"isStarted"');
     expect(serialized).toContain('"canJoin"');
+    expect(serialized).toContain('"selectablePositions"');
+    expect(serialized).toContain('"resolve-mismatch"');
   });
 
   it("validates every output frame family", () => {

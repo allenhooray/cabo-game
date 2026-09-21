@@ -4,7 +4,7 @@ import type { CaboStateLike, ListedRoom, StatePlayer } from "./model.js";
 export type MenuAction =
   | "rooms" | "create-public" | "create-private" | "join" | "reconnect"
   | "start" | "players" | "leave"
-  | "draw-deck" | "draw-discard" | "replace" | "discard" | "cabo"
+  | "draw-deck" | "draw-discard" | "replace" | "resolve-mismatch" | "discard" | "cabo"
   | "peek-self" | "peek-other" | "swap" | "skip";
 
 export interface MenuItem {
@@ -24,7 +24,11 @@ export type InteractionFlow =
   | { kind: "create-target"; visibility: "public" | "private"; roomName?: string }
   | { kind: "join-room" }
   | { kind: "room-browser"; rooms: ListedRoom[]; page: number; message?: string }
-  | { kind: "position"; action: "draw-discard" | "replace" | "peek-self"; guard: string }
+  | { kind: "position"; action: "peek-self"; guard: string }
+  | { kind: "replace-positions"; guard: string }
+  | { kind: "replacement-position"; positions: number[]; guard: string }
+  | { kind: "mismatch-drawn-placement"; penaltyCardPending: boolean; guard: string }
+  | { kind: "mismatch-penalty-placement"; drawnPlacement: "left" | "right"; guard: string }
   | { kind: "target"; action: "peek-other" | "swap"; guard: string }
   | { kind: "target-position"; action: "peek-other" | "swap"; target: StatePlayer; guard: string }
   | { kind: "confirm-cabo"; guard: string };
@@ -47,8 +51,8 @@ export const ROOM_PAGE_SIZE = 10;
 export function stateGuard(context: InteractionContext): string {
   const state = context.state;
   if (!state) return "disconnected";
-  const players = [...state.players.values()].map((player) => `${player.id}:${player.connected}:${player.forfeited}`).join("|");
-  return [state.phase, state.round, state.currentPlayerId, state.caboCallerId, state.discardLabel, players].join(":");
+  const players = [...state.players.values()].map((player) => `${player.id}:${player.connected}:${player.forfeited}:${player.cardCount}`).join("|");
+  return [state.phase, state.round, state.currentPlayerId, state.caboCallerId, state.drawSource, state.mismatchPenaltyCardPending, state.discardLabel, players].join(":");
 }
 
 export function menuFor(context: InteractionContext): MenuItem[] {
@@ -82,8 +86,11 @@ export function menuFor(context: InteractionContext): MenuItem[] {
     return items;
   }
   if (state.phase === "DRAWN") return [
-    { key: "1", label: "Replace one of your cards", action: "replace" },
-    { key: "2", label: "Discard the drawn card", action: "discard" },
+    { key: "1", label: "Replace 1-4 of your cards", action: "replace" },
+    ...(state.drawSource === "deck" ? [{ key: "2", label: "Discard the drawn card", action: "discard" as const }] : []),
+  ];
+  if (state.phase === "MISMATCH_PENDING") return [
+    { key: "1", label: "Place mismatch cards", action: "resolve-mismatch" },
   ];
   if (state.phase === "POWER_PENDING") {
     const power = state.discardRank;
@@ -104,11 +111,18 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
     case "idle":
       return menuFor(context).map((item) => ({ value: item.key, label: item.label }));
     case "position":
-      return positions().map((position) => ({ value: position, label: `Card position ${position}` }));
+      return positions(context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0).map((position) => ({ value: position, label: `Card position ${position}` }));
+    case "replacement-position":
+      return flow.positions.map(String).map((position) => ({ value: position, label: `Place the drawn card at selected position ${position}` }));
+    case "mismatch-drawn-placement":
+    case "mismatch-penalty-placement":
+      return [{ value: "left", label: "Left end" }, { value: "right", label: "Right end" }];
     case "target":
       return activeTargets(context).map((player, index) => ({ value: String(index + 1), label: player.name }));
     case "target-position":
-      return positions().map((position) => ({ value: position, label: `${flow.target.name}'s position ${position}` }));
+      return positions(flow.action === "swap"
+        ? Math.min(flow.target.cardCount, context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0)
+        : flow.target.cardCount).map((position) => ({ value: position, label: `${flow.target.name}'s position ${position}` }));
     case "confirm-cabo":
       return [
         { value: "n", label: "No, keep playing" },
@@ -124,6 +138,7 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
     case "create-name":
     case "create-target":
     case "join-room":
+    case "replace-positions":
       return [];
   }
 }
@@ -158,8 +173,10 @@ export function selectMenu(input: string, context: InteractionContext): Interact
     case "draw-deck": return { kind: "game", command: { type: "draw-deck" } };
     case "discard": return { kind: "game", command: { type: "discard" } };
     case "skip": return { kind: "game", command: { type: "skip" } };
-    case "draw-discard": case "replace": case "peek-self":
-      return { kind: "flow", flow: { kind: "position", action: item.action, guard } };
+    case "draw-discard": return { kind: "game", command: { type: "draw-discard" } };
+    case "replace": return { kind: "flow", flow: { kind: "replace-positions", guard } };
+    case "peek-self": return { kind: "flow", flow: { kind: "position", action: item.action, guard } };
+    case "resolve-mismatch": return { kind: "flow", flow: { kind: "mismatch-drawn-placement", penaltyCardPending: Boolean(context.state?.mismatchPenaltyCardPending), guard } };
     case "peek-other": case "swap":
       return { kind: "flow", flow: { kind: "target", action: item.action, guard } };
     case "cabo": return { kind: "flow", flow: { kind: "confirm-cabo", guard } };
@@ -193,12 +210,35 @@ export function advanceFlow(input: string, flow: InteractionFlow, context: Inter
     if (/^y(es)?$/i.test(value)) return { kind: "game", command: { type: "cabo" } };
     return { kind: "flow", flow: { kind: "idle" }, message: "CABO cancelled." };
   }
+  if (flow.kind === "replace-positions") {
+    const positions = value.split(/[\s,]+/).filter(Boolean).map(Number);
+    const cardCount = context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0;
+    if (positions.length < 1 || positions.length > 4 || new Set(positions).size !== positions.length
+      || positions.some((position) => !Number.isInteger(position) || position < 1 || position > cardCount)) {
+      return { kind: "flow", flow, message: `Enter 1-4 unique positions from 1 to ${cardCount}, separated by spaces or commas.` };
+    }
+    if (positions.length === 1) return { kind: "game", command: { type: "replace", positions, replacementPosition: positions[0] as number } };
+    return { kind: "flow", flow: { kind: "replacement-position", positions, guard: flow.guard } };
+  }
+  if (flow.kind === "replacement-position") {
+    const replacementPosition = Number(value);
+    if (!flow.positions.includes(replacementPosition)) return { kind: "flow", flow, message: "Choose one of the selected positions." };
+    return { kind: "game", command: { type: "replace", positions: flow.positions, replacementPosition } };
+  }
+  if (flow.kind === "mismatch-drawn-placement") {
+    if (value !== "left" && value !== "right") return { kind: "flow", flow, message: "Choose left or right." };
+    if (!flow.penaltyCardPending) return { kind: "game", command: { type: "resolve-mismatch", drawnPlacement: value } };
+    return { kind: "flow", flow: { kind: "mismatch-penalty-placement", drawnPlacement: value, guard: flow.guard } };
+  }
+  if (flow.kind === "mismatch-penalty-placement") {
+    if (value !== "left" && value !== "right") return { kind: "flow", flow, message: "Choose left or right." };
+    return { kind: "game", command: { type: "resolve-mismatch", drawnPlacement: flow.drawnPlacement, penaltyPlacement: value } };
+  }
   if (flow.kind === "position") {
     const position = Number(value);
-    if (!Number.isInteger(position) || position < 1 || position > 4) return { kind: "flow", flow, message: "Choose position 1, 2, 3, or 4." };
-    if (flow.action === "draw-discard") return { kind: "game", command: { type: "draw-discard", position: position as 1 | 2 | 3 | 4 } };
-    if (flow.action === "replace") return { kind: "game", command: { type: "replace", position: position as 1 | 2 | 3 | 4 } };
-    return { kind: "game", command: { type: "peek-self", position: position as 1 | 2 | 3 | 4 } };
+    const cardCount = context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0;
+    if (!Number.isInteger(position) || position < 1 || position > cardCount) return { kind: "flow", flow, message: `Choose position 1 to ${cardCount}.` };
+    return { kind: "game", command: { type: "peek-self", position } };
   }
   if (flow.kind === "target") {
     const targets = activeTargets(context);
@@ -208,9 +248,12 @@ export function advanceFlow(input: string, flow: InteractionFlow, context: Inter
   }
   if (flow.kind === "target-position") {
     const position = Number(value);
-    if (!Number.isInteger(position) || position < 1 || position > 4) return { kind: "flow", flow, message: "Choose position 1, 2, 3, or 4." };
-    if (flow.action === "peek-other") return { kind: "game", command: { type: "peek-other", targetPlayerId: flow.target.id, position: position as 1 | 2 | 3 | 4 } };
-    return { kind: "game", command: { type: "swap", targetPlayerId: flow.target.id, position: position as 1 | 2 | 3 | 4 } };
+    const max = flow.action === "swap"
+      ? Math.min(flow.target.cardCount, context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0)
+      : flow.target.cardCount;
+    if (!Number.isInteger(position) || position < 1 || position > max) return { kind: "flow", flow, message: `Choose position 1 to ${max}.` };
+    if (flow.action === "peek-other") return { kind: "game", command: { type: "peek-other", targetPlayerId: flow.target.id, position } };
+    return { kind: "game", command: { type: "swap", targetPlayerId: flow.target.id, position } };
   }
   return { kind: "flow", flow: { kind: "idle" } };
 }
@@ -230,6 +273,10 @@ export function flowPrompt(flow: InteractionFlow, context: InteractionContext): 
     case "join-room": return "Room code:";
     case "room-browser": return `Public rooms — page ${flow.page + 1}/${Math.max(1, Math.ceil(flow.rooms.length / ROOM_PAGE_SIZE))} (←/→ pages, ↑/↓ rooms, Enter joins):`;
     case "position": return "Choose a card position (type cancel to go back):";
+    case "replace-positions": return "Enter 1-4 card positions separated by spaces or commas (type cancel to go back):";
+    case "replacement-position": return "Choose which selected position receives the drawn card:";
+    case "mismatch-drawn-placement": return "The selected cards did not match. Place the drawn card at which end?";
+    case "mismatch-penalty-placement": return "Place the facedown penalty card at which end?";
     case "target": return "Choose a player (type cancel to go back):";
     case "target-position": return `Choose ${flow.target.name}'s card position (type cancel to go back):`;
     case "confirm-cabo": return "Call CABO? Every other active player gets one final turn:";
@@ -259,6 +306,6 @@ export function escapeTerminalText(value: string): string {
   }).join("");
 }
 
-function positions(): string[] {
-  return ["1", "2", "3", "4"];
+function positions(count: number): string[] {
+  return Array.from({ length: count }, (_, index) => String(index + 1));
 }

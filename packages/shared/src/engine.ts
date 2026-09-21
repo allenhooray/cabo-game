@@ -2,6 +2,8 @@ import { createDeck, shuffle, type RandomSource } from "./deck.js";
 import {
   GameRuleError,
   type Card,
+  type DrawSource,
+  type EndPlacement,
   type EngineEvent,
   type EnginePlayer,
   type GamePhase,
@@ -28,13 +30,15 @@ export class GameEngine {
   private deck: Card[] = [];
   private discardPile: Card[] = [];
   private heldCard: Card | undefined = undefined;
+  private heldSource: DrawSource | undefined = undefined;
+  private mismatchPenaltyCard: Card | undefined = undefined;
   private pendingPower: number | undefined = undefined;
   private finalTurns: string[] = [];
   private roundStarterSeat = 0;
 
   constructor(options: GameEngineOptions) {
-    if (options.players.length < 2 || options.players.length > 4) {
-      throw new GameRuleError("INVALID_COMMAND", "A game requires 2 to 4 players.");
+    if (options.players.length < 2 || options.players.length > 5) {
+      throw new GameRuleError("INVALID_COMMAND", "A game requires 2 to 5 players.");
     }
     if (!Number.isInteger(options.targetScore) || options.targetScore < 20 || options.targetScore > 500) {
       throw new GameRuleError("INVALID_COMMAND", "Target score must be an integer from 20 to 500.");
@@ -62,40 +66,98 @@ export class GameEngine {
     const drawn = this.deck.pop();
     if (!drawn) throw new GameRuleError("INVALID_COMMAND", "The deck is empty.");
     this.heldCard = drawn;
+    this.heldSource = "deck";
     this.phase = "DRAWN";
     return [{ type: "private-reveal", playerId, card: drawn, reason: "draw" }];
   }
 
-  drawDiscard(playerId: string, position: Position): EngineEvent[] {
+  drawDiscard(playerId: string): EngineEvent[] {
     this.assertTurnStart(playerId);
-    const player = this.player(playerId);
     const drawn = this.discardPile.pop();
     if (!drawn) throw new GameRuleError("INVALID_COMMAND", "The discard pile is empty.");
-    const replaced = player.hand[position - 1];
-    if (!replaced) throw new GameRuleError("INVALID_POSITION", "That card position does not exist.");
-    player.hand[position - 1] = drawn;
-    this.discardPile.push(replaced);
-    return [{ type: "discard", playerId, card: replaced }, ...this.finishTurn()];
+    this.heldCard = drawn;
+    this.heldSource = "discard";
+    this.phase = "DRAWN";
+    return [{ type: "private-reveal", playerId, card: drawn, reason: "draw" }];
   }
 
-  replaceHeld(playerId: string, position: Position): EngineEvent[] {
+  replaceHeld(playerId: string, positions: Position[], replacementPosition: Position): EngineEvent[] {
     this.assertCurrent(playerId);
     this.assertPhase("DRAWN");
     const player = this.player(playerId);
-    const replaced = player.hand[position - 1];
-    if (!replaced || !this.heldCard) throw new GameRuleError("INVALID_POSITION", "That card position does not exist.");
-    player.hand[position - 1] = this.heldCard;
+    if (!this.heldCard) throw new GameRuleError("INVALID_COMMAND", "There is no drawn card to place.");
+    const normalized = this.validateExchangePositions(player, positions, replacementPosition);
+    const selected = normalized.map((position) => player.hand[position - 1] as Card);
+    const matches = selected.length === 1 || selected.every((card) => card.rank === selected[0]?.rank);
+    if (!matches) {
+      if (normalized.length >= 3) {
+        this.ensureDeck();
+        const penalty = this.deck.pop();
+        if (!penalty) throw new GameRuleError("INVALID_COMMAND", "No card is available for the mismatch penalty.");
+        this.mismatchPenaltyCard = penalty;
+      }
+      this.phase = "MISMATCH_PENDING";
+      return [{
+        type: "exchange-mismatch",
+        playerId,
+        positions: normalized,
+        cards: [...selected],
+        penaltyCardPending: Boolean(this.mismatchPenaltyCard),
+      }];
+    }
+
+    const held = this.heldCard;
+    const selectedSet = new Set(normalized);
+    player.hand = player.hand.flatMap((card, index) => {
+      const position = index + 1;
+      if (!selectedSet.has(position)) return [card];
+      return position === replacementPosition ? [held] : [];
+    });
     this.heldCard = undefined;
-    this.discardPile.push(replaced);
-    return [{ type: "discard", playerId, card: replaced }, ...this.finishTurn()];
+    this.heldSource = undefined;
+    for (const card of selected) this.discardPile.push(card);
+    return [...selected.map((card): EngineEvent => ({ type: "discard", playerId, card })), ...this.finishTurn()];
+  }
+
+  resolveMismatch(
+    playerId: string,
+    drawnPlacement: EndPlacement,
+    penaltyPlacement?: EndPlacement,
+  ): EngineEvent[] {
+    this.assertCurrent(playerId);
+    this.assertPhase("MISMATCH_PENDING");
+    const player = this.player(playerId);
+    if (!this.heldCard) throw new GameRuleError("INVALID_COMMAND", "There is no drawn card to place.");
+    if (Boolean(this.mismatchPenaltyCard) !== Boolean(penaltyPlacement)) {
+      throw new GameRuleError(
+        "INVALID_COMMAND",
+        this.mismatchPenaltyCard ? "Choose where to place the penalty card." : "No penalty card placement is allowed.",
+      );
+    }
+    this.insertAtEnd(player.hand, this.heldCard, drawnPlacement);
+    if (this.mismatchPenaltyCard && penaltyPlacement) {
+      this.insertAtEnd(player.hand, this.mismatchPenaltyCard, penaltyPlacement);
+    }
+    this.heldCard = undefined;
+    this.heldSource = undefined;
+    this.mismatchPenaltyCard = undefined;
+    const event: EngineEvent = {
+      type: "mismatch-resolved",
+      playerId,
+      drawnPlacement,
+      ...(penaltyPlacement ? { penaltyPlacement } : {}),
+    };
+    return [event, ...this.finishTurn()];
   }
 
   discardHeld(playerId: string): EngineEvent[] {
     this.assertCurrent(playerId);
     this.assertPhase("DRAWN");
     if (!this.heldCard) throw new GameRuleError("INVALID_COMMAND", "There is no drawn card to discard.");
+    if (this.heldSource !== "deck") throw new GameRuleError("INVALID_COMMAND", "A card taken from the discard pile must replace cards.");
     const card = this.heldCard;
     this.heldCard = undefined;
+    this.heldSource = undefined;
     this.discardPile.push(card);
     if (card.rank >= 7 && card.rank <= 12) {
       this.pendingPower = card.rank;
@@ -173,6 +235,8 @@ export class GameEngine {
     this.finalTurns = this.finalTurns.filter((id) => id !== playerId);
     if (wasCurrent) {
       this.heldCard = undefined;
+      this.heldSource = undefined;
+      this.mismatchPenaltyCard = undefined;
       this.pendingPower = undefined;
       if (this.caboCallerId) {
         if (this.finalTurns.length === 0) return [...events, ...this.scoreRound()];
@@ -195,6 +259,8 @@ export class GameEngine {
       targetScore: this.targetScore,
       ...(this.currentPlayerId ? { currentPlayerId: this.currentPlayerId } : {}),
       ...(this.caboCallerId ? { caboCallerId: this.caboCallerId } : {}),
+      ...(this.heldSource ? { drawSource: this.heldSource } : {}),
+      mismatchPenaltyCardPending: Boolean(this.mismatchPenaltyCard),
       ...(this.discardPile.at(-1) ? { discardTop: this.discardPile.at(-1) as Card } : {}),
       deckCount: this.deck.length,
       players: this.players.map(({ id, name, seat, score, forfeited, hand }) => ({
@@ -213,12 +279,18 @@ export class GameEngine {
     return [...this.player(playerId).hand];
   }
 
+  getPendingDraw(): { card: Card; source: DrawSource } | undefined {
+    return this.heldCard && this.heldSource ? { card: this.heldCard, source: this.heldSource } : undefined;
+  }
+
   private startRound(): EngineEvent[] {
     this.round += 1;
     this.phase = "INITIAL_REVEAL";
     this.caboCallerId = undefined;
     this.finalTurns = [];
     this.heldCard = undefined;
+    this.heldSource = undefined;
+    this.mismatchPenaltyCard = undefined;
     this.pendingPower = undefined;
     this.deck = shuffle(createDeck(), this.random);
     this.discardPile = [];
@@ -269,10 +341,17 @@ export class GameEngine {
     const caboSucceeded = Boolean(
       caller && [...handScores.entries()].every(([id, score]) => id === caller.id || (callerScore as number) < score),
     );
+    const moonShooter = active.find((player) => {
+      if (player.hand.length !== 4) return false;
+      return player.hand.filter((card) => card.rank === 12).length === 2
+        && player.hand.filter((card) => card.rank === 13).length === 2;
+    });
     const roundScores: Record<string, number> = {};
     for (const player of active) {
       const handScore = handScores.get(player.id) as number;
-      const score = player.id === caller?.id ? (caboSucceeded ? 0 : handScore + 5) : handScore;
+      const score = moonShooter
+        ? (player.id === moonShooter.id ? 0 : this.targetScore / 2)
+        : player.id === caller?.id ? (caboSucceeded ? 0 : handScore + 5) : handScore;
       player.score += score;
       roundScores[player.id] = score;
     }
@@ -282,7 +361,9 @@ export class GameEngine {
       hands: active.map((player) => ({ playerId: player.id, cards: [...player.hand], handScore: handScores.get(player.id) as number })),
       roundScores,
       totals,
-      caboSucceeded,
+      outcome: moonShooter
+        ? { type: "shooting-the-moon", playerId: moonShooter.id }
+        : { type: "cabo", callerId: caller?.id ?? "", succeeded: caboSucceeded },
     };
     this.currentPlayerId = undefined;
     if (active.some((player) => player.score >= this.targetScore)) {
@@ -340,6 +421,9 @@ export class GameEngine {
   }
 
   private cardAt(playerId: string, position: Position): Card {
+    if (!Number.isInteger(position) || position < 1) {
+      throw new GameRuleError("INVALID_POSITION", "That card position does not exist.");
+    }
     const card = this.player(playerId).hand[position - 1];
     if (!card) throw new GameRuleError("INVALID_POSITION", "That card position does not exist.");
     return card;
@@ -369,5 +453,27 @@ export class GameEngine {
 
   private totals(): Record<string, number> {
     return Object.fromEntries(this.players.map((player) => [player.id, player.score]));
+  }
+
+  private validateExchangePositions(player: EnginePlayer, positions: Position[], replacementPosition: Position): Position[] {
+    if (positions.length < 1 || positions.length > 4) {
+      throw new GameRuleError("INVALID_POSITION", "Choose between 1 and 4 card positions.");
+    }
+    if (new Set(positions).size !== positions.length) {
+      throw new GameRuleError("INVALID_POSITION", "Card positions must be unique.");
+    }
+    if (!positions.includes(replacementPosition)) {
+      throw new GameRuleError("INVALID_POSITION", "The replacement position must be one of the selected cards.");
+    }
+    const normalized = [...positions].sort((a, b) => a - b);
+    if (normalized.some((position) => !Number.isInteger(position) || position < 1 || position > player.hand.length)) {
+      throw new GameRuleError("INVALID_POSITION", "That card position does not exist.");
+    }
+    return normalized;
+  }
+
+  private insertAtEnd(hand: Card[], card: Card, placement: EndPlacement): void {
+    if (placement === "left") hand.unshift(card);
+    else hand.push(card);
   }
 }

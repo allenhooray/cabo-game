@@ -93,7 +93,7 @@ function CodeBlock({ children }: { children: string }) {
 
 function RulesPage() {
   return (
-    <Article eyebrow="Rules" title="Keep the lowest hand." lede="Cabo is a memory game for two to four players. Learn just enough, remember what matters, and end the round at the right moment.">
+    <Article eyebrow="Rules" title="Keep the lowest hand." lede="Cabo is a memory game for two to five players. Learn just enough, remember what matters, and end the round at the right moment.">
       <Section id="goal" title="Goal and setup">
         <p>Finish the match with the lowest total score. Each player receives four face-down cards and privately sees positions 1 and 2 once at the start of every round. After that, cards stay hidden unless a power reveals one.</p>
         <p>A through Q score their numeric rank: A is 1, J is 11, and Q is 12. The two Kings are worth 13 each. Both Jokers are worth 0.</p>
@@ -102,15 +102,17 @@ function RulesPage() {
       <Section id="turns" title="Taking a turn">
         <ol>
           <li>At the start of your turn, draw from the deck, take the top discard, or call Cabo.</li>
-          <li>A deck card is shown only to you. Replace one of your four cards with it, or discard the drawn card.</li>
-          <li>Taking the top discard immediately swaps it with one of your four positions. The replaced card becomes the new top discard.</li>
+          <li>A deck card is shown only to you. Replace one to four cards with it, or discard the drawn card.</li>
+          <li>Taking the top discard must be followed by replacing one to four cards; it cannot activate a power.</li>
+          <li>When replacing multiple cards, all selected cards must share a rank. They are discarded and the drawn card occupies one selected position.</li>
+          <li>If selected cards do not match, they remain and are revealed. The drawn card is added to either end; selecting three or four wrong cards also adds one unseen penalty card.</li>
           <li>Your turn ends after the replacement or after resolving—or skipping—an available card power.</li>
         </ol>
         <p>Only a card drawn from the deck and then discarded can activate a power. A card taken from the discard pile never activates its power.</p>
       </Section>
       <Section id="powers" title="Card powers">
         <div className="docs-table-wrap"><table><thead><tr><th>Ranks</th><th>Power</th></tr></thead><tbody>
-          <tr><td>7–8</td><td>Privately look at one of your own four positions.</td></tr>
+          <tr><td>7–8</td><td>Privately look at one of your own positions.</td></tr>
           <tr><td>9–10</td><td>Privately look at one position belonging to another active player.</td></tr>
           <tr><td>J–Q</td><td>Blindly swap one of your positions with the same position of another active player.</td></tr>
         </tbody></table></div>
@@ -124,6 +126,7 @@ function RulesPage() {
           <li>Every other player adds their hand value to their total.</li>
         </ul>
         <p>When any active player reaches the room’s target score, the match ends. The active player—or tied players—with the lowest total wins.</p>
+        <p><strong>Shooting the Moon:</strong> a player ending the round with exactly two Queens and both Kings scores 0, while every other active player scores half the target score. This overrides normal Cabo scoring.</p>
       </Section>
       <Section id="connections" title="Connections and leaving">
         <p>A disconnected seat is reserved for 60 seconds so the player can reconnect. If the grace period expires, that player forfeits and the remaining players continue.</p>
@@ -164,8 +167,9 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
         <CommandTable rows={[
           ["show", "Render the latest table and your remembered cards."],
           ["draw deck", "Draw a private card from the deck."],
-          ["draw discard POS", "Put the top discard into position 1–4."],
-          ["replace POS", "Replace position 1–4 with the deck card you are holding."],
+          ["draw discard", "Take the top discard, then choose cards to replace."],
+          ["replace POS [POS ...] [at POS]", "Replace one to four positions; at selects the new card’s position."],
+          ["resolve LEFT [PENALTY]", "Place a mismatched draw and optional penalty at the left or right end."],
           ["discard", "Discard the deck card you are holding."],
           ["peek self POS", "Use a 7/8 power on one of your positions."],
           ["peek PLAYER POS", "Use a 9/10 power on another player’s position."],
@@ -175,7 +179,7 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
         ]} />
       </Section>
       <Section id="interaction" title="Interaction notes">
-        <p>Positions are always numbered 1–4. A player argument accepts an exact nickname or a session ID. Enter <code>help</code> or <code>?</code> to show the command reference.</p>
+        <p>Positions run from 1 through the current hand size. A player argument accepts an exact nickname or a session ID. Enter <code>help</code> or <code>?</code> to show the command reference.</p>
         <p>Room names may repeat and contain up to 40 Unicode characters. They are labels only: joining and reconnecting always use the room ID.</p>
         <p>In an interactive terminal, the CLI also offers numbered action menus. During a multi-step choice, enter <code>cancel</code> to return to the action menu.</p>
       </Section>
@@ -207,7 +211,7 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Requests run serially, but pushed events and observations may appear before the matching result.</li>
           <li>The first frame is always <code>ready</code>; startup failures use a <code>fatal</code> frame and a non-zero exit.</li>
         </ul>
-        <CodeBlock>{`{"type":"ready","protocolVersion":3,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+        <CodeBlock>{`{"type":"ready","protocolVersion":4,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}`}</CodeBlock>
       </Section>
@@ -216,12 +220,12 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Wait for the <code>ready</code> frame.</li>
           <li>Send <code>create</code>, <code>join</code>, or <code>reconnect</code>.</li>
           <li>Keep the latest <code>observation</code> as the source of truth.</li>
-          <li>Select one concrete action from <code>legalActions</code> without inventing parameters.</li>
+          <li>Select a concrete action from <code>legalActions</code>. For <code>replace</code>, use its bounded position-selection descriptor.</li>
           <li>Send it inside an <code>action</code> request and correlate the eventual <code>result</code> by ID.</li>
           <li>Repeat when a newer observation arrives.</li>
         </ol>
         <CodeBlock>{`{"id":"create","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
-{"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"session-id","revision":3,"state":{"phase":"TURN_START","round":1,"targetScore":100,"currentPlayerId":"session-id","caboCallerId":null,"discardTop":{"label":"6H","rank":6},"deckCount":43,"players":[],"winners":[]},"knowledge":{"round":1,"slots":[{"label":"4C","rank":4},null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
+{"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"session-id","revision":3,"state":{"phase":"TURN_START","round":1,"targetScore":100,"currentPlayerId":"session-id","caboCallerId":null,"drawSource":null,"mismatchPenaltyCardPending":false,"discardTop":{"label":"6H","rank":6},"deckCount":43,"players":[],"winners":[]},"knowledge":{"round":1,"slots":[{"label":"4C","rank":4},null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
 {"id":"move-1","type":"action","action":{"type":"draw-deck"}}
 {"type":"result","id":"move-1","ok":true,"data":{"revision":4}}`}</CodeBlock>
       </Section>

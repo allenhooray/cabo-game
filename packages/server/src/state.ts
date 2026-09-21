@@ -24,6 +24,8 @@ export const CaboState = schema(
     targetScore: t.number().default(100),
     currentPlayerId: t.string().default(""),
     caboCallerId: t.string().default(""),
+    drawSource: t.string().default(""),
+    mismatchPenaltyCardPending: t.boolean().default(false),
     discardLabel: t.string().default(""),
     discardRank: t.number().default(-1),
     deckCount: t.number().default(0),

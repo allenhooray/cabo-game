@@ -11,7 +11,6 @@ export interface StoredKnowledge {
 
 export interface PendingGameAction {
   command: ClientCommand;
-  discard?: DisplayCard;
 }
 
 const emptySlots = (): KnownSlots => [null, null, null, null];
@@ -80,21 +79,20 @@ export function applyOwnActionEvent(state: KnowledgeState, pending?: PendingGame
   if (!pending) return state;
   const command = pending.command;
   if (command.type === "replace") {
-    const slots = [...state.slots] as KnownSlots;
-    slots[command.position - 1] = state.held;
+    const selected = new Set(command.positions);
+    const slots = state.slots.flatMap((card, index) => {
+      const position = index + 1;
+      if (!selected.has(position)) return [card];
+      return position === command.replacementPosition ? [state.held] : [];
+    });
     return { ...state, slots, held: null };
-  }
-  if (command.type === "draw-discard") {
-    const slots = [...state.slots] as KnownSlots;
-    slots[command.position - 1] = pending.discard ?? null;
-    return { ...state, slots };
   }
   if (command.type === "discard") return { ...state, held: null };
   return state;
 }
 
 export function applySwapEvent(state: KnowledgeState, position: number, involvesSelf: boolean): KnowledgeState {
-  if (!involvesSelf || position < 1 || position > 4) return state;
+  if (!involvesSelf || position < 1 || position > state.slots.length) return state;
   const slots = [...state.slots] as KnownSlots;
   slots[position - 1] = null;
   return { ...state, slots };
@@ -113,7 +111,7 @@ export function isStoredKnowledge(value: unknown): value is StoredKnowledge {
 }
 
 function validSlots(value: unknown): value is Array<DisplayCard | null> {
-  return Array.isArray(value) && value.length === 4 && value.every((card) => {
+  return Array.isArray(value) && value.every((card) => {
     if (card === null) return true;
     if (!card || typeof card !== "object") return false;
     const candidate = card as Partial<DisplayCard>;
@@ -131,7 +129,7 @@ function validOpponents(value: unknown): value is OpponentKnowledge[] {
 }
 
 function copySlots(slots: Array<DisplayCard | null>): KnownSlots {
-  return slots.map((card) => card ? { ...card } : null) as KnownSlots;
+  return slots.map((card) => card ? { ...card } : null);
 }
 
 function copyOpponents(opponents: OpponentKnowledge[]): OpponentKnowledge[] {

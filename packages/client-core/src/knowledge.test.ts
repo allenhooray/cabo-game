@@ -14,7 +14,7 @@ describe("private card knowledge", () => {
   it("applies confirmed replacements and forgets blind swaps", () => {
     let state = createKnowledge(1, { round: 1, slots: [{ label: "A♣", rank: 1 }, null, null, null] });
     state = applyReveal(state, { reason: "draw", card: { id: "a", label: "J♣", rank: 11 } }, 1, "DRAWN");
-    state = applyOwnActionEvent(state, { command: { type: "replace", position: 2 } });
+    state = applyOwnActionEvent(state, { command: { type: "replace", positions: [2], replacementPosition: 2 } });
     expect(state.slots[1]).toEqual({ label: "J♣", rank: 11 });
     state = applySwapEvent(state, 1, true);
     expect(state.slots[0]).toBeNull();

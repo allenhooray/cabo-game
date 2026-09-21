@@ -274,12 +274,7 @@ export class CaboClientCore {
   }
 
   private rememberPending(command: ClientCommand): void {
-    this.pendingGameAction = {
-      command,
-      ...(command.type === "draw-discard" && this.state?.discardLabel
-        ? { discard: { label: this.state.discardLabel, rank: this.state.discardRank } }
-        : {}),
-    };
+    this.pendingGameAction = { command };
   }
 
   private waitForRevision(id: string, revision: number, timeoutMs: number): Promise<void> {

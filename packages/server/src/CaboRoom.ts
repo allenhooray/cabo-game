@@ -28,7 +28,7 @@ interface RoomMetadata {
 
 export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }> {
   state = new CaboState();
-  maxClients = 4;
+  maxClients = 5;
   maxMessagesPerSecond = 20;
 
   private engine: GameEngine | undefined;
@@ -180,15 +180,19 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
 
     let events: EngineEvent[];
     const discardBefore = this.engine.getSnapshot().discardTop;
+    const pendingDraw = this.engine.getPendingDraw();
     switch (command.type) {
       case "draw-deck":
         events = this.engine.drawDeck(client.sessionId);
         break;
       case "draw-discard":
-        events = this.engine.drawDiscard(client.sessionId, command.position as Position);
+        events = this.engine.drawDiscard(client.sessionId);
         break;
       case "replace":
-        events = this.engine.replaceHeld(client.sessionId, command.position as Position);
+        events = this.engine.replaceHeld(client.sessionId, command.positions as Position[], command.replacementPosition as Position);
+        break;
+      case "resolve-mismatch":
+        events = this.engine.resolveMismatch(client.sessionId, command.drawnPlacement, command.penaltyPlacement);
         break;
       case "discard":
         events = this.engine.discardHeld(client.sessionId);
@@ -211,7 +215,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       default:
         throw new GameRuleError("INVALID_COMMAND", "Unsupported command.");
     }
-    const action = publicAction(command, client.sessionId, events, discardBefore as Card | undefined);
+    const action = publicAction(command, client.sessionId, events, discardBefore as Card | undefined, pendingDraw);
     if (action) {
       this.knowledge.applyAction(action);
       this.broadcast("event", action);
@@ -249,7 +253,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
           ...(event.position ? { position: event.position } : {}),
           reason: event.reason,
         });
-      } else {
+      } else if (event.type !== "exchange-mismatch" && event.type !== "mismatch-resolved") {
         if (event.type === "forfeit") this.knowledge.removePlayer(event.playerId);
         this.broadcast("event", event);
       }
@@ -284,6 +288,8 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     this.state.round = snapshot.round;
     this.state.currentPlayerId = snapshot.currentPlayerId ?? "";
     this.state.caboCallerId = snapshot.caboCallerId ?? "";
+    this.state.drawSource = snapshot.drawSource ?? "";
+    this.state.mismatchPenaltyCardPending = snapshot.mismatchPenaltyCardPending;
     this.state.discardLabel = snapshot.discardTop?.label ?? "";
     this.state.discardRank = snapshot.discardTop?.rank ?? -1;
     this.state.deckCount = snapshot.deckCount;

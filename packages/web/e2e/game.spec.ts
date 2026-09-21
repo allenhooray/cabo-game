@@ -43,9 +43,14 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await expect(observer.locator(".opponent-decision.occupied")).toBeVisible();
   await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText("drew a hidden card");
 
-  await actor.getByRole("button", { name: "Replace a card" }).click();
+  await actor.getByRole("button", { name: "Replace cards" }).click();
   await actor.locator(".hand-slot").first().click();
-  await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText("position 1");
+  await actor.locator(".hand-slot").nth(1).click();
+  await actor.getByRole("button", { name: "Position 1" }).click();
+  await actor.getByRole("button", { name: "Confirm exchange" }).click();
+  await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText(/positions 1, 2|did not match/);
+  const mismatchPlacement = actor.getByRole("button", { name: "Left end" });
+  if (await mismatchPlacement.isVisible()) await mismatchPlacement.click();
 
   await alice.reload();
   await expect(alice.getByText("Live")).toBeVisible();
@@ -56,6 +61,31 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
 
   await aliceContext.close();
   await bobContext.close();
+});
+
+test("a five-player room fills every seat and starts", async ({ browser }) => {
+  const contexts = await Promise.all(Array.from({ length: 5 }, () => browser.newContext()));
+  const pages = await Promise.all(contexts.map((context) => context.newPage()));
+  const [host, ...guests] = pages;
+
+  await host.goto("/");
+  await host.getByRole("textbox", { name: "Player name" }).fill("Player 1");
+  await host.getByRole("button", { name: "Create room" }).click();
+  await host.getByRole("button", { name: "Create table" }).click();
+  const roomId = await host.locator(".lobby-copy .room-id").innerText();
+
+  for (const [index, guest] of guests.entries()) {
+    await guest.goto("/");
+    await guest.getByRole("textbox", { name: "Player name" }).fill(`Player ${index + 2}`);
+    await guest.getByRole("button", { name: "Join by code" }).click();
+    await guest.getByLabel("Room code").fill(roomId);
+    await guest.getByRole("button", { name: "Join table" }).click();
+  }
+
+  await expect(host.locator(".seat.seat-filled")).toHaveCount(5);
+  await host.getByRole("button", { name: "Start game" }).click();
+  await expect(host.getByRole("region", { name: "Your hand and actions" })).toBeVisible();
+  await Promise.all(contexts.map((context) => context.close()));
 });
 
 test("private room requires its six-digit password", async ({ browser }) => {

@@ -19,6 +19,8 @@ export interface CaboStateLike {
   targetScore: number;
   currentPlayerId: string;
   caboCallerId: string;
+  drawSource: "deck" | "discard" | "";
+  mismatchPenaltyCardPending: boolean;
   discardLabel: string;
   discardRank: number;
   deckCount: number;

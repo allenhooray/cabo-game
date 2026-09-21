@@ -35,7 +35,7 @@ cabo-agent \
 stdin and stdout contain exactly one JSON object per line. stderr is reserved for diagnostics. The first runtime frame is `ready`.
 
 ```jsonl
-{"type":"ready","protocolVersion":3,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":4,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}
 {"id":"create","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
@@ -43,10 +43,18 @@ stdin and stdout contain exactly one JSON object per line. stderr is reserved fo
 
 Every request has a unique string `id`. Requests are processed serially, but pushed `event` and `observation` frames may appear before the matching `result`.
 
-Use the latest observation as the source of truth and select an action directly from `legalActions`:
+Use the latest observation as the source of truth. Most entries in `legalActions` are concrete commands; `replace` is a bounded selection descriptor listing valid positions and a 1–4 selection range:
 
 ```json
-{"id":"move-1","type":"action","action":{"type":"draw-deck"}}
+{"type":"replace","selectablePositions":[1,2,3,4],"minSelections":1,"maxSelections":4}
+```
+
+The v4 draw/exchange sequence is explicit and is not compatible with v3 commands:
+
+```jsonl
+{"id":"move-1","type":"action","action":{"type":"draw-discard"}}
+{"id":"move-2","type":"action","action":{"type":"replace","positions":[1,3],"replacementPosition":3}}
+{"id":"move-3","type":"action","action":{"type":"resolve-mismatch","drawnPlacement":"left","penaltyPlacement":"right"}}
 ```
 
 After a timeout, the result contains `uncertain: true`. State-changing requests are then rejected with `STATE_UNCERTAIN` until a successful `observe` request refreshes the supervisor's view.
