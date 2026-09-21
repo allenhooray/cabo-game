@@ -19,6 +19,8 @@ Run `cabo-agent` as one persistent subprocess with a unique `--session-file`, an
 
 Use a unique request ID and wait for its matching `result` before another state-changing request. After a timeout or any `uncertain: true` result, do not retry: send `observe` and continue from the refreshed state. Let a live process recover a transient `connection-dropped`; if the process dies, restart with the same server, name, and session file and send `reconnect` promptly. Never use `leave`, EOF, or process termination to reconnect during a match because that forfeits the seat. Confirm `ready-next-round` when legal, continue until `MATCH_RESULT`, report the result, then send `shutdown` and wait for a clean exit.
 
+Every observation includes authoritative `state.roundHistory` data for completed rounds. Each entry records the outcome, revealed hands, hand scores, points added that round, and cumulative totals for every participating player. Use it for round-by-round score reporting instead of reconstructing history from transient events; it remains available after refresh or seat-preserving reconnect.
+
 ## Copyable match prompt
 
 ```text

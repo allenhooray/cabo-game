@@ -44,7 +44,8 @@ Most `legalActions` entries are complete action objects and can be copied unchan
 
 Handle the full lifecycle:
 
-- In `ROUND_RESULT`, send `ready-next-round` when it appears in `legalActions`, then wait for the other active players.
+- In `ROUND_RESULT`, inspect the latest `state.roundHistory` entry for the authoritative round outcome, each player's revealed cards, hand score, round score, and cumulative total. Use this synchronized history when reporting or comparing earlier rounds instead of reconstructing scores from events.
+- Send `ready-next-round` when it appears in `legalActions`, then wait for the other active players.
 - Continue across rounds until `MATCH_RESULT`; do not stop after the first round.
 - If a result has `uncertain: true` or code `REQUEST_TIMEOUT`, do not retry that action. Send a unique `observe` request and resume only after its successful result supplies a fresh observation. `STATE_UNCERTAIN` has the same recovery requirement.
 - For an ordinary rejected action, use the returned error and wait for or request a fresh observation rather than inventing a corrected action from stale state.
@@ -57,6 +58,6 @@ Handle the full lifecycle:
 
 ## Finish
 
-After observing `MATCH_RESULT`, report the winner names/IDs and final scores. Then send a unique `shutdown` request, wait for its successful result, and wait for the process to exit with status 0.
+After observing `MATCH_RESULT`, report the winner names/IDs and final scores. Include a round-by-round summary from `state.roundHistory` when the user asks for match history or scoring details. Then send a unique `shutdown` request, wait for its successful result, and wait for the process to exit with status 0.
 
 For the complete protocol read [the Agent JSONL contract](https://github.com/allenhooray/cabo-game/blob/master/docs/agent-protocol.md). For scoring and card powers read [the Cabo rules](https://cabo.human404.link/docs/rules/).
