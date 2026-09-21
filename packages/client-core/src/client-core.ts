@@ -4,6 +4,8 @@ import { applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, rese
 import type { CaboStateLike, ListedRoom } from "./model.js";
 import type { SavedSession, SessionStore } from "./session.js";
 
+export const DEFAULT_SERVER_URL = "https://cabo.human404.link";
+
 export interface ClientCoreHandlers {
   attached?(room: Room<any, CaboStateLike>, saved?: SavedSession): void;
   state?(state: CaboStateLike): void;

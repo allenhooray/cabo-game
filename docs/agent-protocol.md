@@ -5,12 +5,12 @@
 ## 启动
 
 ```bash
-pnpm dev:agent -- --server http://localhost:2567 --name Bot-A
+pnpm dev:agent -- --name Bot-A
 ```
 
 构建后也可以直接运行 `cabo-agent`。支持的参数：
 
-- `--server URL`：服务端地址，默认 `http://localhost:2567`。
+- `--server URL`：服务端地址，默认 `https://cabo.human404.link`。
 - `--name NAME`：玩家名，最长 20 个字符。
 - `--session-file PATH`：可选的独立会话文件。未提供时不写磁盘，`reconnect` 请求不可用。
 - `--request-timeout-ms N`：请求超时，范围 100–300000，默认 15000 毫秒。
@@ -23,7 +23,7 @@ stdout 只包含 JSONL 协议帧。stderr 只包含不属于协议的诊断信�
 进程启动后的第一帧为：
 
 ```json
-{"type":"ready","protocolVersion":1,"cliVersion":"0.1.0","server":"http://localhost:2567","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":1,"cliVersion":"0.1.0","server":"https://cabo.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 ```
 
 ## 请求与结果
@@ -133,7 +133,7 @@ Agent 应以 observation 作为决策状态，以 event 作为增量通知和日
 ## 完整交互片段
 
 ```jsonl
-{"type":"ready","protocolVersion":1,"cliVersion":"0.1.0","server":"http://localhost:2567","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":1,"cliVersion":"0.1.0","server":"https://cabo.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"1","type":"create","visibility":"public","targetScore":100}
 {"type":"observation","roomId":"abc123","selfId":"a","revision":1,"state":{"phase":"LOBBY"},"knowledge":{"round":0,"slots":[null,null,null,null],"held":null},"legalActions":[]}
 {"type":"result","id":"1","ok":true,"data":{"roomId":"abc123","selfId":"a"}}

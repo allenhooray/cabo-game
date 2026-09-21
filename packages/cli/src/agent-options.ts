@@ -1,3 +1,5 @@
+import { DEFAULT_SERVER_URL } from "@cabo/client-core";
+
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15_000;
 export const MIN_REQUEST_TIMEOUT_MS = 100;
 export const MAX_REQUEST_TIMEOUT_MS = 300_000;
@@ -30,7 +32,7 @@ export function parseAgentOptions(args: string[], defaultName: string): AgentCli
   if (args.includes("--version")) return { mode: "version" };
   if (args.includes("--print-schema")) return { mode: "schema" };
 
-  let serverUrl = "http://localhost:2567";
+  let serverUrl = DEFAULT_SERVER_URL;
   let playerName = defaultName;
   let sessionPath: string | undefined;
   let requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS;
@@ -73,7 +75,7 @@ export function renderAgentHelp(): string {
     "A JSONL process interface for running one Cabo player.",
     "",
     "Options:",
-    "  --server URL                 Cabo server (default: http://localhost:2567)",
+    `  --server URL                 Cabo server (default: ${DEFAULT_SERVER_URL})`,
     "  --name NAME                  Player name (default: current OS user)",
     "  --session-file PATH          Persist this Agent's reconnect session",
     `  --request-timeout-ms N       Request timeout, ${MIN_REQUEST_TIMEOUT_MS}-${MAX_REQUEST_TIMEOUT_MS} (default: ${DEFAULT_REQUEST_TIMEOUT_MS})`,

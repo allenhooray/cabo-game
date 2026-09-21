@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_SERVER_URL } from "@cabo/client-core";
 import { BrowserSessionStore, defaultServerUrl, resetServerUrl, savePlayerName, saveServerUrl, savedServerUrl, validateServerUrl } from "./browser-session.js";
 
 describe("browser settings and reconnect session", () => {
   beforeEach(() => localStorage.clear());
 
   it("stores and resets a player-selected server", () => {
+    expect(defaultServerUrl()).toBe(DEFAULT_SERVER_URL);
     expect(savedServerUrl()).toBe(defaultServerUrl());
     expect(saveServerUrl("https://cabo.example.test/")).toBe("https://cabo.example.test");
     expect(savedServerUrl()).toBe("https://cabo.example.test");

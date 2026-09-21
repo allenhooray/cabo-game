@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_SERVER_URL } from "@cabo/client-core";
 import { AgentOptionError, DEFAULT_REQUEST_TIMEOUT_MS, parseAgentOptions, renderAgentHelp } from "./agent-options.js";
 
 describe("agent CLI options", () => {
   it("parses run options and defaults", () => {
     expect(parseAgentOptions([], "Bot")).toEqual({
       mode: "run",
-      serverUrl: "http://localhost:2567",
+      serverUrl: DEFAULT_SERVER_URL,
       playerName: "Bot",
       requestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
     });
@@ -18,6 +19,7 @@ describe("agent CLI options", () => {
     expect(parseAgentOptions(["--version"], "Bot")).toEqual({ mode: "version" });
     expect(parseAgentOptions(["--print-schema"], "Bot")).toEqual({ mode: "schema" });
     expect(renderAgentHelp()).toContain("--request-timeout-ms");
+    expect(renderAgentHelp()).toContain(`default: ${DEFAULT_SERVER_URL}`);
   });
 
   it("rejects unknown, missing and out-of-range options", () => {

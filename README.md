@@ -13,13 +13,13 @@ pnpm build
 pnpm dev:server
 ```
 
-在另一个终端启动 Web 玩家端：
+在另一个终端启动 Web 玩家端，并显式连接本地服务：
 
 ```bash
-pnpm dev:web
+VITE_CABO_SERVER_URL=http://localhost:2567 pnpm dev:web
 ```
 
-访问 `http://localhost:5173`。Web 端默认连接 `http://localhost:2567`，也可以在进入页的 **Server settings** 中覆盖；自定义地址会保存在浏览器 `localStorage`，点击 Reset 可恢复构建默认值。
+访问 `http://localhost:5173`。Web 端默认连接 `https://cabo.human404.link`，也可以通过 `VITE_CABO_SERVER_URL` 或进入页的 **Server settings** 覆盖；自定义地址会保存在浏览器 `localStorage`，点击 Reset 可恢复构建默认值。
 
 生产构建：
 
@@ -32,14 +32,14 @@ VITE_CABO_SERVER_URL=https://game.example.com pnpm build:web
 在两个或更多独立终端启动客户端：
 
 ```bash
-pnpm dev:cli -- --name Alice
-pnpm dev:cli -- --name Bob
+pnpm dev:cli -- --server http://localhost:2567 --name Alice
+pnpm dev:cli -- --server http://localhost:2567 --name Bob
 ```
 
 需要从外部程序驱动对局时，使用独立的 JSONL Agent 入口：
 
 ```bash
-pnpm dev:agent -- --name Bot-A
+pnpm dev:agent -- --server http://localhost:2567 --name Bot-A
 ```
 
 它只在 stdout 输出 JSON，每行一个协议帧；stdin 同样每行接受一个 JSON 请求。完整契约见 [Agent JSONL 协议](docs/agent-protocol.md)。
@@ -54,7 +54,7 @@ cabo-agent --print-schema
 
 客户端会根据当前游戏阶段显示桌面、自己的已知牌和可用操作。常用操作可以直接输入菜单编号；原有完整命令仍然可用。分步选择过程中输入 `cancel` 可返回操作菜单。
 
-服务端默认为 `http://localhost:2567`。连接其他地址时使用：
+客户端默认连接 `https://cabo.human404.link`。连接其他地址时使用：
 
 ```bash
 pnpm dev:cli -- --server http://host:2567 --name Alice

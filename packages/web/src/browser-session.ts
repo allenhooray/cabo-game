@@ -1,4 +1,4 @@
-import { parseSavedSession, type SavedSession, type SessionStore } from "@cabo/client-core";
+import { DEFAULT_SERVER_URL, parseSavedSession, type SavedSession, type SessionStore } from "@cabo/client-core";
 
 const SESSION_KEY = "cabo.session.v1";
 const SERVER_KEY = "cabo.server.v1";
@@ -24,7 +24,7 @@ export class BrowserSessionStore implements SessionStore {
 }
 
 export function defaultServerUrl(): string {
-  return normalizeServerUrl(import.meta.env.VITE_CABO_SERVER_URL || "http://localhost:2567");
+  return normalizeServerUrl(import.meta.env.VITE_CABO_SERVER_URL || DEFAULT_SERVER_URL);
 }
 
 export function savedServerUrl(): string {

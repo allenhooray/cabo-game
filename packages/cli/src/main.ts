@@ -4,7 +4,7 @@ import { stdin, stdout } from "node:process";
 import { Writable } from "node:stream";
 import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo/shared";
 import type { Room } from "@colyseus/sdk";
-import { CaboClientCore } from "./client-core.js";
+import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
 import { createFileSessionStore, defaultSessionPath } from "./config.js";
 import { advanceFlow, isGuardedFlow, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
 import { createKnowledge, type KnowledgeState } from "./knowledge.js";
@@ -17,7 +17,7 @@ function option(name: string, fallback: string): string {
   return index >= 0 && process.argv[index + 1] ? (process.argv[index + 1] as string) : fallback;
 }
 
-const serverUrl = option("--server", "http://localhost:2567").replace(/\/$/, "");
+const serverUrl = option("--server", DEFAULT_SERVER_URL).replace(/\/$/, "");
 const playerName = option("--name", process.env.USER ?? "Player").trim().slice(0, 20);
 const interactive = Boolean(stdin.isTTY && stdout.isTTY);
 let room: Room<any, CaboStateLike> | undefined;
