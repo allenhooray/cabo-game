@@ -24,6 +24,11 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await alice.getByRole("button", { name: "Start game" }).click();
   await expect(alice.getByRole("region", { name: "Your hand and actions" })).toBeVisible();
   await expect(bob.getByRole("region", { name: "Your hand and actions" })).toBeVisible();
+  await expect(alice.getByRole("region", { name: "Your hand and actions" })).toContainText("Alice · 0 pts");
+  await alice.getByRole("button", { name: "Rules" }).hover();
+  await expect(alice.getByRole("complementary", { name: "Quick rules" })).toBeVisible();
+  await expect(alice.getByRole("link", { name: /Read the full rules/i })).toHaveAttribute("href", "/docs/rules/");
+  await alice.getByRole("region", { name: "Your hand and actions" }).hover();
   await expect(alice).toHaveScreenshot("game-table.png", {
     animations: "disabled",
     mask: [alice.locator(".room-code, .card-memory, .playing-card:not(.card-back)")],

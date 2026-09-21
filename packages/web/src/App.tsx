@@ -14,6 +14,15 @@ import type { ClientCommand, PrivateRevealMessage } from "@cabo-game/shared";
 
 type ConnectionState = "idle" | "connecting" | "live" | "reconnecting" | "offline";
 type Selection = "idle" | "draw-discard" | "replace" | "peek-other" | "swap";
+type CardMotionKind = "draw" | "draw-discard" | "replace" | "discard" | "swap";
+
+interface CardMotion {
+  id: number;
+  kind: CardMotionKind;
+  playerId?: string;
+  targetPlayerId?: string;
+  position?: number;
+}
 
 interface RoundResult {
   type: "round-result";
@@ -57,10 +66,13 @@ export function App() {
   const [confirmation, setConfirmation] = useState<Confirmation>();
   const [result, setResult] = useState<ResultEvent>();
   const [privateReveal, setPrivateReveal] = useState<PrivateRevealMessage>();
+  const [cardMotion, setCardMotion] = useState<CardMotion>();
   const [concealed, setConcealed] = useState(document.visibilityState !== "visible");
   const [readOnly, setReadOnly] = useState(false);
   const reconnectAttempted = useRef(false);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const motionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const motionId = useRef(0);
   const roomChannel = useRef<BroadcastChannel | undefined>(undefined);
 
   const state = core?.state;
@@ -71,6 +83,13 @@ export function App() {
 
   const addEvent = useCallback((message: string) => {
     setEvents((current) => [...current.slice(-5), message]);
+  }, []);
+
+  const triggerCardMotion = useCallback((motion: Omit<CardMotion, "id">) => {
+    if (motionTimer.current) clearTimeout(motionTimer.current);
+    const next = { ...motion, id: ++motionId.current };
+    setCardMotion(next);
+    motionTimer.current = setTimeout(() => setCardMotion((current) => current?.id === next.id ? undefined : current), 720);
   }, []);
 
   const makeCore = useCallback((nextName: string, nextServer: string) => {
@@ -103,6 +122,12 @@ export function App() {
         },
         event: (event: any) => {
           if (event.type === "round-result" || event.type === "match-result") setResult(event as ResultEvent);
+          if (event.type === "discard" && event.playerId !== instance.room?.sessionId) {
+            triggerCardMotion({ kind: "discard", playerId: event.playerId });
+          }
+          if (event.type === "swap" && event.playerId !== instance.room?.sessionId) {
+            triggerCardMotion({ kind: "swap", playerId: event.playerId, targetPlayerId: event.targetPlayerId, position: event.position });
+          }
           const label = formatEvent(event, (id) => instance.state?.players.get(id)?.name ?? id);
           if (label) addEvent(label);
           setRevisionTick((value) => value + 1);
@@ -126,7 +151,7 @@ export function App() {
       },
     });
     return instance;
-  }, [addEvent]);
+  }, [addEvent, triggerCardMotion]);
 
   const refreshRooms = useCallback(async () => {
     setRoomsBusy(true);
@@ -171,6 +196,11 @@ export function App() {
     const onVisibility = () => setConcealed(document.visibilityState !== "visible");
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
+  useEffect(() => () => {
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    if (motionTimer.current) clearTimeout(motionTimer.current);
   }, []);
 
   useEffect(() => {
@@ -221,6 +251,8 @@ export function App() {
       const response = await core.execute(command);
       if (!response.ok) setNotice(response.error.message);
       else {
+        const motion = motionForCommand(command, core.room?.sessionId);
+        if (motion) triggerCardMotion(motion);
         setSelection("idle");
         setTargetId(undefined);
       }
@@ -229,7 +261,7 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  }, [core, readOnly]);
+  }, [core, readOnly, triggerCardMotion]);
 
   const leave = useCallback(async () => {
     if (!core) return;
@@ -297,7 +329,10 @@ export function App() {
       <header className="topbar">
         <button className="wordmark" type="button" onClick={() => setNotice(`Room ${room.roomId}`)}>CABO</button>
         <div className="room-meta">Room {room.roomId} <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
-        <div className={`connection connection-${connection}`}><i />{connectionLabel(connection)}</div>
+        <div className="topbar-actions">
+          <RulesPopover />
+          <div className={`connection connection-${connection}`}><i />{connectionLabel(connection)}</div>
+        </div>
       </header>
 
       {notice && <div className="notice" role="status"><span>{notice}</span><button type="button" aria-label="Dismiss message" onClick={() => setNotice(undefined)}>×</button></div>}
@@ -332,6 +367,7 @@ export function App() {
           selection={selection}
           targetId={targetId}
           events={events}
+          cardMotion={cardMotion}
           onSelection={(next) => { setSelection(next); setTargetId(undefined); }}
           onTarget={setTargetId}
           onExecute={(command) => void execute(command)}
@@ -343,13 +379,15 @@ export function App() {
       )}
 
       {privateReveal && <PrivateReveal message={privateReveal} onClose={() => setPrivateReveal(undefined)} />}
-      {result && <Results result={result} state={state} playerName={playerName} />}
+      {result && <Results result={result} state={state} playerName={playerName} busy={busy} onLeave={leave} />}
       {!result && state.phase === "ROUND_RESULT" && <ScoreFallback state={state} />}
       {!result && state.phase === "MATCH_RESULT" && (
         <Results
           result={{ type: "match-result", winners: [...state.winners], totals: Object.fromEntries(players.map((player) => [player.id, player.score])) }}
           state={state}
           playerName={playerName}
+          busy={busy}
+          onLeave={leave}
         />
       )}
       {confirmation && (
@@ -492,6 +530,47 @@ function Lobby(props: { roomId: string; targetScore: number; players: StatePlaye
   );
 }
 
+function RulesPopover() {
+  const [open, setOpen] = useState(false);
+  const pointerFocus = useRef(false);
+
+  return (
+    <div
+      className="rules-popover"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onPointerDownCapture={() => { pointerFocus.current = true; }}
+      onFocus={() => {
+        if (!pointerFocus.current) setOpen(true);
+      }}
+      onBlur={(event) => {
+        pointerFocus.current = false;
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setOpen(false);
+        }
+      }}
+    >
+      <button className="rules-trigger" type="button" aria-expanded={open} aria-controls="quick-rules" onClick={() => {
+        pointerFocus.current = false;
+        setOpen((current) => !current);
+      }}>Rules</button>
+      <aside id="quick-rules" className="rules-panel" hidden={!open} aria-label="Quick rules">
+        <p className="eyebrow">Quick rules</p>
+        <ul>
+          <li>Keep the lowest total. Draw from the deck, take the discard, or call Cabo.</li>
+          <li><strong>7–8</strong> peek at your card; <strong>9–10</strong> peek at another player's card.</li>
+          <li><strong>J–Q</strong> blindly swap matching positions with another player.</li>
+          <li>After Cabo, everyone else gets one final turn. A successful caller scores zero.</li>
+        </ul>
+        <a href="/docs/rules/">Read the full rules <span aria-hidden="true">↗</span></a>
+      </aside>
+    </div>
+  );
+}
+
 interface GameTableProps {
   state: CaboStateLike;
   selfId: string;
@@ -501,6 +580,7 @@ interface GameTableProps {
   selection: Selection;
   targetId: string | undefined;
   events: string[];
+  cardMotion: CardMotion | undefined;
   onSelection(value: Selection): void;
   onTarget(value: string): void;
   onExecute(command: ClientCommand): void;
@@ -547,8 +627,9 @@ function GameTable(props: GameTableProps) {
         {opponents.map((player) => {
           const targetable = (props.selection === "peek-other" || props.selection === "swap") && !player.forfeited;
           const selected = props.targetId === player.id;
+          const playerMotion = props.cardMotion && (props.cardMotion.playerId === player.id || props.cardMotion.targetPlayerId === player.id) ? props.cardMotion : undefined;
           return (
-            <article className={`player-card ${state.currentPlayerId === player.id ? "active" : ""} ${selected ? "selected" : ""}`} key={player.id}>
+            <article className={`player-card ${state.currentPlayerId === player.id ? "active" : ""} ${selected ? "selected" : ""} ${playerMotion ? `motion-${playerMotion.kind}` : ""}`} key={`${player.id}-${playerMotion?.id ?? 0}`}>
               <button className="player-main" type="button" disabled={!targetable || props.busy} onClick={() => props.onTarget(player.id)}>
                 <Avatar player={player} />
                 <span className="player-copy"><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : !player.connected ? "Offline · 60s grace" : `${player.score} pts`}</small></span>
@@ -564,14 +645,14 @@ function GameTable(props: GameTableProps) {
         <div className="turn-label"><span>{phaseCopy.eyebrow}</span><strong>{phaseCopy.title}</strong></div>
         <div className="piles">
           <div className="pile-wrap">
-            <button className="playing-card card-back" type="button" disabled={!hasAction("draw-deck") || props.busy} onClick={() => props.onExecute({ type: "draw-deck" })} aria-label={`Draw pile, ${state.deckCount} cards`}><span>{state.deckCount}</span></button>
+            <button className={`playing-card card-back ${props.cardMotion?.kind === "draw" ? "motion-draw" : ""}`} key={`deck-${props.cardMotion?.kind === "draw" ? props.cardMotion.id : 0}`} type="button" disabled={!hasAction("draw-deck") || props.busy} onClick={() => props.onExecute({ type: "draw-deck" })} aria-label={`Draw pile, ${state.deckCount} cards`}><span>{state.deckCount}</span></button>
             <small>Deck</small>
           </div>
           <div className="pile-wrap">
-            <button className="playing-card" type="button" disabled={!hasAction("draw-discard") || props.busy} onClick={() => props.onSelection("draw-discard")} aria-label={`Discard pile, ${state.discardLabel || "empty"}`}><CardFace label={state.discardLabel || "—"} rank={state.discardRank} /></button>
+            <button className={`playing-card ${props.cardMotion && ["draw-discard", "replace", "discard"].includes(props.cardMotion.kind) ? "motion-discard" : ""}`} key={`discard-${props.cardMotion && ["draw-discard", "replace", "discard"].includes(props.cardMotion.kind) ? props.cardMotion.id : 0}`} type="button" disabled={!hasAction("draw-discard") || props.busy} onClick={() => props.onSelection("draw-discard")} aria-label={`Discard pile, ${state.discardLabel || "empty"}`}><CardFace label={state.discardLabel || "—"} rank={state.discardRank} /></button>
             <small>Discard</small>
           </div>
-          {props.core.knowledge.held && <div className="pile-wrap"><div className="playing-card drawn"><CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /></div><small>Drawn</small></div>}
+          {props.core.knowledge.held && <div className="pile-wrap"><div className="playing-card drawn card-flip-in"><CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /></div><small>Drawn</small></div>}
         </div>
         {hasAction("cabo") && <button className="cabo-button" type="button" disabled={props.busy} onClick={() => props.onConfirm({ title: "Call Cabo?", body: "Every other active player will receive one final turn.", label: "Call Cabo", action: async () => props.onExecute({ type: "cabo" }) })}>Call Cabo</button>}
         <button className="leave-button" type="button" onClick={props.onLeave}>Leave</button>
@@ -579,12 +660,13 @@ function GameTable(props: GameTableProps) {
 
       <section className="player-dock" aria-label="Your hand and actions">
         <div className="hand-block">
-          <div className="hand-heading"><div><strong>{self?.name ?? "Your hand"}</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {4 - props.core.knowledge.slots.filter(Boolean).length} hidden</span></div><button className="privacy-button" type="button" onPointerDown={props.onConcealStart} onPointerUp={props.onConcealEnd} onPointerCancel={props.onConcealEnd}>Hold to conceal</button></div>
+          <div className="hand-heading"><div><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {4 - props.core.knowledge.slots.filter(Boolean).length} hidden</span></div><button className="privacy-button" type="button" onPointerDown={props.onConcealStart} onPointerUp={props.onConcealEnd} onPointerCancel={props.onConcealEnd}>Hold to conceal</button></div>
           <div className="own-hand">
             {props.core.knowledge.slots.map((card, index) => {
               const position = (index + 1) as 1 | 2 | 3 | 4;
               const selectable = props.selection === "draw-discard" || props.selection === "replace" || (state.phase === "POWER_PENDING" && myTurn && (power === 7 || power === 8));
-              return <button className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""}`} type="button" disabled={!selectable || props.busy} key={position} onClick={() => chooseOwnPosition(position)}><small>0{position}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
+              const slotMotion = props.cardMotion?.position === position && (props.cardMotion.kind !== "swap" || props.cardMotion.playerId === selfId || props.cardMotion.targetPlayerId === selfId) ? props.cardMotion : undefined;
+              return <button className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${slotMotion ? `motion-${slotMotion.kind}` : ""}`} type="button" disabled={!selectable || props.busy} key={`${position}-${slotMotion?.id ?? 0}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>0{position}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
             })}
           </div>
         </div>
@@ -619,7 +701,7 @@ function PositionPicker(props: { onChoose(position: 1 | 2 | 3 | 4): void; disabl
   return <div className="position-picker" aria-label={props.label}>{([1, 2, 3, 4] as const).map((position) => <button type="button" disabled={props.disabled} key={position} onClick={() => props.onChoose(position)}>0{position}</button>)}</div>;
 }
 
-function Results(props: { result: ResultEvent; state: CaboStateLike; playerName(id: string): string }) {
+function Results(props: { result: ResultEvent; state: CaboStateLike; playerName(id: string): string; busy: boolean; onLeave(): Promise<void> }) {
   const [seconds, setSeconds] = useState(5);
 
   useEffect(() => {
@@ -634,7 +716,7 @@ function Results(props: { result: ResultEvent; state: CaboStateLike; playerName(
 
   if (props.result.type === "match-result") {
     const ranking = Object.entries(props.result.totals).sort(([, a], [, b]) => a - b);
-    return <Modal title="Match complete"><p className="result-lede">{props.result.winners.map(props.playerName).join(" & ")} {props.result.winners.length > 1 ? "share" : "takes"} the table.</p><div className="score-list">{ranking.map(([id, score], index) => <div key={id}><span>0{index + 1} · {props.playerName(id)}</span><strong>{score} pts</strong></div>)}</div></Modal>;
+    return <Modal title="Match complete"><p className="result-lede">{props.result.winners.map(props.playerName).join(" & ")} {props.result.winners.length > 1 ? "share" : "takes"} the table.</p><div className="score-list">{ranking.map(([id, score], index) => <div key={id}><span>0{index + 1} · {props.playerName(id)}</span><strong>{score} pts</strong></div>)}</div><div className="modal-actions"><button className="button primary" type="button" disabled={props.busy} onClick={() => void props.onLeave()}>{props.busy ? "Leaving…" : "Back to rooms"}</button></div></Modal>;
   }
   const round = props.result;
   return <Modal title={`Round ${props.state.round} complete`}><p className="result-lede">Cabo {round.caboSucceeded ? "succeeded." : "was challenged."} Next round in {seconds}s.</p><div className="result-hands">{round.hands.map((hand) => <div key={hand.playerId}><div><strong>{props.playerName(hand.playerId)}</strong><span>+{round.roundScores[hand.playerId] ?? 0} · {round.totals[hand.playerId] ?? 0} total</span></div><div className="result-cards">{hand.cards.map((card, index) => <span key={`${card.label}-${index}`}>{formatCardLabel(card.label)}</span>)}</div></div>)}</div></Modal>;
@@ -646,7 +728,7 @@ function ScoreFallback(props: { state: CaboStateLike }) {
 }
 
 function PrivateReveal(props: { message: PrivateRevealMessage; onClose(): void }) {
-  return <div className="reveal-layer" role="dialog" aria-modal="true" aria-label="Private card reveal" onClick={props.onClose}><div className="reveal-card"><p>For your eyes only</p><strong>{formatCardLabel(props.message.card.label)}</strong><span>{props.message.card.rank} points</span><small>Closing automatically</small></div></div>;
+  return <div className="reveal-layer" role="dialog" aria-modal="true" aria-label="Private card reveal" onClick={props.onClose}><div className="reveal-card"><p>For your eyes only</p><div className="reveal-flip"><div className="reveal-flip-inner"><div className="reveal-face reveal-back" aria-hidden="true"><span>C</span></div><div className="reveal-face reveal-front"><strong>{formatCardLabel(props.message.card.label)}</strong><span>{props.message.card.rank} points</span></div></div></div><small>Closing automatically</small></div></div>;
 }
 
 function Modal(props: { title: string; children: ReactNode; onClose?(): void }) {
@@ -706,9 +788,19 @@ function connectionLabel(state: ConnectionState): string {
   return "Ready";
 }
 
+function motionForCommand(command: ClientCommand, selfId: string | undefined): Omit<CardMotion, "id"> | undefined {
+  const player = selfId ? { playerId: selfId } : {};
+  if (command.type === "draw-deck") return { kind: "draw", ...player };
+  if (command.type === "draw-discard") return { kind: "draw-discard", ...player, position: command.position };
+  if (command.type === "replace") return { kind: "replace", ...player, position: command.position };
+  if (command.type === "discard") return { kind: "discard", ...player };
+  if (command.type === "swap") return { kind: "swap", ...player, targetPlayerId: command.targetPlayerId, position: command.position };
+  return undefined;
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
 }
 
-export const __test = { validateServerUrl };
+export const __test = { validateServerUrl, motionForCommand, Results, RulesPopover, GameTable };
