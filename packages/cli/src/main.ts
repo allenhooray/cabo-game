@@ -7,7 +7,7 @@ import type { Room } from "@colyseus/sdk";
 import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
 import { caboDiscoveryMode, caboHelpLines, readCliVersion, renderCaboHelp } from "./cli-discovery.js";
 import { createFileSessionStore, defaultSessionPath } from "./config.js";
-import { advanceFlow, isGuardedFlow, moveSelection, selectionOptionsFor, selectionSignature, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
+import { advanceFlow, escapeTerminalText, isGuardedFlow, moveRoomPage, moveSelection, roomStatus, selectionOptionsFor, selectionSignature, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
 import { createKnowledge, type KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, RoundResultView, StatePlayer } from "./model.js";
 import { parseCommand, type LocalCommand } from "./parser.js";
@@ -54,7 +54,7 @@ const rl = createInterface({ input: stdin, output: readlineOutput, prompt: rende
 
 const players = (): StatePlayer[] => latestState ? [...latestState.players.values()].sort((a, b) => a.seat - b.seat) : [];
 const playerLabel = (id: string): string => players().find((player) => player.id === id)?.name ?? id;
-const context = () => ({ ...(latestState ? { state: latestState } : {}), ...(room ? { selfId: room.sessionId } : {}) });
+const context = () => ({ ...(latestState ? { state: latestState } : {}), ...(room ? { selfId: room.sessionId } : {}), playerName });
 
 function printHelp(): void {
   const help = caboHelpLines();
@@ -153,7 +153,7 @@ const gameClient = new CaboClientCore({
       knowledge = gameClient.knowledge;
       flow = { kind: "idle" };
       roundResult = undefined;
-      addEvent(`Joined room ${nextRoom.roomId} as ${playerName}.`);
+      addEvent(`Joined ${escapeTerminalText(nextRoom.state.roomName)} (${escapeTerminalText(nextRoom.roomId)}) as ${playerName}.`);
       renderNow();
     },
     state: (state) => {
@@ -276,8 +276,13 @@ async function execute(command: LocalCommand): Promise<boolean> {
     case "help": printHelp(); break;
     case "rooms": {
       const available = await listRooms();
-      if (!available.length) addEvent("No public lobby rooms.");
-      for (const item of available) addEvent(`${item.roomId.padEnd(10)} ${item.playerCount}/${item.maxClients} players  target ${item.targetScore}`);
+      if (interactive) {
+        flow = { kind: "room-browser", rooms: available, page: 0, ...(!available.length ? { message: "No public rooms." } : {}) };
+        selectionIndex = 0;
+      } else {
+        if (!available.length) addEvent("No public rooms.");
+        for (const item of available) addEvent(`${escapeTerminalText(item.roomName)}  ${escapeTerminalText(item.roomId)}  ${roomStatus(item)}  ${item.playerCount}/${item.maxClients} players  target ${item.targetScore}`);
+      }
       renderNow();
       break;
     }
@@ -285,7 +290,12 @@ async function execute(command: LocalCommand): Promise<boolean> {
       if (room) throw new Error("Leave the current room first.");
       const password = command.visibility === "private" ? await readSecret("Six digit password: ") : undefined;
       if (password !== undefined && !/^\d{6}$/.test(password)) throw new Error("Password must contain exactly six digits.");
-      await gameClient.create(command.visibility, command.targetScore, password);
+      await gameClient.create({
+        visibility: command.visibility,
+        targetScore: command.targetScore,
+        ...(command.roomName !== undefined ? { roomName: command.roomName } : {}),
+        ...(password ? { password } : {}),
+      });
       break;
     }
     case "join": {
@@ -332,6 +342,28 @@ async function applyInteraction(result: InteractionResult): Promise<boolean> {
     renderNow();
     return true;
   }
+  if (result.kind === "create") {
+    flow = { kind: "idle" };
+    notice = undefined;
+    return execute({ kind: "create", visibility: result.visibility, targetScore: result.targetScore, ...(result.roomName !== undefined ? { roomName: result.roomName } : {}) });
+  }
+  if (result.kind === "listed-room") {
+    if (flow.kind !== "room-browser") return true;
+    const browserFlow = flow;
+    if (!result.room.canJoin) {
+      flow = { ...browserFlow, message: `Cannot join ${escapeTerminalText(result.room.roomName)}: ${result.room.isStarted ? "game already started" : result.room.isFull ? "room is full" : "room is locked"}.` };
+      renderNow();
+      return true;
+    }
+    try {
+      await gameClient.join(result.room.roomId);
+      flow = { kind: "idle" };
+    } catch (error) {
+      flow = { ...browserFlow, message: `Could not join: ${error instanceof Error ? error.message : String(error)}` };
+      renderNow();
+    }
+    return true;
+  }
   flow = { kind: "idle" };
   notice = undefined;
   if (result.kind === "game") { sendGame(result.command); return true; }
@@ -359,7 +391,16 @@ renderNow();
 if (interactive) {
   emitKeypressEvents(stdin);
   stdin.on("keypress", (_character, key) => {
-    if (readingSecret || (key.name !== "up" && key.name !== "down")) return;
+    if (readingSecret) return;
+    if (flow.kind === "room-browser" && (key.name === "left" || key.name === "right")) {
+      flow = moveRoomPage(flow, key.name === "left" ? -1 : 1);
+      selectionIndex = 0;
+      notice = undefined;
+      rl.write(null, { ctrl: true, name: "u" });
+      renderNow();
+      return;
+    }
+    if (key.name !== "up" && key.name !== "down") return;
     const options = selectionOptionsFor(flow, context());
     if (!options.length) return;
     selectionIndex = moveSelection(selectionIndex, key.name === "up" ? -1 : 1, options.length);

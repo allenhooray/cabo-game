@@ -1,16 +1,21 @@
 import { z } from "zod";
 import { GAME_PHASES } from "./types.js";
 
-export const AGENT_PROTOCOL_VERSION = 2 as const;
+export const AGENT_PROTOCOL_VERSION = 3 as const;
 export const AGENT_REQUEST_TYPES = ["rooms", "create", "join", "reconnect", "observe", "describe", "ping", "action", "leave", "shutdown"] as const;
 export const AGENT_FRAME_TYPES = ["ready", "result", "observation", "event", "fatal"] as const;
 export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "discard", "peek-self", "peek-other", "swap", "skip", "cabo"] as const;
 
 const position = z.number().int().min(1).max(4);
 const targetScore = z.number().int().min(20).max(500);
+export const roomNameSchema = z.string().refine(
+  (value) => Array.from(value.trim()).length <= 40,
+  "Room name must contain at most 40 characters.",
+).meta({ maxLength: 40, description: "A room label of at most 40 Unicode characters; surrounding whitespace is ignored by the server." });
 
 export const roomOptionsSchema = z.object({
   name: z.string().trim().min(1).max(20),
+  roomName: roomNameSchema.optional(),
   visibility: z.enum(["public", "private"]).default("public"),
   targetScore: targetScore.default(100),
   password: z.string().regex(/^\d{6}$/).optional(),
@@ -49,7 +54,7 @@ export const agentCommandRequestSchema = z.object({
 const requestId = z.string().trim().min(1);
 export const agentRequestSchema = z.discriminatedUnion("type", [
   z.object({ id: requestId, type: z.literal("rooms") }).strict(),
-  z.object({ id: requestId, type: z.literal("create"), visibility: z.enum(["public", "private"]), targetScore: targetScore.default(100), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
+  z.object({ id: requestId, type: z.literal("create"), visibility: z.enum(["public", "private"]), targetScore: targetScore.default(100), roomName: roomNameSchema.optional(), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
   z.object({ id: requestId, type: z.literal("join"), roomId: z.string().min(1), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
   z.object({ id: requestId, type: z.literal("reconnect") }).strict(),
   z.object({ id: requestId, type: z.literal("observe") }).strict(),
@@ -75,6 +80,7 @@ const playerObservationSchema = z.object({
 
 export const agentObservationSchema = z.object({
   roomId: z.string(),
+  roomName: z.string(),
   selfId: z.string(),
   revision: z.number().int().nonnegative(),
   state: z.object({
@@ -111,8 +117,49 @@ export const agentReadyFrameSchema = z.object({
   capabilities: z.array(z.enum(["describe", "ping", "json-schema", "request-timeout"])),
 }).strict();
 
+const listedRoomSchema = z.object({
+  roomId: z.string(),
+  roomName: z.string(),
+  targetScore,
+  playerCount: z.number().int().nonnegative(),
+  maxClients: z.number().int().positive(),
+  phase: z.enum(GAME_PHASES),
+  isFull: z.boolean(),
+  isStarted: z.boolean(),
+  canJoin: z.boolean(),
+}).strict();
+
+const agentSuccessDataSchema = z.union([
+  z.object({ rooms: z.array(listedRoomSchema) }).strict(),
+  z.object({ roomId: z.string(), roomName: z.string(), selfId: z.string() }).strict(),
+  agentObservationSchema,
+  z.object({ revision: z.number().int().nonnegative() }).strict(),
+  z.object({
+    connected: z.boolean(),
+    server: z.string(),
+    roomId: z.string().nullable(),
+    roomName: z.string().nullable(),
+    selfId: z.string().nullable(),
+    revision: z.number().int().nonnegative().nullable(),
+    phase: z.enum(GAME_PHASES).nullable(),
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(AGENT_PROTOCOL_VERSION),
+    cliVersion: z.string(),
+    requestTypes: z.array(z.enum(AGENT_REQUEST_TYPES)),
+    frameTypes: z.array(z.enum(AGENT_FRAME_TYPES)),
+    actionTypes: z.array(z.enum(AGENT_ACTION_TYPES)),
+    defaults: z.object({
+      server: z.string(),
+      requestTimeoutMs: z.number().int(),
+      sessionPersistence: z.boolean(),
+    }).strict(),
+    schemaCommand: z.string(),
+  }).strict(),
+]);
+
 const agentResultFrameSchema = z.union([
-  z.object({ type: z.literal("result"), id: z.string(), ok: z.literal(true), data: z.unknown().optional() }).strict(),
+  z.object({ type: z.literal("result"), id: z.string(), ok: z.literal(true), data: agentSuccessDataSchema.optional() }).strict(),
   z.object({
     type: z.literal("result"),
     id: z.string().nullable(),

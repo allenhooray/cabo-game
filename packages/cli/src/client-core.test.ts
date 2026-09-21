@@ -5,6 +5,7 @@ import type { CaboStateLike } from "./model.js";
 function state(revision = 0): CaboStateLike {
   return {
     revision,
+    roomName: "Bot's room",
     phase: "TURN_START",
     round: 1,
     targetScore: 100,
@@ -49,5 +50,23 @@ describe("agent request timeouts", () => {
     const reused = core.sendAgent("late", { type: "draw-deck" }, 50);
     messages.get("agent-result")?.({ id: "late", ok: false, revision: 1, error: { code: "INVALID_PHASE", message: "no" } });
     await expect(reused).resolves.toMatchObject({ id: "late", ok: false });
+  });
+
+  it("sends the object-style create options including roomName", async () => {
+    const room = {
+      state: state(), roomId: "room", sessionId: "self", reconnectionToken: "token",
+      send: vi.fn(),
+      onStateChange: vi.fn(),
+      onMessage: vi.fn(),
+      onDrop: vi.fn(), onReconnect: vi.fn(), onLeave: vi.fn(), leave: vi.fn(),
+    };
+    const core = new CaboClientCore({ serverUrl: "http://localhost", playerName: "Bot" });
+    const create = vi.spyOn(core.client, "create").mockResolvedValue(room as any);
+
+    await core.create({ visibility: "private", targetScore: 150, roomName: "Bots' room", password: "123456" });
+
+    expect(create).toHaveBeenCalledWith("cabo", {
+      name: "Bot", visibility: "private", targetScore: 150, roomName: "Bots' room", password: "123456",
+    });
   });
 });

@@ -42,12 +42,17 @@ describe("cabo-agent process protocol", () => {
     const disconnectedPing = await request(bob, { id: "ping-before", type: "ping" });
     expect(disconnectedPing.data).toMatchObject({ connected: false, roomId: null, revision: null });
 
-    const created = await request(alice, { id: "create", type: "create", visibility: "public", targetScore: 100 });
+    const created = await request(alice, { id: "create", type: "create", visibility: "public", targetScore: 100, roomName: "Bots' room" });
     const roomId = created.data.roomId as string;
+    expect(created.data.roomName).toBe("Bots' room");
+    const listed = await request(bob, { id: "rooms", type: "rooms" });
+    expect(listed.data.rooms).toContainEqual(expect.objectContaining({
+      roomId, roomName: "Bots' room", isFull: false, isStarted: false, canJoin: true,
+    }));
     const joined = await request(bob, { id: "join", type: "join", roomId });
     expect(joined.data.selfId).not.toBe(created.data.selfId);
     const connectedPing = await request(bob, { id: "ping-after", type: "ping" });
-    expect(connectedPing.data).toMatchObject({ connected: true, roomId, selfId: joined.data.selfId });
+    expect(connectedPing.data).toMatchObject({ connected: true, roomId, roomName: "Bots' room", selfId: joined.data.selfId });
 
     await alice.waitFor((frame) => frame.type === "observation" && frame.state.players.length === 2);
     const started = await request(alice, { id: "start", type: "action", action: { type: "start" } });

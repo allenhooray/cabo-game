@@ -145,9 +145,9 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
       </Section>
       <Section id="connection" title="Connection commands">
         <CommandTable rows={[
-          ["rooms", "List public rooms that are waiting for players."],
-          ["create public [target]", "Create a public room. The target defaults to 100 and must be 20–500."],
-          ["create private [target]", "Create a private room, then enter a six-digit password without echo."],
+          ["rooms", "Browse all public rooms. Use ↑/↓ to select, ←/→ to page, and Enter to join."],
+          ['create public [target] --name "room name"', "Create a public room. A blank name uses [player]'s room."],
+          ['create private [target] --name "room name"', "Create a private room, then enter a six-digit password without echo."],
           ["join ROOM [password]", "Join by case-sensitive room code, optionally with its password."],
           ["reconnect", "Reconnect to the locally saved seat."],
           ["quit", "Leave gracefully and exit the client."],
@@ -176,6 +176,7 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
       </Section>
       <Section id="interaction" title="Interaction notes">
         <p>Positions are always numbered 1–4. A player argument accepts an exact nickname or a session ID. Enter <code>help</code> or <code>?</code> to show the command reference.</p>
+        <p>Room names may repeat and contain up to 40 Unicode characters. They are labels only: joining and reconnecting always use the room ID.</p>
         <p>In an interactive terminal, the CLI also offers numbered action menus. During a multi-step choice, enter <code>cancel</code> to return to the action menu.</p>
       </Section>
     </Article>
@@ -206,7 +207,7 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Requests run serially, but pushed events and observations may appear before the matching result.</li>
           <li>The first frame is always <code>ready</code>; startup failures use a <code>fatal</code> frame and a non-zero exit.</li>
         </ul>
-        <CodeBlock>{`{"type":"ready","protocolVersion":2,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+        <CodeBlock>{`{"type":"ready","protocolVersion":3,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}`}</CodeBlock>
       </Section>
@@ -219,8 +220,8 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Send it inside an <code>action</code> request and correlate the eventual <code>result</code> by ID.</li>
           <li>Repeat when a newer observation arrives.</li>
         </ol>
-        <CodeBlock>{`{"id":"create","type":"create","visibility":"public","targetScore":100}
-{"type":"observation","roomId":"abc123","selfId":"session-id","revision":3,"state":{"phase":"TURN_START","round":1,"targetScore":100,"currentPlayerId":"session-id","caboCallerId":null,"discardTop":{"label":"6H","rank":6},"deckCount":43,"players":[],"winners":[]},"knowledge":{"round":1,"slots":[{"label":"4C","rank":4},null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
+        <CodeBlock>{`{"id":"create","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
+{"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"session-id","revision":3,"state":{"phase":"TURN_START","round":1,"targetScore":100,"currentPlayerId":"session-id","caboCallerId":null,"discardTop":{"label":"6H","rank":6},"deckCount":43,"players":[],"winners":[]},"knowledge":{"round":1,"slots":[{"label":"4C","rank":4},null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
 {"id":"move-1","type":"action","action":{"type":"draw-deck"}}
 {"type":"result","id":"move-1","ok":true,"data":{"revision":4}}`}</CodeBlock>
       </Section>

@@ -19,7 +19,7 @@ export function caboHelpLines(): string[] {
   return [
     "Usage: cabo [--server URL] [--name NAME] [-h|--help] [-v|--version]",
     `Options: --server URL (default: ${DEFAULT_SERVER_URL}) | --name NAME (default: current OS user)`,
-    "Connection: rooms | create public [target] | create private [target] | join ROOM [password] | reconnect | quit",
+    'Connection: rooms | create public|private [target] --name "room name" | join ROOM [password] | reconnect | quit',
     "Lobby:      players | start | leave",
     "Game:       show | draw deck | draw discard POS | replace POS | discard",
     "            peek self POS | peek PLAYER POS | swap PLAYER POS | skip | cabo",

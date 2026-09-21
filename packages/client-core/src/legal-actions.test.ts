@@ -6,7 +6,7 @@ const alice: StatePlayer = { id: "a", name: "Alice", seat: 0, score: 0, connecte
 const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, cardCount: 4, isHost: false };
 
 function state(overrides: Partial<CaboStateLike> = {}): CaboStateLike {
-  return { revision: 1, phase: "LOBBY", round: 0, targetScore: 100, currentPlayerId: "", caboCallerId: "", discardLabel: "", discardRank: -1, deckCount: 0, players: new Map([["a", alice], ["b", bob]]), winners: [], ...overrides };
+  return { revision: 1, roomName: "Alice's room", phase: "LOBBY", round: 0, targetScore: 100, currentPlayerId: "", caboCallerId: "", discardLabel: "", discardRank: -1, deckCount: 0, players: new Map([["a", alice], ["b", bob]]), winners: [], ...overrides };
 }
 
 describe("legalActions", () => {

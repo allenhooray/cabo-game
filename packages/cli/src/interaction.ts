@@ -1,5 +1,5 @@
 import type { ClientCommand } from "@cabo-game/shared";
-import type { CaboStateLike, StatePlayer } from "./model.js";
+import type { CaboStateLike, ListedRoom, StatePlayer } from "./model.js";
 
 export type MenuAction =
   | "rooms" | "create-public" | "create-private" | "join" | "reconnect"
@@ -20,8 +20,10 @@ export interface SelectionOption {
 
 export type InteractionFlow =
   | { kind: "idle" }
-  | { kind: "create-target"; visibility: "public" | "private" }
+  | { kind: "create-name"; visibility: "public" | "private"; defaultRoomName: string }
+  | { kind: "create-target"; visibility: "public" | "private"; roomName?: string }
   | { kind: "join-room" }
+  | { kind: "room-browser"; rooms: ListedRoom[]; page: number; message?: string }
   | { kind: "position"; action: "draw-discard" | "replace" | "peek-self"; guard: string }
   | { kind: "target"; action: "peek-other" | "swap"; guard: string }
   | { kind: "target-position"; action: "peek-other" | "swap"; target: StatePlayer; guard: string }
@@ -30,12 +32,17 @@ export type InteractionFlow =
 export interface InteractionContext {
   state?: CaboStateLike;
   selfId?: string;
+  playerName?: string;
 }
 
 export type InteractionResult =
   | { kind: "flow"; flow: InteractionFlow; message?: string }
   | { kind: "local"; command: string }
+  | { kind: "create"; visibility: "public" | "private"; targetScore: number; roomName?: string }
+  | { kind: "listed-room"; room: ListedRoom }
   | { kind: "game"; command: ClientCommand };
+
+export const ROOM_PAGE_SIZE = 10;
 
 export function stateGuard(context: InteractionContext): string {
   const state = context.state;
@@ -107,6 +114,14 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
         { value: "n", label: "No, keep playing" },
         { value: "y", label: "Yes, call CABO" },
       ];
+    case "room-browser": {
+      const start = flow.page * ROOM_PAGE_SIZE;
+      return flow.rooms.slice(start, start + ROOM_PAGE_SIZE).map((room) => ({
+        value: room.roomId,
+        label: `${escapeTerminalText(room.roomName)}  ${escapeTerminalText(room.roomId)}  ${roomStatus(room)}  ${room.playerCount}/${room.maxClients}`,
+      }));
+    }
+    case "create-name":
     case "create-target":
     case "join-room":
       return [];
@@ -131,7 +146,14 @@ export function selectMenu(input: string, context: InteractionContext): Interact
     case "rooms": case "reconnect": case "start": case "players": case "leave":
       return { kind: "local", command: item.action };
     case "create-public": case "create-private":
-      return { kind: "flow", flow: { kind: "create-target", visibility: item.action === "create-public" ? "public" : "private" } };
+      return {
+        kind: "flow",
+        flow: {
+          kind: "create-name",
+          visibility: item.action === "create-public" ? "public" : "private",
+          defaultRoomName: `${context.state?.players.get(context.selfId ?? "")?.name ?? context.playerName ?? "Player"}'s room`,
+        },
+      };
     case "join": return { kind: "flow", flow: { kind: "join-room" } };
     case "draw-deck": return { kind: "game", command: { type: "draw-deck" } };
     case "discard": return { kind: "game", command: { type: "discard" } };
@@ -147,14 +169,25 @@ export function selectMenu(input: string, context: InteractionContext): Interact
 export function advanceFlow(input: string, flow: InteractionFlow, context: InteractionContext): InteractionResult {
   const value = input.trim();
   if (value.toLowerCase() === "cancel") return { kind: "flow", flow: { kind: "idle" }, message: "Selection cancelled." };
+  if (flow.kind === "create-name") {
+    const roomName = value || flow.defaultRoomName;
+    if (Array.from(roomName).length > 40) return { kind: "flow", flow, message: "Room name must contain at most 40 characters." };
+    return { kind: "flow", flow: { kind: "create-target", visibility: flow.visibility, roomName } };
+  }
   if (flow.kind === "create-target") {
     const target = value === "" ? 100 : Number(value);
     if (!Number.isInteger(target) || target < 20 || target > 500) return { kind: "flow", flow, message: "Enter a target score from 20 to 500, or press Enter for 100." };
-    return { kind: "local", command: `create ${flow.visibility} ${target}` };
+    return { kind: "create", visibility: flow.visibility, targetScore: target, ...(flow.roomName !== undefined ? { roomName: flow.roomName } : {}) };
   }
   if (flow.kind === "join-room") {
     if (!value) return { kind: "flow", flow, message: "Enter a room code." };
     return { kind: "local", command: `join ${value}` };
+  }
+  if (flow.kind === "room-browser") {
+    const start = flow.page * ROOM_PAGE_SIZE;
+    const room = flow.rooms.slice(start, start + ROOM_PAGE_SIZE).find((candidate) => candidate.roomId === value);
+    if (!room) return { kind: "flow", flow, message: "Choose a room from the current page." };
+    return { kind: "listed-room", room };
   }
   if (flow.kind === "confirm-cabo") {
     if (/^y(es)?$/i.test(value)) return { kind: "game", command: { type: "cabo" } };
@@ -192,8 +225,10 @@ export function activeTargets(context: InteractionContext): StatePlayer[] {
 export function flowPrompt(flow: InteractionFlow, context: InteractionContext): string | undefined {
   switch (flow.kind) {
     case "idle": return undefined;
+    case "create-name": return `Room name (Enter = ${escapeTerminalText(flow.defaultRoomName)}):`;
     case "create-target": return `Target score for ${flow.visibility} room (20-500, Enter = 100):`;
     case "join-room": return "Room code:";
+    case "room-browser": return `Public rooms — page ${flow.page + 1}/${Math.max(1, Math.ceil(flow.rooms.length / ROOM_PAGE_SIZE))} (←/→ pages, ↑/↓ rooms, Enter joins):`;
     case "position": return "Choose a card position (type cancel to go back):";
     case "target": return "Choose a player (type cancel to go back):";
     case "target-position": return `Choose ${flow.target.name}'s card position (type cancel to go back):`;
@@ -201,8 +236,27 @@ export function flowPrompt(flow: InteractionFlow, context: InteractionContext): 
   }
 }
 
-export function isGuardedFlow(flow: InteractionFlow): flow is Exclude<InteractionFlow, { kind: "idle" } | { kind: "create-target" } | { kind: "join-room" }> {
+export function isGuardedFlow(flow: InteractionFlow): flow is Extract<InteractionFlow, { guard: string }> {
   return "guard" in flow;
+}
+
+export function moveRoomPage(flow: Extract<InteractionFlow, { kind: "room-browser" }>, direction: -1 | 1): InteractionFlow {
+  const lastPage = Math.max(0, Math.ceil(flow.rooms.length / ROOM_PAGE_SIZE) - 1);
+  const { message: _message, ...rest } = flow;
+  return { ...rest, page: Math.min(lastPage, Math.max(0, flow.page + direction)) };
+}
+
+export function roomStatus(room: ListedRoom): string {
+  return `${room.isFull ? "full" : "open"}/${room.isStarted ? "started" : "waiting"}`;
+}
+
+export function escapeTerminalText(value: string): string {
+  return Array.from(value, (character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code < 0x20 || code === 0x7f || (code >= 0x80 && code <= 0x9f)
+      ? `\\u${code.toString(16).padStart(4, "0")}`
+      : character;
+  }).join("");
 }
 
 function positions(): string[] {

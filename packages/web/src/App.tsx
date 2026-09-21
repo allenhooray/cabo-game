@@ -308,7 +308,7 @@ export function App() {
           setNotice(`Server reset to ${next}.`);
         }}
         onRefresh={() => void refreshRooms()}
-        onCreate={(visibility, targetScore, password) => void connect((next) => next.create(visibility, targetScore, password))}
+        onCreate={(visibility, targetScore, roomName, password) => void connect((next) => next.create({ visibility, targetScore, roomName, ...(password ? { password } : {}) }))}
         onJoin={(roomId, password) => void connect((next) => next.join(roomId, password))}
       />
     );
@@ -321,8 +321,8 @@ export function App() {
   return (
     <div className={`app-shell ${concealed ? "is-concealed" : ""}`}>
       <header className="topbar">
-        <button className="wordmark" type="button" onClick={() => setNotice(`Room ${room.roomId}`)}>CABO</button>
-        <div className="room-meta">Room {room.roomId} <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
+        <button className="wordmark" type="button" onClick={() => setNotice(`${state.roomName} · Room ${room.roomId}`)}>CABO</button>
+        <div className="room-meta"><strong className="room-title">{state.roomName}</strong> <span /> Room <b className="room-id">{room.roomId}</b> <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
         <div className="topbar-actions">
           <RulesPopover />
           <div className={`connection connection-${connection}`}><i />{connectionLabel(connection)}</div>
@@ -343,6 +343,7 @@ export function App() {
       {state.phase === "LOBBY" ? (
         <Lobby
           roomId={room.roomId}
+          roomName={state.roomName}
           targetScore={state.targetScore}
           players={players}
           selfId={selfId}
@@ -416,7 +417,7 @@ interface HomeProps {
   onApplyServer(event: FormEvent): void;
   onResetServer(): void;
   onRefresh(): void;
-  onCreate(visibility: "public" | "private", targetScore: number, password?: string): void;
+  onCreate(visibility: "public" | "private", targetScore: number, roomName: string, password?: string): void;
   onJoin(roomId: string, password?: string): void;
 }
 
@@ -425,6 +426,7 @@ function Home(props: HomeProps) {
   const [joinOpen, setJoinOpen] = useState(false);
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [targetScore, setTargetScore] = useState(100);
+  const [roomName, setRoomName] = useState("");
   const [createPassword, setCreatePassword] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [joinPassword, setJoinPassword] = useState("");
@@ -463,7 +465,7 @@ function Home(props: HomeProps) {
             <p className="eyebrow">Play Cabo</p>
             <h2 id="room-actions-heading" className="module-heading">Create or join a room</h2>
             <div className="entry-actions">
-              <button className="button primary" type="button" onClick={() => { setCreateOpen(true); setJoinOpen(false); }}>Create room</button>
+              <button className="button primary" type="button" onClick={() => { setRoomName(`${props.name.trim() || "Player"}'s room`); setCreateOpen(true); setJoinOpen(false); }}>Create room</button>
               <button className="button" type="button" onClick={() => { setJoinOpen(true); setCreateOpen(false); }}>Join by code</button>
             </div>
             {props.notice && <p className="form-notice" role="alert">{props.notice}</p>}
@@ -471,15 +473,16 @@ function Home(props: HomeProps) {
             {createOpen && (
               <form className="inline-form" onSubmit={(event) => {
                 event.preventDefault();
-                props.onCreate(visibility, targetScore, visibility === "private" ? createPassword : undefined);
+                props.onCreate(visibility, targetScore, roomName, visibility === "private" ? createPassword : undefined);
               }}>
                 <div className="segmented" aria-label="Room visibility">
                   <button type="button" aria-pressed={visibility === "public"} onClick={() => setVisibility("public")}>Public</button>
                   <button type="button" aria-pressed={visibility === "private"} onClick={() => setVisibility("private")}>Private</button>
                 </div>
+                <label className="field-label" htmlFor="create-room-name">Room name <span>up to 40 characters</span><input id="create-room-name" className="input" value={roomName} onChange={(event) => setRoomName(event.target.value)} /></label>
                 <label className="field-label">Target score<input className="input" type="number" min={20} max={500} value={targetScore} onChange={(event) => setTargetScore(Number(event.target.value))} /></label>
                 {visibility === "private" && <label className="field-label">Six-digit password<input className="input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={createPassword} onChange={(event) => setCreatePassword(event.target.value.replace(/\D/g, ""))} /></label>}
-                <button className="button primary" disabled={props.busy || targetScore < 20 || targetScore > 500 || (visibility === "private" && !/^\d{6}$/.test(createPassword))}>Create table</button>
+                <button className="button primary" disabled={props.busy || Array.from(roomName.trim()).length > 40 || targetScore < 20 || targetScore > 500 || (visibility === "private" && !/^\d{6}$/.test(createPassword))}>Create table</button>
               </form>
             )}
 
@@ -498,11 +501,11 @@ function Home(props: HomeProps) {
           <div className="room-list">
             {props.rooms.length ? props.rooms.map((room) => (
               <article className="room-row" key={room.roomId}>
-                <div><strong>{room.roomId}</strong><span>Target {room.targetScore}</span></div>
-                <span>{room.playerCount} / {room.maxClients} players</span>
-                <button className="button small" type="button" disabled={props.busy || room.playerCount >= room.maxClients} onClick={() => props.onJoin(room.roomId)}>Join</button>
+                <div><strong>{room.roomName}</strong><span>Room <span className="room-id">{room.roomId}</span> · Target {room.targetScore}</span></div>
+                <span>{room.isFull ? "Full" : "Open"} · {room.isStarted ? "Started" : "Waiting"} · {room.playerCount} / {room.maxClients} players</span>
+                <button className="button small" type="button" disabled={props.busy || !room.canJoin} onClick={() => props.onJoin(room.roomId)}>Join</button>
               </article>
-            )) : <p className="empty-state">No public rooms are waiting. Create the first one.</p>}
+            )) : <p className="empty-state">No public rooms yet. Create the first one.</p>}
           </div>
         </section>
 
@@ -527,10 +530,10 @@ function Home(props: HomeProps) {
   );
 }
 
-function Lobby(props: { roomId: string; targetScore: number; players: StatePlayer[]; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void }) {
+function Lobby(props: { roomId: string; roomName: string; targetScore: number; players: StatePlayer[]; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void }) {
   return (
     <main className="lobby-shell">
-      <section className="lobby-copy"><p className="eyebrow room-code">Room {props.roomId}</p><h1>The table is almost ready.</h1><p>Share the case-sensitive room code. The host can begin once at least two players are connected.</p></section>
+      <section className="lobby-copy"><p className="eyebrow room-name">{props.roomName}</p><p className="room-code">Room <span className="room-id">{props.roomId}</span></p><h1>The table is almost ready.</h1><p>Share the case-sensitive room code. The host can begin once at least two players are connected.</p></section>
       <section className="lobby-panel">
         <div className="lobby-score"><span>Target score</span><strong>{props.targetScore}</strong></div>
         <div className="seat-list">
@@ -915,4 +918,4 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, GameTable };
+export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, GameTable, Lobby };

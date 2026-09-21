@@ -10,6 +10,7 @@ const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: t
 function state(overrides: Partial<CaboStateLike> = {}): CaboStateLike {
   return {
     revision: 3,
+    roomName: "Alice's room",
     phase: "LOBBY",
     round: 0,
     targetScore: 100,
@@ -72,15 +73,19 @@ describe("agent JSONL protocol", () => {
 
   it("generates a complete protocol JSON Schema from the wire schema", () => {
     const schema = agentProtocolJsonSchema();
+    const serialized = JSON.stringify(schema);
     expect(schema.$id).toBe(`urn:cabo:agent-protocol:v${AGENT_PROTOCOL_VERSION}`);
     expect(schema).toHaveProperty("anyOf");
-    expect(JSON.stringify(schema).match(/\"const\":\"leave\"/g)).toHaveLength(1);
+    expect(serialized.match(/\"const\":\"leave\"/g)).toHaveLength(1);
+    expect(serialized).toContain('"roomName"');
+    expect(serialized).toContain('"isStarted"');
+    expect(serialized).toContain('"canJoin"');
   });
 
   it("validates every output frame family", () => {
     const frames = [
-      { type: "ready", protocolVersion: 2, cliVersion: "0.1.0", server: "http://localhost", name: "Bot", sessionPersistence: false, requestTimeoutMs: 15000, capabilities: ["describe", "ping", "json-schema", "request-timeout"] },
-      { type: "result", id: "1", ok: true, data: { connected: false } },
+      { type: "ready", protocolVersion: AGENT_PROTOCOL_VERSION, cliVersion: "0.1.0", server: "http://localhost", name: "Bot", sessionPersistence: false, requestTimeoutMs: 15000, capabilities: ["describe", "ping", "json-schema", "request-timeout"] },
+      { type: "result", id: "1", ok: true, data: { connected: false, server: "http://localhost", roomId: null, roomName: null, selfId: null, revision: null, phase: null } },
       { type: "result", id: "2", ok: false, error: { code: "NO", message: "no" }, uncertain: true },
       { type: "event", event: { type: "connection-dropped" } },
       { type: "fatal", error: { code: "BAD", message: "bad" } },

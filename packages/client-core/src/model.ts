@@ -13,6 +13,7 @@ export interface StatePlayer {
 
 export interface CaboStateLike {
   revision: number;
+  roomName: string;
   phase: GamePhase;
   round: number;
   targetScore: number;
@@ -27,9 +28,14 @@ export interface CaboStateLike {
 
 export interface ListedRoom {
   roomId: string;
+  roomName: string;
   targetScore: number;
   playerCount: number;
   maxClients: number;
+  phase: GamePhase;
+  isFull: boolean;
+  isStarted: boolean;
+  canJoin: boolean;
 }
 
 export interface DisplayCard {

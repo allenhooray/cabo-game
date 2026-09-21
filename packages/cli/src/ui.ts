@@ -1,6 +1,6 @@
 import type { CaboStateLike, RoundResultView, StatePlayer } from "./model.js";
 import type { KnowledgeState } from "./knowledge.js";
-import { flowPrompt, selectionOptionsFor, type InteractionContext, type InteractionFlow } from "./interaction.js";
+import { escapeTerminalText, flowPrompt, selectionOptionsFor, type InteractionContext, type InteractionFlow } from "./interaction.js";
 
 export interface DashboardInput extends InteractionContext {
   knowledge: KnowledgeState;
@@ -19,13 +19,15 @@ export function renderCommandPrompt(interactive: boolean): string {
 export function renderDashboard(input: DashboardInput): string {
   const lines = ["CABO", "===="];
   if (!input.state || !input.selfId) {
-    lines.push("Not connected to a room.", "", ...renderEvents(input.events), "", ...renderActions(input));
+    lines.push("Not connected to a room.");
+    if (input.flow.kind !== "room-browser") lines.push("", ...renderEvents(input.events));
+    lines.push("", ...renderActions(input));
     return lines.join("\n");
   }
 
   const state = input.state;
   lines.push(
-    `Room ${input.roomId ?? "-"}  Round ${state.round || "-"}  Target ${state.targetScore}`,
+    `${escapeTerminalText(state.roomName)}  Room ${escapeTerminalText(input.roomId ?? "-")}  Round ${state.round || "-"}  Target ${state.targetScore}`,
     statusLine(state, input.selfId),
     `Deck ${state.deckCount}  Discard ${formatCardText(state.discardLabel || "-")}${state.caboCallerId ? `  CABO: ${playerName(state, state.caboCallerId)}` : ""}`,
     "",
@@ -107,7 +109,7 @@ function renderActions(input: DashboardInput): string[] {
   const lines: string[] = [];
   if (prompt) lines.push(`  ${prompt}`);
   if (options.length) {
-    lines.push(...options.map((option, index) => `${index === selected ? ">" : " "} [${option.value}] ${formatCardText(option.label)}`));
+    lines.push(...options.map((option, index) => `${index === selected ? ">" : " "} [${option.value}] ${input.flow.kind === "room-browser" ? option.label : formatCardText(option.label)}`));
     lines.push("  Use ↑/↓ to move and Enter to select.");
   } else if (!prompt) {
     lines.push("  Waiting for another player...");
@@ -116,8 +118,9 @@ function renderActions(input: DashboardInput): string[] {
   if (input.flow.kind === "idle" && input.state?.phase === "LOBBY" && input.selfId) {
     lines.push("  Want an Agent to play? Ask it to use the cabo-agent command.");
   }
-  if (input.notice) lines.push(`  ! ${input.notice}`);
-  return renderBorder("Actions", lines);
+  const notice = input.flow.kind === "room-browser" ? input.flow.message ?? input.notice : input.notice;
+  if (notice) lines.push(`  ! ${escapeTerminalText(notice)}`);
+  return renderBorder(input.flow.kind === "room-browser" ? "Rooms" : "Actions", lines);
 }
 
 function playerName(state: CaboStateLike, id: string): string {

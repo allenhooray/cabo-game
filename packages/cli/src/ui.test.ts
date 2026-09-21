@@ -4,7 +4,7 @@ import type { CaboStateLike } from "./model.js";
 import { formatCardText, renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
 
 const state: CaboStateLike = {
-  revision: 1, phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
+  revision: 1, roomName: "Friends' room", phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
   deckCount: 39,
   players: new Map([
     ["a", { id: "a", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, cardCount: 4, isHost: true }],
@@ -104,6 +104,20 @@ describe("terminal rendering", () => {
     expect(lobby).toContain("cabo-agent");
     expect(disconnected).not.toContain("cabo-agent");
     expect(playing).not.toContain("cabo-agent");
+  });
+
+  it("renders room names literally in the room browser", () => {
+    const output = renderDashboard({
+      knowledge: createKnowledge(),
+      events: [],
+      flow: {
+        kind: "room-browser",
+        page: 0,
+        rooms: [{ roomId: "room", roomName: "AS room", targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY", isFull: false, isStarted: false, canJoin: true }],
+      },
+    });
+    expect(output).toContain("AS room");
+    expect(output).not.toContain("♠ room");
   });
 
   it("reverses only the interactive command prompt", () => {

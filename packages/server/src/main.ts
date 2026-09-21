@@ -1,6 +1,7 @@
 import { defineRoom, defineServer, matchMaker } from "colyseus";
 import type { Request, Response } from "express";
 import { CaboRoom } from "./CaboRoom.js";
+import { toPublicRoomListing } from "./room-listing.js";
 
 const port = Number.parseInt(process.env.PORT ?? "2567", 10);
 const allowedOrigins = (process.env.WEB_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173")
@@ -36,8 +37,8 @@ export const server = defineServer({
       const rooms = await matchMaker.query({ name: "cabo" });
       response.json(
         rooms
-          .filter((room) => room.metadata?.visibility === "public" && room.metadata?.phase === "LOBBY" && !room.locked)
-          .map((room) => ({ roomId: room.roomId, ...room.metadata })),
+          .map((room) => toPublicRoomListing(room))
+          .filter((room) => room !== undefined),
       );
     });
   },

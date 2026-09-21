@@ -1,6 +1,6 @@
 # Cabo Agent JSONL 协议
 
-`cabo-agent` 是供任意语言通过子进程控制 Cabo 玩家使用的稳定机器接口。协议版本为 `2`。
+`cabo-agent` 是供任意语言通过子进程控制 Cabo 玩家使用的稳定机器接口。协议版本为 `3`。
 
 ## 启动
 
@@ -23,7 +23,7 @@ stdout 只包含 JSONL 协议帧。stderr 只包含不属于协议的诊断信�
 进程启动后的第一帧为：
 
 ```json
-{"type":"ready","protocolVersion":2,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":3,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 ```
 
 ## 请求与结果
@@ -34,8 +34,8 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 
 ```json
 {"id":"1","type":"rooms"}
-{"id":"2","type":"create","visibility":"public","targetScore":100}
-{"id":"3","type":"create","visibility":"private","targetScore":100,"password":"123456"}
+{"id":"2","type":"create","visibility":"public","targetScore":100,"roomName":"Friday night"}
+{"id":"3","type":"create","visibility":"private","targetScore":100,"roomName":"Friends","password":"123456"}
 {"id":"4","type":"join","roomId":"ROOM_ID","password":"123456"}
 {"id":"5","type":"reconnect"}
 {"id":"6","type":"observe"}
@@ -68,7 +68,9 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 
 无法解析 JSON 时，结果的 `id` 为 `null`；如果能从无效请求中读取字符串 ID，则原样返回该 ID。单条错误不会结束进程。启动参数等不可恢复错误使用 `fatal` 帧并以非零状态退出。
 
-`describe` 返回协议/CLI 版本、支持的请求、输出帧、动作类型、运行默认值和 Schema 获取命令。`ping` 不改变状态，可用于查询当前连接、房间、自身 ID、revision 和 phase。
+`roomName` 可省略或留空，此时服务端生成 `[玩家名]'s room`；自定义名称会去除首尾空白，最多 40 个 Unicode 字符，允许重名。`rooms` 返回房间名、房间 ID、阶段、人数上限以及 `isFull`、`isStarted`、`canJoin`。加入始终使用 `roomId`。
+
+`describe` 返回协议/CLI 版本、支持的请求、输出帧、动作类型、运行默认值和 Schema 获取命令。`ping` 不改变状态，可用于查询当前连接、房间名、房间 ID、自身 ID、revision 和 phase。
 
 所有请求受 `--request-timeout-ms` 限制。超时返回 `REQUEST_TIMEOUT` 和 `uncertain: true`；之后新的 `create`、`join`、`reconnect` 和 `action` 会返回 `STATE_UNCERTAIN`。调用方必须先成功执行 `observe`，或使用始终可用的 `ping`、`leave`、`shutdown`。
 
@@ -80,6 +82,7 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 {
   "type": "observation",
   "roomId": "abc123",
+  "roomName": "Friday night",
   "selfId": "session-id",
   "revision": 12,
   "state": {
@@ -135,12 +138,12 @@ Agent 应以 observation 作为决策状态，以 event 作为增量通知和日
 ## 完整交互片段
 
 ```jsonl
-{"type":"ready","protocolVersion":2,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
-{"id":"1","type":"create","visibility":"public","targetScore":100}
-{"type":"observation","roomId":"abc123","selfId":"a","revision":1,"state":{"phase":"LOBBY"},"knowledge":{"round":0,"slots":[null,null,null,null],"opponents":[],"held":null},"legalActions":[]}
-{"type":"result","id":"1","ok":true,"data":{"roomId":"abc123","selfId":"a"}}
+{"type":"ready","protocolVersion":3,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"id":"1","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
+{"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"a","revision":1,"state":{"phase":"LOBBY"},"knowledge":{"round":0,"slots":[null,null,null,null],"opponents":[],"held":null},"legalActions":[]}
+{"type":"result","id":"1","ok":true,"data":{"roomId":"abc123","roomName":"Bots' room","selfId":"a"}}
 {"id":"2","type":"action","action":{"type":"start"}}
-{"type":"observation","roomId":"abc123","selfId":"a","revision":3,"state":{"phase":"TURN_START"},"knowledge":{"round":1,"slots":[null,null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
+{"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"a","revision":3,"state":{"phase":"TURN_START"},"knowledge":{"round":1,"slots":[null,null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
 {"type":"result","id":"2","ok":true,"data":{"revision":3}}
 ```
 

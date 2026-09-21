@@ -11,8 +11,7 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await alice.getByRole("textbox", { name: "Player name" }).fill("Alice");
   await alice.getByRole("button", { name: "Create room" }).click();
   await alice.getByRole("button", { name: "Create table" }).click();
-  const roomText = await alice.locator(".room-code").innerText();
-  const roomId = roomText.replace(/^Room\s+/i, "").trim();
+  const roomId = await alice.locator(".lobby-copy .room-id").innerText();
 
   await bob.goto("/");
   await bob.getByRole("textbox", { name: "Player name" }).fill("Bob");
@@ -71,7 +70,7 @@ test("private room requires its six-digit password", async ({ browser }) => {
   await host.getByRole("button", { name: "Private" }).click();
   await host.getByLabel("Six-digit password").fill("123456");
   await host.getByRole("button", { name: "Create table" }).click();
-  const roomId = (await host.locator(".room-code").innerText()).replace(/^Room\s+/i, "").trim();
+  const roomId = await host.locator(".lobby-copy .room-id").innerText();
 
   await guest.goto("/");
   await guest.getByRole("textbox", { name: "Player name" }).fill("Guest");

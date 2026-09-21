@@ -85,10 +85,10 @@ WEB_ORIGINS=https://play.example.com,https://staging.example.com pnpm dev:server
 Alice 创建公开房间：
 
 ```text
-create public 100
+create public 100 --name "Friday night"
 ```
 
-Bob 查看房间并加入：
+Bob 查看房间列表（上下选择、左右翻页）并按回车加入；也可以继续按房间 ID 加入：
 
 ```text
 rooms
@@ -116,7 +116,7 @@ skip
 cabo
 ```
 
-输入 `help` 可随时查看完整命令。宣告 Cabo 前会要求确认。私密房间使用 `create private [target]` 创建，客户端会以不回显方式读取六位数字密码。
+房间名允许重名且只用于辨识；加入仍使用区分大小写的房间 ID。未提供或留空时，服务端使用 `[玩家名]'s room`。输入 `help` 可随时查看完整命令。宣告 Cabo 前会要求确认。私密房间使用 `create private [target] --name "room name"` 创建，客户端会以不回显方式读取六位数字密码。
 
 ## 规则摘要
 

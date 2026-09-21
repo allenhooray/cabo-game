@@ -17,7 +17,7 @@ describe("Cabo home", () => {
     expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/docs/rules/");
     expect(screen.getByRole("link", { name: "CLI" })).toHaveAttribute("href", "/docs/cli/");
     expect(screen.getByRole("link", { name: "Agent" })).toHaveAttribute("href", "/docs/agent/");
-    await waitFor(() => expect(screen.getByText(/no public rooms are waiting/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/no public rooms yet/i)).toBeInTheDocument());
   });
 
   it("starts with a generated name and saves a player-selected name", () => {
@@ -30,9 +30,49 @@ describe("Cabo home", () => {
     expect(localStorage.getItem("cabo.name.v1")).toBe("Alice");
     expect(container.querySelector("[role=status]")).toHaveTextContent("Saved");
   });
+
+  it("prefills the create form with a room name based on the current player", () => {
+    const { container } = render(<App />);
+    const nameInput = container.querySelector<HTMLInputElement>("#player-name")!;
+    fireEvent.change(nameInput, { target: { value: "Alice" } });
+    fireEvent.click(container.querySelector<HTMLButtonElement>(".entry-actions .primary")!);
+    const roomName = container.querySelector<HTMLInputElement>("#create-room-name")!;
+    expect(roomName).toHaveValue("Alice's room");
+    fireEvent.change(roomName, { target: { value: "" } });
+    expect(roomName).toHaveValue("");
+  });
+
+  it("shows room names and statuses and disables rooms that cannot be joined", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
+      roomId: "abc123", roomName: "Friday night", targetScore: 100, playerCount: 4, maxClients: 4,
+      phase: "TURN_START", isFull: true, isStarted: true, canJoin: false,
+    }]), { status: 200, headers: { "content-type": "application/json" } })));
+    render(<App />);
+    expect(await screen.findByText("Friday night")).toBeVisible();
+    expect(screen.getByText(/Full · Started · 4 \/ 4 players/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Join" })).toBeDisabled();
+  });
 });
 
 describe("Cabo game table additions", () => {
+  it("shows the room name and a separate room id in the lobby", () => {
+    const { container } = render(
+      <__test.Lobby
+        roomId="abc123"
+        roomName="Friday night"
+        targetScore={100}
+        players={[]}
+        selfId="alice"
+        canStart={false}
+        busy={false}
+        onStart={vi.fn()}
+        onLeave={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".room-name")).toHaveTextContent("Friday night");
+    expect(container.querySelector(".room-id")).toHaveTextContent("abc123");
+  });
+
   it("opens quick rules on hover and links to the full rules", () => {
     render(<__test.RulesPopover />);
     const trigger = screen.getByRole("button", { name: "Rules" });
@@ -73,7 +113,7 @@ describe("Cabo game table additions", () => {
     ]);
     const { container } = render(
       <__test.GameTable
-        state={{ revision: 2, phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
+        state={{ revision: 2, roomName: "Alice's room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
         selfId="alice"
         players={[...players.values()]}
         core={{ knowledge: { slots: [null, null, null, null], opponents: [{ playerId: "bob", slots: [{ label: "9H", rank: 9 }, null, null, null] }], held: null } } as any}

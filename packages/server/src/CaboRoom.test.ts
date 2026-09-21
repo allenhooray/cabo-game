@@ -29,3 +29,37 @@ describe("agent command acknowledgements", () => {
     }));
   });
 });
+
+describe("room names", () => {
+  it("normalizes custom names and stores the same value in state and metadata", async () => {
+    const room = new CaboRoom();
+    const setMetadata = vi.fn(async () => undefined);
+    const internals = room as unknown as {
+      onCreate(options: unknown): Promise<void>;
+      setPrivate(value: boolean): Promise<void>;
+      setMetadata(value: unknown): Promise<void>;
+    };
+    internals.setPrivate = vi.fn(async () => undefined);
+    internals.setMetadata = setMetadata;
+
+    await internals.onCreate({ name: "Alice", visibility: "public", targetScore: 100, roomName: "  Game night  " });
+
+    expect(room.state.roomName).toBe("Game night");
+    expect(setMetadata).toHaveBeenLastCalledWith(expect.objectContaining({ roomName: "Game night" }));
+  });
+
+  it("uses the creator name when the requested room name is blank", async () => {
+    const room = new CaboRoom();
+    const internals = room as unknown as {
+      onCreate(options: unknown): Promise<void>;
+      setPrivate(value: boolean): Promise<void>;
+      setMetadata(value: unknown): Promise<void>;
+    };
+    internals.setPrivate = vi.fn(async () => undefined);
+    internals.setMetadata = vi.fn(async () => undefined);
+
+    await internals.onCreate({ name: "Alice", visibility: "public", targetScore: 100, roomName: "  " });
+
+    expect(room.state.roomName).toBe("Alice's room");
+  });
+});

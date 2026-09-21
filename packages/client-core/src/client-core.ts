@@ -31,6 +31,13 @@ export interface ExecuteOptions {
   timeoutMs?: number;
 }
 
+export interface CreateRoomOptions {
+  visibility: "public" | "private";
+  targetScore: number;
+  roomName?: string;
+  password?: string;
+}
+
 export class AgentRequestTimeoutError extends Error {
   readonly code = "REQUEST_TIMEOUT";
   readonly uncertain = true;
@@ -85,13 +92,14 @@ export class CaboClientCore {
     return await response.json() as ListedRoom[];
   }
 
-  async create(visibility: "public" | "private", targetScore: number, password?: string): Promise<void> {
+  async create(options: CreateRoomOptions): Promise<void> {
     if (this.room) throw new Error("Leave the current room first.");
     const room = await this.client.create("cabo", {
       name: this.playerName,
-      visibility,
-      targetScore,
-      ...(password ? { password } : {}),
+      visibility: options.visibility,
+      targetScore: options.targetScore,
+      ...(options.roomName !== undefined ? { roomName: options.roomName } : {}),
+      ...(options.password ? { password: options.password } : {}),
     });
     await this.attach(room);
   }
@@ -334,5 +342,5 @@ export class CaboClientCore {
 }
 
 function isHydratedState(state: CaboStateLike | undefined): state is CaboStateLike {
-  return Boolean(state && state.players && state.winners && typeof state.phase === "string");
+  return Boolean(state && state.players && state.winners && typeof state.phase === "string" && typeof state.roomName === "string");
 }

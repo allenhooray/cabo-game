@@ -19,6 +19,7 @@ import { PrivateKnowledgeStore, publicAction } from "./private-knowledge.js";
 
 interface RoomMetadata {
   visibility: "public" | "private";
+  roomName: string;
   phase: string;
   targetScore: number;
   playerCount: number;
@@ -51,6 +52,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     }
     this.visibility = options.visibility;
     this.targetScore = options.targetScore;
+    this.state.roomName = options.roomName?.trim() || `${options.name}'s room`;
     this.state.targetScore = this.targetScore;
     if (options.password) this.passwordHash = this.hashPassword(options.password);
     await this.setPrivate(this.visibility === "private");
@@ -312,6 +314,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private async updateListing(): Promise<void> {
     await this.setMetadata({
       visibility: this.visibility,
+      roomName: this.state.roomName,
       phase: this.state.phase,
       targetScore: this.targetScore,
       playerCount: this.state.players.size,

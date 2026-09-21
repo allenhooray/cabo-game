@@ -123,6 +123,7 @@ async function run(options: Extract<AgentCliOptions, { mode: "run" }>, cliVersio
     connected: Boolean(core.room && core.state),
     server: options.serverUrl,
     roomId: core.room?.roomId ?? null,
+    roomName: core.state?.roomName ?? null,
     selfId: core.room?.sessionId ?? null,
     revision: core.state?.revision ?? null,
     phase: core.state?.phase ?? null,
@@ -132,14 +133,14 @@ async function run(options: Extract<AgentCliOptions, { mode: "run" }>, cliVersio
     switch (request.type) {
       case "rooms": return { ok: true, data: { rooms: await core.listRooms() } };
       case "create":
-        await core.create(request.visibility, request.targetScore, request.password);
-        return { ok: true, data: { roomId: core.room?.roomId, selfId: core.room?.sessionId } };
+        await core.create({ visibility: request.visibility, targetScore: request.targetScore, ...(request.roomName !== undefined ? { roomName: request.roomName } : {}), ...(request.password ? { password: request.password } : {}) });
+        return { ok: true, data: { roomId: core.room?.roomId, roomName: core.state?.roomName, selfId: core.room?.sessionId } };
       case "join":
         await core.join(request.roomId, request.password);
-        return { ok: true, data: { roomId: core.room?.roomId, selfId: core.room?.sessionId } };
+        return { ok: true, data: { roomId: core.room?.roomId, roomName: core.state?.roomName, selfId: core.room?.sessionId } };
       case "reconnect":
         await core.reconnect();
-        return { ok: true, data: { roomId: core.room?.roomId, selfId: core.room?.sessionId } };
+        return { ok: true, data: { roomId: core.room?.roomId, roomName: core.state?.roomName, selfId: core.room?.sessionId } };
       case "observe":
         if (!core.room || !core.state) throw new AgentProtocolError("NOT_CONNECTED", "Join a room first.", request.id);
         requestGate.markObserved();

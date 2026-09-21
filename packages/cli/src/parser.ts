@@ -3,7 +3,7 @@ import type { ClientCommand } from "@cabo-game/shared";
 export type LocalCommand =
   | { kind: "help" }
   | { kind: "rooms" }
-  | { kind: "create"; visibility: "public" | "private"; targetScore: number }
+  | { kind: "create"; visibility: "public" | "private"; targetScore: number; roomName?: string }
   | { kind: "join"; roomId: string; password?: string }
   | { kind: "reconnect" }
   | { kind: "show" }
@@ -19,7 +19,7 @@ const position = (raw: string | undefined): number => {
 };
 
 export function parseCommand(input: string): LocalCommand {
-  const parts = input.trim().split(/\s+/).filter(Boolean);
+  const parts = tokenize(input);
   const [verb, ...args] = parts;
   switch (verb?.toLowerCase()) {
     case "help":
@@ -29,10 +29,28 @@ export function parseCommand(input: string): LocalCommand {
       return { kind: "rooms" };
     case "create": {
       const visibility = args[0]?.toLowerCase();
-      if (visibility !== "public" && visibility !== "private") throw new Error("Usage: create public|private [target].");
-      const targetScore = args[1] === undefined ? 100 : Number(args[1]);
+      if (visibility !== "public" && visibility !== "private") throw new Error('Usage: create public|private [target] --name "room name".');
+      let targetScore = 100;
+      let roomName: string | undefined;
+      let sawTarget = false;
+      let sawName = false;
+      for (let index = 1; index < args.length; index += 1) {
+        const arg = args[index];
+        if (arg === "--name") {
+          if (sawName) throw new Error("--name may only be specified once.");
+          if (index + 1 >= args.length || args[index + 1]?.startsWith("--")) throw new Error("--name requires a room name.");
+          sawName = true;
+          roomName = args[index + 1] as string;
+          index += 1;
+          continue;
+        }
+        if (arg?.startsWith("--")) throw new Error(`Unknown create option: ${arg}.`);
+        if (sawTarget) throw new Error('Usage: create public|private [target] --name "room name".');
+        targetScore = Number(arg);
+        sawTarget = true;
+      }
       if (!Number.isInteger(targetScore) || targetScore < 20 || targetScore > 500) throw new Error("Target must be an integer from 20 to 500.");
-      return { kind: "create", visibility, targetScore };
+      return { kind: "create", visibility, targetScore, ...(roomName !== undefined ? { roomName } : {}) };
     }
     case "join":
       if (!args[0]) throw new Error("Usage: join ROOM_CODE [password].");
@@ -82,4 +100,50 @@ export function parseCommand(input: string): LocalCommand {
     default:
       throw new Error(`Unknown command: ${verb}. Type 'help' for available commands.`);
   }
+}
+
+function tokenize(input: string): string[] {
+  const tokens: string[] = [];
+  let token = "";
+  let quote: "'" | '"' | undefined;
+  let escaped = false;
+  let started = false;
+  for (const character of input.trim()) {
+    if (escaped) {
+      token += character;
+      escaped = false;
+      started = true;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      started = true;
+      continue;
+    }
+    if (quote) {
+      if (character === quote) quote = undefined;
+      else token += character;
+      started = true;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      started = true;
+      continue;
+    }
+    if (/\s/.test(character)) {
+      if (started) {
+        tokens.push(token);
+        token = "";
+        started = false;
+      }
+      continue;
+    }
+    token += character;
+    started = true;
+  }
+  if (escaped) throw new Error("Command cannot end with an escape character.");
+  if (quote) throw new Error("Room name has an unclosed quote.");
+  if (started) tokens.push(token);
+  return tokens;
 }

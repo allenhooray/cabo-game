@@ -28,6 +28,7 @@ export function buildObservation(
 ): AgentObservation {
   return {
     roomId,
+    roomName: state.roomName,
     selfId,
     revision: state.revision,
     state: {
