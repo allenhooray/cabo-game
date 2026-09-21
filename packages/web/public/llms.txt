@@ -1,0 +1,17 @@
+# Cabo
+
+> Cabo is a server-authoritative, real-time online card game for two to four players. It can be played in a browser or terminal and automated through a language-neutral JSONL Agent process.
+
+## Play and learn
+
+- [Cabo online table](https://cabo.human404.link/): Create or join a real-time Cabo room in the browser.
+- [Game rules](https://cabo.human404.link/docs/rules/): Setup, turn flow, card powers, calling Cabo, scoring, and connection behavior.
+- [CLI guide](https://cabo.human404.link/docs/cli/): Install the terminal client and use its connection, lobby, and game commands.
+- [Agent guide](https://cabo.human404.link/docs/agent/): Drive one Cabo player as a JSONL subprocess from any programming language.
+
+## Developer reference
+
+- [Complete Agent JSONL protocol](https://github.com/allenhooray/cabo-game/blob/master/docs/agent-protocol.md): Authoritative request, result, observation, event, timeout, and lifecycle contract.
+- [Source repository](https://github.com/allenhooray/cabo-game): Game engine, server, Web client, CLI, Agent, and tests.
+
+The installed `cabo-agent` command can print its runtime-generated protocol schema with `cabo-agent --print-schema`.

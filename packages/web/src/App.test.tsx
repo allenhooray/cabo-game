@@ -12,6 +12,9 @@ describe("Cabo home", () => {
     render(<App />);
     expect(screen.getByRole("heading", { name: /keep the lowest hand/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create room/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/docs/rules/");
+    expect(screen.getByRole("link", { name: "CLI" })).toHaveAttribute("href", "/docs/cli/");
+    expect(screen.getByRole("link", { name: "Agent" })).toHaveAttribute("href", "/docs/agent/");
     await waitFor(() => expect(screen.getByText(/no public rooms are waiting/i)).toBeInTheDocument());
   });
 });

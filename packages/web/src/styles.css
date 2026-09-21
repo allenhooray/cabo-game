@@ -36,7 +36,7 @@ html { background: var(--bg); }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--bg); color: var(--ink); }
 button, input { font: inherit; }
 button { color: inherit; }
-button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 button:disabled { opacity: .36; cursor: not-allowed; }
 
 #root { min-height: 100vh; }
@@ -57,6 +57,9 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 
 .home-header, .home-footer { min-height: 68px; padding: 0 clamp(20px, 4vw, 64px); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--soft-line); color: var(--muted); font-size: 12px; }
 .home-footer { border-top: 1px solid var(--soft-line); border-bottom: 0; }
+.home-footer nav { display: flex; gap: 20px; }
+.home-footer a { color: var(--muted); text-decoration: none; }
+.home-footer a:hover { color: var(--ink); }
 .wordmark-static, .wordmark { color: var(--ink); font-size: 15px; font-weight: 500; letter-spacing: .26em; }
 .wordmark { border: 0; background: none; cursor: pointer; }
 .home-main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: clamp(54px, 8vw, 108px) 0 60px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .75fr); column-gap: clamp(48px, 9vw, 120px); row-gap: 60px; }
@@ -210,7 +213,7 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
   .room-row { grid-template-columns: 1fr auto; gap: 12px; padding: 12px 0; }
   .room-row > span { display: none; }
   .server-settings summary span { max-width: 55%; }
-  .home-footer { flex-wrap: wrap; justify-content: center; gap: 16px; }
+  .home-footer { padding-block: 16px; flex-wrap: wrap; justify-content: center; gap: 16px; text-align: center; }
 
   .topbar { grid-template-columns: 1fr auto; padding-inline: 15px; }
   .room-meta { display: none; }

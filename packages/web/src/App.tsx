@@ -462,7 +462,14 @@ function Home(props: HomeProps) {
           </form>
         </details>
       </main>
-      <footer className="home-footer"><span>Server-authoritative play</span><span>Private cards stay private</span></footer>
+      <footer className="home-footer">
+        <span>Server-authoritative play · Private cards stay private</span>
+        <nav aria-label="Documentation">
+          <a href="/docs/rules/">Rules</a>
+          <a href="/docs/cli/">CLI</a>
+          <a href="/docs/agent/">Agent</a>
+        </nav>
+      </footer>
     </div>
   );
 }
