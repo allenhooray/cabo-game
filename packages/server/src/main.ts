@@ -29,6 +29,9 @@ export const server = defineServer({
       response.setHeader("Vary", "Origin");
       next();
     });
+    app.get("/healthz", (_request: Request, response: Response) => {
+      response.status(200).json({ ok: true });
+    });
     app.get("/rooms", async (_request: Request, response: Response) => {
       const rooms = await matchMaker.query({ name: "cabo" });
       response.json(
