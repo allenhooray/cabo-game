@@ -52,6 +52,18 @@ describe("Cabo home", () => {
     expect(screen.getByText(/Full · Started · 5 \/ 5 players/)).toBeVisible();
     expect(screen.getByRole("button", { name: "Join" })).toBeDisabled();
   });
+
+  it("renders legacy room listings with a fallback name and an enabled Join action", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
+      roomId: "legacy123", targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY",
+    }]), { status: 200, headers: { "content-type": "application/json" } })));
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByText("Room legacy123")).toBeVisible();
+    expect(screen.getByText(/Open · Waiting · 1 \/ 4 players/)).toBeVisible();
+    expect(within(container).getByRole("button", { name: "Join" })).toBeEnabled();
+  });
 });
 
 describe("Cabo game table additions", () => {

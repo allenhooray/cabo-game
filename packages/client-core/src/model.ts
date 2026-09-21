@@ -40,6 +40,20 @@ export interface ListedRoom {
   canJoin: boolean;
 }
 
+/** Room-list payload accepted from both current and pre-room-name servers. */
+export interface ListedRoomResponse {
+  roomId: string;
+  locked?: boolean;
+  roomName?: string;
+  targetScore: number;
+  playerCount: number;
+  maxClients: number;
+  phase?: GamePhase;
+  isFull?: boolean;
+  isStarted?: boolean;
+  canJoin?: boolean;
+}
+
 export interface DisplayCard {
   label: string;
   rank: number;

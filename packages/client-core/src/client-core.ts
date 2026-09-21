@@ -1,7 +1,7 @@
 import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage } from "@cabo-game/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { applyKnowledgeSnapshot, applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
-import type { CaboStateLike, ListedRoom } from "./model.js";
+import type { CaboStateLike, ListedRoom, ListedRoomResponse } from "./model.js";
 import type { SavedSession, SessionStore } from "./session.js";
 
 export const DEFAULT_SERVER_URL = "https://cabo-api.human404.link";
@@ -89,7 +89,8 @@ export class CaboClientCore {
   async listRooms(): Promise<ListedRoom[]> {
     const response = await fetch(`${this.serverUrl}/rooms`);
     if (!response.ok) throw new Error(`Room list failed: HTTP ${response.status}`);
-    return await response.json() as ListedRoom[];
+    const rooms = await response.json() as ListedRoomResponse[];
+    return rooms.map(normalizeListedRoom);
   }
 
   async create(options: CreateRoomOptions): Promise<void> {
@@ -183,8 +184,10 @@ export class CaboClientCore {
     let resolveReady!: () => void;
     const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
 
-    const acceptState = (state: CaboStateLike): void => {
-      if (!isHydratedState(state)) return;
+    const fallbackRoomName = `Room ${nextRoom.roomId}`;
+    const acceptState = (receivedState: CaboStateLike): void => {
+      if (!isHydratedState(receivedState)) return;
+      const state = withRoomName(receivedState, fallbackRoomName);
       const previousKnowledgeRound = this.knowledge.round;
       this.state = state;
       if (!attached) {
@@ -337,5 +340,30 @@ export class CaboClientCore {
 }
 
 function isHydratedState(state: CaboStateLike | undefined): state is CaboStateLike {
-  return Boolean(state && state.players && state.winners && typeof state.phase === "string" && typeof state.roomName === "string");
+  return Boolean(state && state.players && state.winners && typeof state.phase === "string");
+}
+
+function withRoomName(state: CaboStateLike, fallback: string): CaboStateLike {
+  const compatibleState = state as CaboStateLike & { roomName?: string };
+  if (typeof compatibleState.roomName === "string" && compatibleState.roomName.trim()) return state;
+  compatibleState.roomName = fallback;
+  return compatibleState;
+}
+
+function normalizeListedRoom(room: ListedRoomResponse): ListedRoom {
+  const phase = room.phase ?? "LOBBY";
+  const isFull = room.isFull ?? room.playerCount >= room.maxClients;
+  const isStarted = room.isStarted ?? phase !== "LOBBY";
+  const roomName = typeof room.roomName === "string" && room.roomName.trim() ? room.roomName : `Room ${room.roomId}`;
+  return {
+    roomId: room.roomId,
+    roomName,
+    targetScore: room.targetScore,
+    playerCount: room.playerCount,
+    maxClients: room.maxClients,
+    phase,
+    isFull,
+    isStarted,
+    canJoin: room.canJoin ?? (!isFull && !isStarted && !room.locked),
+  };
 }
