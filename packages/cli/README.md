@@ -35,7 +35,7 @@ cabo-agent \
 stdin and stdout contain exactly one JSON object per line. stderr is reserved for diagnostics. The first runtime frame is `ready`.
 
 ```jsonl
-{"type":"ready","protocolVersion":5,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":6,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}
 {"id":"create","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}

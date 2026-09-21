@@ -63,12 +63,20 @@ describe("agent JSONL protocol", () => {
   });
 
   it("serializes maps, null values and private knowledge", () => {
-    const observation = buildObservation(state(), "a", "room", createKnowledge());
+    const observation = buildObservation(state({ roundHistory: [{
+      round: 1,
+      outcomeType: "cabo",
+      outcomePlayerId: "a",
+      caboSucceeded: true,
+      players: [{ playerId: "a", roundScore: 0, totalScore: 0, handScore: 4, cards: [{ label: "4H", rank: 4 }] }],
+    }] }), "a", "room", createKnowledge());
     expect(observation.state.players.map((player) => player.id)).toEqual(["a", "b"]);
     expect(observation.state.currentPlayerId).toBeNull();
     expect(observation.state.caboCallerId).toBeNull();
     expect(observation.state.discardTop).toBeNull();
     expect(observation.state.players[0]?.nextRoundReady).toBe(false);
+    expect(observation.state.roundHistory[0]).toMatchObject({ round: 1, outcomePlayerId: "a" });
+    expect(observation.state.roundHistory[0]?.players[0]?.cards).toEqual([{ label: "4H", rank: 4 }]);
     expect(observation.knowledge.slots).toEqual([null, null, null, null]);
     expect(observation.knowledge.opponents).toEqual([]);
     expect(() => agentFrameSchema.parse({ type: "observation", ...observation })).not.toThrow();
@@ -86,6 +94,7 @@ describe("agent JSONL protocol", () => {
     expect(serialized).toContain('"selectablePositions"');
     expect(serialized).toContain('"resolve-mismatch"');
     expect(serialized).toContain('"ready-next-round"');
+    expect(serialized).toContain('"roundHistory"');
   });
 
   it("validates every output frame family", () => {

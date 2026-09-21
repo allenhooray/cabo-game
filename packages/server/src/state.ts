@@ -16,6 +16,39 @@ export const PlayerState = schema(
 );
 export type PlayerState = SchemaType<typeof PlayerState>;
 
+export const RoundHistoryCardState = schema(
+  {
+    label: t.string().default(""),
+    rank: t.number().default(0),
+  },
+  "RoundHistoryCardState",
+);
+export type RoundHistoryCardState = SchemaType<typeof RoundHistoryCardState>;
+
+export const RoundHistoryPlayerState = schema(
+  {
+    playerId: t.string().default(""),
+    roundScore: t.number().default(0),
+    totalScore: t.number().default(0),
+    handScore: t.number().default(0),
+    cards: t.array(RoundHistoryCardState),
+  },
+  "RoundHistoryPlayerState",
+);
+export type RoundHistoryPlayerState = SchemaType<typeof RoundHistoryPlayerState>;
+
+export const RoundHistoryEntryState = schema(
+  {
+    round: t.number().default(0),
+    outcomeType: t.string().default("cabo"),
+    outcomePlayerId: t.string().default(""),
+    caboSucceeded: t.boolean().default(false),
+    players: t.array(RoundHistoryPlayerState),
+  },
+  "RoundHistoryEntryState",
+);
+export type RoundHistoryEntryState = SchemaType<typeof RoundHistoryEntryState>;
+
 export const CaboState = schema(
   {
     revision: t.number().default(0),
@@ -32,6 +65,7 @@ export const CaboState = schema(
     deckCount: t.number().default(0),
     players: t.map(PlayerState),
     winners: t.array("string"),
+    roundHistory: t.array(RoundHistoryEntryState),
   },
   "CaboState",
 );

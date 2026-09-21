@@ -178,6 +178,45 @@ describe("Cabo game table additions", () => {
     }).map((flight) => flight.key)).toEqual(["take-discard"]);
   });
 
+  it("expands the synchronized score matrix and exposes every round hand", () => {
+    const players = new Map([
+      ["alice", { id: "alice", name: "Alice", seat: 0, score: 4, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
+      ["bob", { id: "bob", name: "Bob", seat: 1, score: 12, connected: true, forfeited: true, nextRoundReady: false, cardCount: 0, isHost: false }],
+    ]);
+    render(<__test.ScoreHistoryPanel state={{
+      players,
+      round: 2,
+      roundHistory: [{
+        round: 1,
+        outcomeType: "cabo",
+        outcomePlayerId: "alice",
+        caboSucceeded: true,
+        players: [
+          { playerId: "alice", roundScore: 4, totalScore: 4, handScore: 4, cards: [{ label: "4H", rank: 4 }] },
+          { playerId: "bob", roundScore: 12, totalScore: 12, handScore: 12, cards: [{ label: "QH", rank: 12 }] },
+        ],
+      }, {
+        round: 2,
+        outcomeType: "shooting-the-moon",
+        outcomePlayerId: "alice",
+        caboSucceeded: false,
+        players: [{ playerId: "alice", roundScore: 0, totalScore: 4, handScore: 50, cards: [{ label: "QH", rank: 12 }, { label: "QS", rank: 12 }, { label: "KH", rank: 13 }, { label: "KS", rank: 13 }] }],
+      }],
+    } as any} />);
+
+    const trigger = screen.getByRole("button", { name: /scores/i });
+    fireEvent.mouseEnter(trigger.parentElement?.parentElement as HTMLElement);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("columnheader", { name: /round 2 alice · moon/i })).toBeVisible();
+    expect(screen.getByRole("button", { name: /alice, round 1: plus 4, 4 total/i })).toBeVisible();
+    expect(screen.getAllByText("DNF")).toHaveLength(2);
+    fireEvent.click(trigger);
+    fireEvent.mouseLeave(trigger.parentElement?.parentElement as HTMLElement);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("allows direct hand selection and confirms the exchange above the hand", () => {
     const players = new Map([
       ["alice", { id: "alice", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],

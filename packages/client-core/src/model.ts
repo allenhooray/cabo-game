@@ -12,6 +12,22 @@ export interface StatePlayer {
   isHost: boolean;
 }
 
+export interface RoundHistoryPlayer {
+  playerId: string;
+  roundScore: number;
+  totalScore: number;
+  handScore: number;
+  cards: DisplayCard[];
+}
+
+export interface RoundHistoryEntry {
+  round: number;
+  outcomeType: "cabo" | "shooting-the-moon";
+  outcomePlayerId: string;
+  caboSucceeded: boolean;
+  players: RoundHistoryPlayer[];
+}
+
 export interface CaboStateLike {
   revision: number;
   roomName: string;
@@ -27,6 +43,8 @@ export interface CaboStateLike {
   deckCount: number;
   players: Map<string, StatePlayer>;
   winners: string[];
+  /** Present on current servers; optional keeps clients compatible with older rooms. */
+  roundHistory?: RoundHistoryEntry[];
 }
 
 export interface ListedRoom {

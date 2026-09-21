@@ -14,7 +14,7 @@ import {
   type Position,
 } from "@cabo-game/shared";
 import { type Client, Room } from "colyseus";
-import { CaboState, PlayerState } from "./state.js";
+import { CaboState, PlayerState, RoundHistoryCardState, RoundHistoryEntryState, RoundHistoryPlayerState } from "./state.js";
 import { PrivateKnowledgeStore, publicAction } from "./private-knowledge.js";
 
 interface RoomMetadata {
@@ -262,9 +262,34 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
         });
       } else if (event.type !== "exchange-mismatch" && event.type !== "mismatch-resolved") {
         if (event.type === "forfeit") this.knowledge.removePlayer(event.playerId);
+        if (event.type === "round-result") this.recordRoundResult(event);
         this.broadcast("event", event);
       }
     }
+  }
+
+  private recordRoundResult(event: Extract<EngineEvent, { type: "round-result" }>): void {
+    if (this.state.roundHistory.some((entry) => entry.round === this.engine?.round)) return;
+    const outcomeType = event.outcome.type;
+    const entry = new RoundHistoryEntryState().assign({
+      round: this.engine?.round ?? this.state.round,
+      outcomeType,
+      outcomePlayerId: outcomeType === "cabo" ? event.outcome.callerId : event.outcome.playerId,
+      caboSucceeded: outcomeType === "cabo" && event.outcome.succeeded,
+    });
+    for (const hand of event.hands) {
+      const player = new RoundHistoryPlayerState().assign({
+        playerId: hand.playerId,
+        roundScore: event.roundScores[hand.playerId] ?? 0,
+        totalScore: event.totals[hand.playerId] ?? 0,
+        handScore: hand.handScore,
+      });
+      for (const card of hand.cards) {
+        player.cards.push(new RoundHistoryCardState().assign({ label: card.label, rank: card.rank }));
+      }
+      entry.players.push(player);
+    }
+    this.state.roundHistory.push(entry);
   }
 
   private readyNextRound(playerId: string): void {

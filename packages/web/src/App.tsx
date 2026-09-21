@@ -326,6 +326,7 @@ export function App() {
         <button className="wordmark" type="button" onClick={() => setNotice(`${state.roomName} · Room ${room.roomId}`)}>CABO</button>
         <div className="room-meta"><strong className="room-title">{state.roomName}</strong> <span /> Room <b className="room-id">{room.roomId}</b> <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
         <div className="topbar-actions">
+          {state.phase !== "LOBBY" && <ScoreHistoryPanel state={state} />}
           <RulesPopover />
           <div className={`connection connection-${connection}`}><i />{connectionLabel(connection)}</div>
         </div>
@@ -591,6 +592,128 @@ function RulesPopover() {
       </aside>
     </div>
   );
+}
+
+function ScoreHistoryPanel(props: { state: CaboStateLike }) {
+  const [preview, setPreview] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [revealedCell, setRevealedCell] = useState<string>();
+  const matrix = useRef<HTMLDivElement>(null);
+  const ignoreNextFocus = useRef(false);
+  const history = [...(props.state.roundHistory ?? [])].sort((a, b) => a.round - b.round);
+  const players = [...props.state.players.values()].sort((a, b) => a.seat - b.seat);
+  const leaders = players.filter((player) => !player.forfeited);
+  const leader = [...(leaders.length ? leaders : players)].sort((a, b) => a.score - b.score)[0];
+  const open = preview || pinned;
+
+  useEffect(() => {
+    if (!open || !matrix.current) return;
+    const frame = requestAnimationFrame(() => {
+      if (matrix.current) matrix.current.scrollLeft = matrix.current.scrollWidth;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, history.length]);
+
+  return (
+    <div
+      className={`score-history ${open ? "is-open" : ""} ${pinned ? "is-pinned" : ""}`}
+      onMouseEnter={() => setPreview(true)}
+      onMouseLeave={() => setPreview(false)}
+      onFocus={() => {
+        if (ignoreNextFocus.current) {
+          ignoreNextFocus.current = false;
+          return;
+        }
+        setPreview(true);
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setPreview(false);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          setPinned(false);
+          setPreview(false);
+          const trigger = event.currentTarget.querySelector(".score-history-trigger") as HTMLButtonElement | null;
+          if (trigger && document.activeElement !== trigger) {
+            ignoreNextFocus.current = true;
+            trigger.focus();
+          }
+        }
+      }}
+    >
+      <div className="score-history-shell">
+        <button
+          className="score-history-trigger"
+          type="button"
+          aria-expanded={open}
+          aria-controls="score-history-matrix"
+          onClick={(event) => {
+            if (pinned) {
+              setPinned(false);
+              setPreview(false);
+              event.currentTarget.blur();
+            } else {
+              setPinned(true);
+            }
+          }}
+        >
+          <span>Scores</span>
+          <strong>{history.length ? `R${history.at(-1)?.round}` : `R${props.state.round}`}</strong>
+          <small>{leader ? `${leader.name} ${leader.score}` : "Waiting"}</small>
+          <i aria-hidden="true">{pinned ? "×" : "+"}</i>
+        </button>
+        <div className="score-history-content" aria-hidden={!open}>
+          <div className="score-history-heading">
+            <div><p className="eyebrow">Round archive</p><h2>Every hand. Every point.</h2></div>
+            <span>{history.length} completed {history.length === 1 ? "round" : "rounds"}</span>
+          </div>
+          {history.length ? (
+            <div className="score-matrix-scroll" id="score-history-matrix" ref={matrix}>
+              <table className="score-matrix">
+                <thead><tr><th scope="col">Player</th>{history.map((entry) => (
+                  <th scope="col" className={entry === history.at(-1) ? "latest" : ""} key={entry.round}>
+                    <strong>Round {entry.round}</strong>
+                    <span>{roundOutcome(entry, props.state)}</span>
+                  </th>
+                ))}</tr></thead>
+                <tbody>{players.map((player) => (
+                  <tr key={player.id}>
+                    <th scope="row"><Avatar player={player} /><span><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : `${player.score} pts now`}</small></span></th>
+                    {history.map((entry) => {
+                      const result = [...entry.players].find((candidate) => candidate.playerId === player.id);
+                      const key = `${entry.round}:${player.id}`;
+                      if (!result) return <td className="score-cell-empty" key={key}><span>—</span><small>DNF</small></td>;
+                      return (
+                        <td className={entry === history.at(-1) ? "latest" : ""} key={key}>
+                          <button
+                            className={`score-cell ${revealedCell === key ? "is-revealed" : ""}`}
+                            type="button"
+                            tabIndex={open ? 0 : -1}
+                            aria-label={`${player.name}, round ${entry.round}: plus ${result.roundScore}, ${result.totalScore} total, hand score ${result.handScore}`}
+                            onClick={() => setRevealedCell((current) => current === key ? undefined : key)}
+                          >
+                            <span className="score-numbers"><strong>+{result.roundScore}</strong><small>→ {result.totalScore} total</small></span>
+                            <span className="score-mini-cards" aria-hidden="true">{[...result.cards].map((card, index) => <i key={`${card.label}-${index}`}>{formatCardLabel(card.label)}</i>)}</span>
+                            <span className="score-hand-total">Hand {result.handScore}</span>
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          ) : <p className="score-history-empty" id="score-history-matrix">Completed rounds will appear here for everyone at the table.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function roundOutcome(entry: NonNullable<CaboStateLike["roundHistory"]>[number], state: CaboStateLike): string {
+  const name = state.players.get(entry.outcomePlayerId)?.name ?? entry.outcomePlayerId;
+  if (entry.outcomeType === "shooting-the-moon") return `${name} · Moon`;
+  return entry.caboSucceeded ? `${name} · Cabo ✓` : `${name} · Cabo ×`;
 }
 
 interface GameTableProps {
@@ -951,4 +1074,4 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, GameTable, Lobby };
+export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, ScoreHistoryPanel, GameTable, Lobby };
