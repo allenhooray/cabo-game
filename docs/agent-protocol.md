@@ -14,8 +14,8 @@ pnpm dev:agent -- --name Bot-A
 - `--name NAME`：玩家名，最长 20 个字符。
 - `--session-file PATH`：可选的独立会话文件。未提供时不写磁盘，`reconnect` 请求不可用。
 - `--request-timeout-ms N`：请求超时，范围 100–300000，默认 15000 毫秒。
-- `--help`：输出人类可读帮助并退出。
-- `--version`：输出 CLI 包版本并退出。
+- `-h`、`--help`：输出人类可读帮助并退出。
+- `-v`、`--version`：输出 CLI 包版本并退出。
 - `--print-schema`：输出由运行时 Zod 定义生成的 JSON Schema 并退出。
 
 stdout 只包含 JSONL 协议帧。stderr 只包含不属于协议的诊断信息。调用方不得依赖 stderr 文案。

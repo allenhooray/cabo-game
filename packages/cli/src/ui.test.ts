@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createKnowledge } from "./knowledge.js";
 import type { CaboStateLike } from "./model.js";
-import { renderDashboard, renderPlainState } from "./ui.js";
+import { renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
 
 const state: CaboStateLike = {
   revision: 1, phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
@@ -27,5 +27,28 @@ describe("terminal rendering", () => {
   it("keeps plain rendering free of terminal control codes", () => {
     const output = renderPlainState(state, "a", createKnowledge(2), "room");
     expect(output).not.toMatch(/\x1b\[/);
+  });
+
+  it("shows the cabo-agent hint only after joining a lobby", () => {
+    const lobby = renderDashboard({
+      state: { ...state, phase: "LOBBY" },
+      selfId: "a",
+      roomId: "room",
+      knowledge: createKnowledge(),
+      events: [],
+      flow: { kind: "idle" },
+    });
+    const disconnected = renderDashboard({ knowledge: createKnowledge(), events: [], flow: { kind: "idle" } });
+    const playing = renderDashboard({ state, selfId: "a", roomId: "room", knowledge: createKnowledge(2), events: [], flow: { kind: "idle" } });
+
+    expect(lobby).toContain("cabo-agent");
+    expect(disconnected).not.toContain("cabo-agent");
+    expect(playing).not.toContain("cabo-agent");
+  });
+
+  it("reverses only the interactive command prompt", () => {
+    expect(renderCommandPrompt(true)).toBe("\x1b[7m cabo> \x1b[0m ");
+    expect(renderCommandPrompt(false)).toBe("cabo> ");
+    expect(renderCommandPrompt(false)).not.toMatch(/\x1b\[/);
   });
 });

@@ -57,8 +57,8 @@ pnpm dev:agent -- --server http://localhost:2567 --name Bot-A
 已安装的 Agent CLI 可以自行展示用法和机器可读协议：
 
 ```bash
-cabo-agent --help
-cabo-agent --version
+cabo-agent --help    # 或 -h
+cabo-agent --version # 或 -v
 cabo-agent --print-schema
 ```
 
@@ -69,6 +69,8 @@ cabo-agent --print-schema
 ```bash
 pnpm dev:cli -- --server http://host:2567 --name Alice
 ```
+
+安装后可运行 `cabo --help`（或 `cabo -h`）查看完整命令，运行 `cabo --version`（或 `cabo -v`）查看版本。加入大厅后，终端也会提示可以让 Agent 使用 `cabo-agent` 命令参与游戏。
 
 独立 Web Origin 通过服务端环境变量配置，多个来源用逗号分隔：
 

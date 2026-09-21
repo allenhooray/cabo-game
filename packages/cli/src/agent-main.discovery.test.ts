@@ -12,14 +12,19 @@ function run(args: string[], input?: string) {
 
 describe("agent CLI discovery modes", () => {
   it("prints help and version without starting a protocol session", () => {
-    const help = run(["--help"]);
-    expect(help.status).toBe(0);
-    expect(help.stdout).toContain("Usage: cabo-agent");
-    expect(help.stdout).not.toContain('"type":"ready"');
+    for (const option of ["--help", "-h"]) {
+      const help = run([option]);
+      expect(help.status).toBe(0);
+      expect(help.stdout).toContain("Usage: cabo-agent");
+      expect(help.stdout).not.toContain('"type":"ready"');
+    }
 
-    const version = run(["--version"]);
-    expect(version.status).toBe(0);
-    expect(version.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+    for (const option of ["--version", "-v"]) {
+      const version = run([option]);
+      expect(version.status).toBe(0);
+      expect(version.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
+      expect(version.stdout).not.toContain('"type":"ready"');
+    }
   });
 
   it("prints parseable JSON Schema without a ready frame", () => {

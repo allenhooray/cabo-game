@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { stdin, stdout } from "node:process";
 import {
@@ -16,6 +15,7 @@ import { AgentOptionError, parseAgentOptions, renderAgentHelp, type AgentCliOpti
 import { AgentProtocolError, buildObservation, parseAgentRequest, type AgentRequest } from "./agent-protocol.js";
 import { AgentRequestGate } from "./agent-request-gate.js";
 import { AgentRequestTimeoutError, CaboClientCore } from "./client-core.js";
+import { readCliVersion } from "./cli-discovery.js";
 import { createFileSessionStore } from "./config.js";
 
 const CAPABILITIES = ["describe", "ping", "json-schema", "request-timeout"] as const;
@@ -34,12 +34,6 @@ function errorPayload(error: unknown): { code: string; message: string } {
     code: typeof candidate?.code === "string" ? candidate.code : "REQUEST_FAILED",
     message: typeof candidate?.message === "string" ? candidate.message : String(error),
   };
-}
-
-async function readCliVersion(): Promise<string> {
-  const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8")) as { version?: unknown };
-  if (typeof packageJson.version !== "string") throw new Error("CLI package version is unavailable.");
-  return packageJson.version;
 }
 
 class LocalRequestTimeoutError extends Error {

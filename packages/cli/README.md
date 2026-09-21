@@ -13,12 +13,16 @@ This installs both the interactive `cabo` command and the JSONL-based `cabo-agen
 ## Discover the interface
 
 ```bash
-cabo-agent --help
-cabo-agent --version
+cabo --help          # or -h
+cabo --version       # or -v
+cabo-agent --help    # or -h
+cabo-agent --version # or -v
 cabo-agent --print-schema
 ```
 
 `--print-schema` emits the JSON Schema generated from the same Zod definitions used by the running CLI. These discovery commands exit immediately and do not connect to a server.
+
+The interactive `cabo` dashboard also points players to `cabo-agent` while they are waiting in a lobby, so an Agent can discover and use the process interface.
 
 ## Start an Agent
 

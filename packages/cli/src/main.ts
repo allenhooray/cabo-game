@@ -5,12 +5,23 @@ import { Writable } from "node:stream";
 import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo-game/shared";
 import type { Room } from "@colyseus/sdk";
 import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
+import { caboDiscoveryMode, caboHelpLines, readCliVersion, renderCaboHelp } from "./cli-discovery.js";
 import { createFileSessionStore, defaultSessionPath } from "./config.js";
 import { advanceFlow, isGuardedFlow, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
 import { createKnowledge, type KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, RoundResultView, StatePlayer } from "./model.js";
 import { parseCommand, type LocalCommand } from "./parser.js";
-import { renderDashboard, renderPlainState } from "./ui.js";
+import { renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
+
+const discoveryMode = caboDiscoveryMode(process.argv.slice(2));
+if (discoveryMode === "help") {
+  stdout.write(`${renderCaboHelp()}\n`);
+  process.exit(0);
+}
+if (discoveryMode === "version") {
+  stdout.write(`${await readCliVersion()}\n`);
+  process.exit(0);
+}
 
 function option(name: string, fallback: string): string {
   const index = process.argv.indexOf(name);
@@ -37,21 +48,14 @@ const readlineOutput = new Writable({
     callback();
   },
 });
-const rl = createInterface({ input: stdin, output: readlineOutput, prompt: "cabo> ", terminal: interactive });
+const rl = createInterface({ input: stdin, output: readlineOutput, prompt: renderCommandPrompt(interactive), terminal: interactive });
 
 const players = (): StatePlayer[] => latestState ? [...latestState.players.values()].sort((a, b) => a.seat - b.seat) : [];
 const playerLabel = (id: string): string => players().find((player) => player.id === id)?.name ?? id;
 const context = () => ({ ...(latestState ? { state: latestState } : {}), ...(room ? { selfId: room.sessionId } : {}) });
 
 function printHelp(): void {
-  const help = [
-    "Connection: rooms | create public [target] | create private [target] | join ROOM [password] | reconnect | quit",
-    "Lobby:      players | start | leave",
-    "Game:       show | draw deck | draw discard POS | replace POS | discard",
-    "            peek self POS | peek PLAYER POS | swap PLAYER POS | skip | cabo",
-    "Positions are 1-4. Player arguments accept an exact nickname or session id.",
-    "At a guided prompt, type cancel to return to the action menu.",
-  ];
+  const help = caboHelpLines();
   if (interactive) {
     for (const line of help) addEvent(line);
     notice = "Command reference added to Recent events.";

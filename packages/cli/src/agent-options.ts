@@ -26,10 +26,12 @@ export class AgentOptionError extends Error {
 }
 
 export function parseAgentOptions(args: string[], defaultName: string): AgentCliOptions {
-  const modes = [args.includes("--help"), args.includes("--version"), args.includes("--print-schema")].filter(Boolean).length;
+  const help = args.includes("--help") || args.includes("-h");
+  const version = args.includes("--version") || args.includes("-v");
+  const modes = [help, version, args.includes("--print-schema")].filter(Boolean).length;
   if (modes > 1) throw new AgentOptionError("Use only one of --help, --version, or --print-schema.");
-  if (args.includes("--help")) return { mode: "help" };
-  if (args.includes("--version")) return { mode: "version" };
+  if (help) return { mode: "help" };
+  if (version) return { mode: "version" };
   if (args.includes("--print-schema")) return { mode: "schema" };
 
   let serverUrl = DEFAULT_SERVER_URL;
@@ -80,8 +82,8 @@ export function renderAgentHelp(): string {
     "  --session-file PATH          Persist this Agent's reconnect session",
     `  --request-timeout-ms N       Request timeout, ${MIN_REQUEST_TIMEOUT_MS}-${MAX_REQUEST_TIMEOUT_MS} (default: ${DEFAULT_REQUEST_TIMEOUT_MS})`,
     "  --print-schema               Print the JSON Schema for protocol v1",
-    "  --version                    Print the CLI package version",
-    "  --help                       Show this help",
+    "  -v, --version                Print the CLI package version",
+    "  -h, --help                   Show this help",
     "",
     "stdin and stdout use one JSON object per line. stderr is diagnostics only.",
     'Example request: {"id":"1","type":"describe"}',

@@ -11,6 +11,10 @@ export interface DashboardInput extends InteractionContext {
   roundResult?: RoundResultView;
 }
 
+export function renderCommandPrompt(interactive: boolean): string {
+  return interactive ? "\x1b[7m cabo> \x1b[0m " : "cabo> ";
+}
+
 export function renderDashboard(input: DashboardInput): string {
   const lines = ["CABO", "===="];
   if (!input.state || !input.selfId) {
@@ -91,6 +95,9 @@ function renderActions(input: DashboardInput): string[] {
   if (menu.length) lines.push(...menu.map((item) => `  [${item.key}] ${item.label}`));
   else lines.push("  Waiting for another player...");
   lines.push("  Type help for all commands.");
+  if (input.state?.phase === "LOBBY" && input.selfId) {
+    lines.push("  Want an Agent to play? Ask it to use the cabo-agent command.");
+  }
   if (input.notice) lines.push(`  ! ${input.notice}`);
   return lines;
 }

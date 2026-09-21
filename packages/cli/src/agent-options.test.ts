@@ -17,9 +17,13 @@ describe("agent CLI options", () => {
 
   it("supports discovery modes without runtime options", () => {
     expect(parseAgentOptions(["--help"], "Bot")).toEqual({ mode: "help" });
+    expect(parseAgentOptions(["-h"], "Bot")).toEqual({ mode: "help" });
     expect(parseAgentOptions(["--version"], "Bot")).toEqual({ mode: "version" });
+    expect(parseAgentOptions(["-v"], "Bot")).toEqual({ mode: "version" });
     expect(parseAgentOptions(["--print-schema"], "Bot")).toEqual({ mode: "schema" });
     expect(renderAgentHelp()).toContain("--request-timeout-ms");
+    expect(renderAgentHelp()).toContain("-h, --help");
+    expect(renderAgentHelp()).toContain("-v, --version");
     expect(renderAgentHelp()).toContain(`default: ${DEFAULT_SERVER_URL}`);
   });
 
