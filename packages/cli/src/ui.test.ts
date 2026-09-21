@@ -118,6 +118,18 @@ describe("terminal rendering", () => {
     });
     expect(output).toContain("AS room");
     expect(output).not.toContain("♠ room");
+    expect(output).toContain("Back to main menu");
+  });
+
+  it("renders a selectable back option when there are no public rooms", () => {
+    const output = renderDashboard({
+      knowledge: createKnowledge(),
+      events: [],
+      flow: { kind: "room-browser", page: 0, rooms: [], message: "No public rooms." },
+    });
+
+    expect(output).toContain("> [cancel] Back to main menu");
+    expect(output).toContain("No public rooms.");
   });
 
   it("reverses only the interactive command prompt", () => {

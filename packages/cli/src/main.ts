@@ -6,6 +6,7 @@ import type { ClientCommand, ErrorMessage, PrivateRevealMessage } from "@cabo-ga
 import type { Room } from "@colyseus/sdk";
 import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
 import { caboDiscoveryMode, caboHelpLines, readCliVersion, renderCaboHelp } from "./cli-discovery.js";
+import { createConnectionEventGate, isRedundantSelfReconnectEvent } from "./connection-events.js";
 import { createFileSessionStore, defaultSessionPath } from "./config.js";
 import { advanceFlow, escapeTerminalText, isGuardedFlow, moveRoomPage, moveSelection, roomStatus, selectionOptionsFor, selectionSignature, selectMenu, stateGuard, type InteractionFlow, type InteractionResult } from "./interaction.js";
 import { createKnowledge, type KnowledgeState } from "./knowledge.js";
@@ -70,6 +71,11 @@ function addEvent(message: string): void {
   if (recentEvents.length > 8) recentEvents = recentEvents.slice(-8);
   if (!interactive) stdout.write(`${message}\n`);
 }
+
+const connectionEvents = createConnectionEventGate((message) => {
+  addEvent(message);
+  renderNow();
+});
 
 function inform(message: string, isError = false): void {
   if (interactive) {
@@ -191,12 +197,14 @@ const gameClient = new CaboClientCore({
       knowledge = gameClient.knowledge;
       if (event.type === "round-result") roundResult = makeRoundResult(event);
       if (event.type === "match-result" && roundResult) roundResult.nextRoundPending = false;
+      if (isRedundantSelfReconnectEvent(event, room?.sessionId)) return;
       addEvent(formatEvent(event));
       renderNow();
     },
-    dropped: () => { addEvent("Connection dropped. Your seat is held for 60 seconds; use reconnect if recovery fails."); renderNow(); },
-    reconnected: () => { addEvent("Reconnected."); renderNow(); },
+    dropped: () => connectionEvents.dropped(),
+    reconnected: () => connectionEvents.reconnected(),
     left: () => {
+      connectionEvents.reset();
       room = undefined;
       latestState = undefined;
       flow = { kind: "idle" };

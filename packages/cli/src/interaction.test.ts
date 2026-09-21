@@ -99,13 +99,23 @@ describe("context actions", () => {
       phase: "LOBBY", isFull: false, isStarted: false, canJoin: true,
     }));
     const first = { kind: "room-browser", rooms, page: 0 } as const;
-    expect(selectionOptionsFor(first, {})).toHaveLength(ROOM_PAGE_SIZE);
+    expect(selectionOptionsFor(first, {})).toHaveLength(ROOM_PAGE_SIZE + 1);
     expect(moveRoomPage(first, -1)).toMatchObject({ page: 0 });
     const second = moveRoomPage(first, 1);
-    expect(selectionOptionsFor(second, {})).toHaveLength(10);
+    expect(selectionOptionsFor(second, {})).toHaveLength(11);
     const third = moveRoomPage(second as Extract<typeof second, { kind: "room-browser" }>, 1);
-    expect(selectionOptionsFor(third, {})).toHaveLength(1);
+    expect(selectionOptionsFor(third, {})).toHaveLength(2);
     expect(moveRoomPage(third as Extract<typeof third, { kind: "room-browser" }>, 1)).toMatchObject({ page: 2 });
+  });
+
+  it("always provides a way back from the room browser", () => {
+    const empty = { kind: "room-browser", rooms: [], page: 0 } as const;
+    expect(selectionOptionsFor(empty, {})).toEqual([{ value: "cancel", label: "Back to main menu" }]);
+    expect(advanceFlow("cancel", empty, {})).toEqual({
+      kind: "flow",
+      flow: { kind: "idle" },
+      message: "Selection cancelled.",
+    });
   });
 
   it("escapes terminal control characters in room labels", () => {

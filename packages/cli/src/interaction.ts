@@ -130,10 +130,10 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
       ];
     case "room-browser": {
       const start = flow.page * ROOM_PAGE_SIZE;
-      return flow.rooms.slice(start, start + ROOM_PAGE_SIZE).map((room) => ({
+      return [...flow.rooms.slice(start, start + ROOM_PAGE_SIZE).map((room) => ({
         value: room.roomId,
         label: `${escapeTerminalText(room.roomName)}  ${escapeTerminalText(room.roomId)}  ${roomStatus(room)}  ${room.playerCount}/${room.maxClients}`,
-      }));
+      })), { value: "cancel", label: "Back to main menu" }];
     }
     case "create-name":
     case "create-target":
@@ -271,7 +271,7 @@ export function flowPrompt(flow: InteractionFlow, context: InteractionContext): 
     case "create-name": return `Room name (Enter = ${escapeTerminalText(flow.defaultRoomName)}):`;
     case "create-target": return `Target score for ${flow.visibility} room (20-500, Enter = 100):`;
     case "join-room": return "Room code:";
-    case "room-browser": return `Public rooms — page ${flow.page + 1}/${Math.max(1, Math.ceil(flow.rooms.length / ROOM_PAGE_SIZE))} (←/→ pages, ↑/↓ rooms, Enter joins):`;
+    case "room-browser": return `Public rooms — page ${flow.page + 1}/${Math.max(1, Math.ceil(flow.rooms.length / ROOM_PAGE_SIZE))} (←/→ pages, ↑/↓ options, Enter selects):`;
     case "position": return "Choose a card position (type cancel to go back):";
     case "replace-positions": return "Enter 1-4 card positions separated by spaces or commas (type cancel to go back):";
     case "replacement-position": return "Choose which selected position receives the drawn card:";
