@@ -12,6 +12,8 @@ export const GAME_PHASES = [
 ] as const;
 
 export type GamePhase = (typeof GAME_PHASES)[number];
+export type MemoryMode = "classic" | "assisted";
+export type TurnDurationSeconds = 0 | 30 | 60 | 90;
 export type Position = number;
 export type DrawSource = "deck" | "discard";
 export type EndPlacement = "left" | "right";
@@ -36,6 +38,7 @@ export interface OpponentKnowledge {
 }
 
 export interface PrivateKnowledgeSnapshot {
+  memoryMode: MemoryMode;
   round: number;
   slots: KnownSlots;
   opponents: OpponentKnowledge[];
@@ -73,7 +76,7 @@ export type PublicActionEvent =
   | { type: "action"; action: "discard"; playerId: string; discardedCard: KnownCard }
   | { type: "action"; action: "peek-self"; playerId: string; position: Position }
   | { type: "action"; action: "peek-other"; playerId: string; targetPlayerId: string; position: Position }
-  | { type: "action"; action: "swap"; playerId: string; targetPlayerId: string; position: Position }
+  | { type: "action"; action: "swap"; playerId: string; targetPlayerId: string; ownPosition: Position; targetPosition: Position }
   | { type: "action"; action: "skip"; playerId: string }
   | { type: "action"; action: "cabo"; playerId: string };
 
@@ -115,7 +118,7 @@ export type EngineEvent =
   | { type: "discard"; playerId: string; card: Card }
   | { type: "exchange-mismatch"; playerId: string; positions: Position[]; cards: Card[]; penaltyCardPending: boolean }
   | { type: "mismatch-resolved"; playerId: string; drawnPlacement: EndPlacement; penaltyPlacement?: EndPlacement }
-  | { type: "swap"; playerId: string; targetPlayerId: string; position: Position }
+  | { type: "swap"; playerId: string; targetPlayerId: string; ownPosition: Position; targetPosition: Position }
   | { type: "cabo"; playerId: string }
   | { type: "forfeit"; playerId: string }
   | {

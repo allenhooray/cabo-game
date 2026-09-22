@@ -1,4 +1,4 @@
-import type { ClientCommand, KnownSlots, OpponentKnowledge, PrivateKnowledgeSnapshot, PrivateRevealMessage } from "@cabo-game/shared";
+import type { ClientCommand, KnownSlots, MemoryMode, OpponentKnowledge, PrivateKnowledgeSnapshot, PrivateRevealMessage } from "@cabo-game/shared";
 import type { DisplayCard } from "./model.js";
 
 export interface KnowledgeState extends PrivateKnowledgeSnapshot {}
@@ -15,30 +15,32 @@ export interface PendingGameAction {
 
 const emptySlots = (): KnownSlots => [null, null, null, null];
 
-export function createKnowledge(round = 0, stored?: StoredKnowledge): KnowledgeState {
-  if (stored && stored.round === round && validSlots(stored.slots)) {
+export function createKnowledge(round = 0, stored?: StoredKnowledge, memoryMode: MemoryMode = "classic"): KnowledgeState {
+  if (memoryMode === "assisted" && stored && stored.round === round && validSlots(stored.slots)) {
     return {
+      memoryMode,
       round,
       slots: copySlots(stored.slots),
       opponents: copyOpponents(stored.opponents ?? []),
       held: null,
     };
   }
-  return { round, slots: emptySlots(), opponents: [], held: null };
+  return { memoryMode, round, slots: emptySlots(), opponents: [], held: null };
 }
 
 export function applyKnowledgeSnapshot(snapshot: PrivateKnowledgeSnapshot): KnowledgeState {
   return {
+    memoryMode: snapshot.memoryMode,
     round: snapshot.round,
-    slots: copySlots(snapshot.slots),
-    opponents: copyOpponents(snapshot.opponents),
+    slots: snapshot.memoryMode === "classic" ? snapshot.slots.map(() => null) : copySlots(snapshot.slots),
+    opponents: snapshot.opponents.map((opponent) => ({ playerId: opponent.playerId, slots: snapshot.memoryMode === "classic" ? opponent.slots.map(() => null) : copySlots(opponent.slots) })),
     held: snapshot.held ? { ...snapshot.held } : null,
   };
 }
 
-export function resetForRound(state: KnowledgeState, round: number): KnowledgeState {
-  if (state.round === round) return state;
-  return createKnowledge(round);
+export function resetForRound(state: KnowledgeState, round: number, mode = state.memoryMode): KnowledgeState {
+  if (state.round === round && state.memoryMode === mode) return state;
+  return createKnowledge(round, undefined, mode);
 }
 
 export function applyReveal(
@@ -49,11 +51,12 @@ export function applyReveal(
   pending?: PendingGameAction,
 ): KnowledgeState {
   const card = { label: message.card.label, rank: message.card.rank };
-  if (message.reason === "draw") return { ...state, held: card };
+  const current = resetForRound(state, message.round, message.memoryMode);
+  if (message.reason === "draw") return { ...current, held: card };
+  if (message.memoryMode === "classic") return current;
 
-  const revealPrecedesNextRound = message.reason === "initial" && (publicPhase === "LOBBY" || publicPhase === "ROUND_RESULT");
-  const targetRound = revealPrecedesNextRound ? publicRound + 1 : publicRound;
-  const base = resetForRound(state, targetRound);
+  const targetRound = message.round;
+  const base = resetForRound(current, targetRound, message.memoryMode);
   if (!message.position) return base;
   const isOwnReveal = message.reason === "initial" || pending?.command.type === "peek-self";
   if (isOwnReveal) {
@@ -76,6 +79,7 @@ export function applyReveal(
 }
 
 export function applyOwnActionEvent(state: KnowledgeState, pending?: PendingGameAction): KnowledgeState {
+  if (state.memoryMode === "classic") return { ...state, held: null };
   if (!pending) return state;
   const command = pending.command;
   if (command.type === "replace") {

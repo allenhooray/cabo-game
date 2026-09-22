@@ -63,10 +63,10 @@ describe("agent request timeouts", () => {
     const core = new CaboClientCore({ serverUrl: "http://localhost", playerName: "Bot" });
     const create = vi.spyOn(core.client, "create").mockResolvedValue(room as any);
 
-    await core.create({ visibility: "private", targetScore: 150, roomName: "Bots' room", password: "123456" });
+    await core.create({ memoryMode: "assisted", turnDurationSeconds: 60, visibility: "private", targetScore: 150, roomName: "Bots' room", password: "123456" });
 
     expect(create).toHaveBeenCalledWith("cabo", {
-      name: "Bot", visibility: "private", targetScore: 150, roomName: "Bots' room", password: "123456",
+      name: "Bot", memoryMode: "assisted", turnDurationSeconds: 60, visibility: "private", targetScore: 150, roomName: "Bots' room", password: "123456",
     });
   });
 });

@@ -45,7 +45,7 @@ describe("Cabo home", () => {
 
   it("shows room names and statuses and disables rooms that cannot be joined", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
-      roomId: "abc123", roomName: "Friday night", targetScore: 100, playerCount: 5, maxClients: 5,
+      roomId: "abc123", roomName: "Friday night", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 5, maxClients: 5,
       phase: "TURN_START", isFull: true, isStarted: true, canJoin: false,
     }]), { status: 200, headers: { "content-type": "application/json" } })));
     render(<App />);
@@ -56,7 +56,7 @@ describe("Cabo home", () => {
 
   it("renders legacy room listings with a fallback name and an enabled Join action", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
-      roomId: "legacy123", targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY",
+      roomId: "legacy123", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY",
     }]), { status: 200, headers: { "content-type": "application/json" } })));
 
     const { container } = render(<App />);
@@ -68,6 +68,32 @@ describe("Cabo home", () => {
 });
 
 describe("Cabo game table additions", () => {
+  it("confirms J/Q using independent own and opponent positions", () => {
+    const players = [
+      { id: "alice", name: "Alice", seat: 0, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true },
+      { id: "bob", name: "Bob", seat: 1, score: 0, connected: true, forfeited: false, nextRoundReady: false, cardCount: 5, isHost: false },
+    ];
+    const onConfirm = vi.fn(); const onExecute = vi.fn();
+    function Harness() {
+      const [targetId, onTarget] = useState<string>();
+      return <__test.GameTable
+        state={{ memoryMode: "classic", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 12, roomName: "Room", phase: "POWER_PENDING", round: 1, targetScore: 100, currentPlayerId: "alice", caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "JS", discardRank: 11, deckCount: 40, players: new Map(players.map((p) => [p.id, p])), winners: [] }}
+        selfId="alice" players={players} core={{ knowledge: { slots: [null, null, null, null], opponents: [], held: null } } as any}
+        busy={false} selection="swap" targetId={targetId} events={[]} cardMotion={undefined}
+        onSelection={vi.fn()} onTarget={onTarget} onExecute={onExecute} onConfirm={onConfirm}
+        onLeave={vi.fn()} onConcealStart={vi.fn()} onConcealEnd={vi.fn()}
+      />;
+    }
+    const { container } = render(<Harness />);
+    expect(screen.getByRole("button", { name: /Bob.*0 pts/ })).toBeDisabled();
+    fireEvent.click(container.querySelectorAll(".hand-slot")[1]!);
+    fireEvent.click(screen.getByRole("button", { name: /Bob.*0 pts/ }));
+    fireEvent.click(screen.getByRole("button", { name: "05" }));
+    expect(onExecute).not.toHaveBeenCalled();
+    expect(onConfirm).toHaveBeenCalledWith(expect.objectContaining({ revision: 12, body: expect.stringContaining("Your card 2") }));
+    onConfirm.mock.calls[0]![0].action();
+    expect(onExecute).toHaveBeenCalledWith({ type: "swap", targetPlayerId: "bob", ownPosition: 2, targetPosition: 5 });
+  });
   it("sends plain room chat only on submit and validates Unicode code points", () => {
     const onSend = vi.fn();
     function Harness() {
@@ -184,7 +210,7 @@ describe("Cabo game table additions", () => {
     ]);
     const { container } = render(
       <__test.GameTable
-        state={{ revision: 2, roomName: "Alice's room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
+        state={{ memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 2, roomName: "Alice's room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
         selfId="alice"
         players={[...players.values()]}
         core={{ knowledge: { slots: [null, null, null, null], opponents: [{ playerId: "bob", slots: [{ label: "9H", rank: 9 }, null, null, null] }], held: null } } as any}
@@ -261,7 +287,7 @@ describe("Cabo game table additions", () => {
     const onExecute = vi.fn();
     const { container } = render(
       <__test.GameTable
-        state={{ revision: 2, roomName: "Room", phase: "DRAWN", round: 1, targetScore: 100, currentPlayerId: "alice", caboCallerId: "", drawSource: "deck", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
+        state={{ memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 2, roomName: "Room", phase: "DRAWN", round: 1, targetScore: 100, currentPlayerId: "alice", caboCallerId: "", drawSource: "deck", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
         selfId="alice"
         players={[...players.values()]}
         core={{ knowledge: { slots: [null, null, null, null], opponents: [], held: { label: "2S", rank: 2 } } } as any}
@@ -289,8 +315,10 @@ describe("Cabo game table additions", () => {
     expect(within(container).queryByRole("button", { name: /Position/ })).not.toBeInTheDocument();
     expect(container.querySelector(".exchange-controls")).toContainElement(within(container).getByRole("button", { name: "Confirm exchange" }));
     expect(exchangeControls).not.toHaveClass("is-empty");
+    expect(within(container).getByRole("button", { name: "Confirm exchange" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Drawn card destination"), { target: { value: "1" } });
     fireEvent.click(within(container).getByRole("button", { name: "Confirm exchange" }));
-    expect(onExecute).toHaveBeenCalledWith({ type: "replace", positions: [3, 1], replacementPosition: 3 });
+    expect(onExecute).toHaveBeenCalledWith({ type: "replace", positions: [3, 1], replacementPosition: 1 });
   });
 
 });

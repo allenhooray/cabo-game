@@ -3,7 +3,7 @@ import { CaboClientCore } from "./client-core.js";
 
 function legacyState() {
   return {
-    revision: 0,
+    memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 0,
     phase: "LOBBY",
     round: 0,
     targetScore: 100,
@@ -38,11 +38,12 @@ afterEach(() => vi.unstubAllGlobals());
 describe("legacy server compatibility", () => {
   it("marks old room listings without names clearly and keeps open rooms joinable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
-      roomId: "abc123", targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY",
+      roomId: "abc123", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 1, maxClients: 4, phase: "LOBBY",
     }]), { status: 200 })));
     const core = new CaboClientCore({ serverUrl: "http://localhost", playerName: "Alice" });
 
     await expect(core.listRooms()).resolves.toEqual([{
+      memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0,
       roomId: "abc123",
       roomName: "Unnamed room",
       targetScore: 100,
@@ -57,10 +58,10 @@ describe("legacy server compatibility", () => {
 
   it("preserves explicit join locks and derives old locked rooms as unavailable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([{
-      roomId: "locked", roomName: "Invite only", targetScore: 100, playerCount: 1, maxClients: 4,
+      roomId: "locked", roomName: "Invite only", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 1, maxClients: 4,
       phase: "LOBBY", isFull: false, isStarted: false, canJoin: false,
     }, {
-      roomId: "legacy-locked", locked: true, targetScore: 100, playerCount: 1, maxClients: 4,
+      roomId: "legacy-locked", locked: true, memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 1, maxClients: 4,
     }]), { status: 200 })));
     const core = new CaboClientCore({ serverUrl: "http://localhost", playerName: "Alice" });
 
@@ -72,18 +73,18 @@ describe("legacy server compatibility", () => {
 
   it("keeps legacy full and started rooms disabled", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([
-      { roomId: "full", roomName: "   ", targetScore: 100, playerCount: 4, maxClients: 4, phase: "LOBBY" },
-      { roomId: "started", targetScore: 100, playerCount: 2, maxClients: 4, phase: "TURN_START" },
+      { roomId: "full", roomName: "   ", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 4, maxClients: 4, phase: "LOBBY" },
+      { roomId: "started", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 2, maxClients: 4, phase: "TURN_START" },
     ]), { status: 200 })));
     const core = new CaboClientCore({ serverUrl: "http://localhost", playerName: "Alice" });
 
     await expect(core.listRooms()).resolves.toEqual([
       {
-        roomId: "full", roomName: "Unnamed room", targetScore: 100, playerCount: 4, maxClients: 4,
+        roomId: "full", roomName: "Unnamed room", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 4, maxClients: 4,
         phase: "LOBBY", isFull: true, isStarted: false, canJoin: false,
       },
       {
-        roomId: "started", roomName: "Unnamed room", targetScore: 100, playerCount: 2, maxClients: 4,
+        roomId: "started", roomName: "Unnamed room", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 2, maxClients: 4,
         phase: "TURN_START", isFull: false, isStarted: true, canJoin: false,
       },
     ]);
@@ -95,7 +96,7 @@ describe("legacy server compatibility", () => {
     const legacyRoom = room();
     vi.spyOn(core.client, "create").mockResolvedValue(legacyRoom as any);
 
-    await core.create({ visibility: "public", targetScore: 100, roomName: "Game night" });
+    await core.create({ memoryMode: "assisted", turnDurationSeconds: 60, visibility: "public", targetScore: 100, roomName: "Game night" });
 
     expect(attached).toHaveBeenCalledOnce();
     expect(core.state?.roomName).toBe("Room abc123");

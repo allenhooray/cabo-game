@@ -15,6 +15,26 @@ function start(seed = 1, targetScore = 500): { engine: GameEngine; events: Engin
 }
 
 describe("GameEngine", () => {
+  it("swaps unequal positions and rejects either invalid index atomically", () => {
+    const { engine } = start(9);
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const player = engine.currentPlayerId!;
+      engine.drawDeck(player); const rank = engine.getPendingDraw()!.card.rank;
+      engine.discardHeld(player);
+      if (rank === 11 || rank === 12) {
+        const target = players.find((p) => p.id !== player)!.id;
+        const own = engine.debugHand(player), other = engine.debugHand(target);
+        expect(() => engine.swap(player, target, 1, 99)).toThrow();
+        expect(() => engine.swap(player, target, 0, 4)).toThrow();
+        expect(engine.debugHand(player)).toEqual(own); expect(engine.debugHand(target)).toEqual(other);
+        engine.swap(player, target, 1, 4);
+        expect(engine.debugHand(player)[0]).toEqual(other[3]); expect(engine.debugHand(target)[3]).toEqual(own[0]);
+        return;
+      }
+      if (engine.phase === "POWER_PENDING") engine.skipPower(player);
+    }
+    throw new Error("No exchange power drawn");
+  });
   it("deals four hidden cards and only emits two initial private reveals per player", () => {
     const { engine, events } = start();
     expect(events.filter((event) => event.type === "private-reveal" && event.reason === "initial")).toHaveLength(6);
@@ -64,7 +84,7 @@ describe("GameEngine", () => {
           seen.add("other");
         } else {
           const target = players.find((player) => player.id !== playerId)?.id as string;
-          expect(engine.swap(playerId, target, 1)[0]?.type).toBe("swap");
+          expect(engine.swap(playerId, target, 1, 1)[0]?.type).toBe("swap");
           seen.add("swap");
         }
       } else {
@@ -135,6 +155,19 @@ describe("GameEngine", () => {
     engine.replaceHeld(playerId, [1, 3], 3);
     expect(engine.debugHand(playerId)).toHaveLength(3);
     expect(engine.debugHand(playerId)[1]).toEqual(held);
+  });
+
+  it("reports draw-source availability including discard recycling", () => {
+    const { engine } = start(3);
+    expect(engine.canDrawDeck()).toBe(true);
+    expect(engine.canDrawDiscard()).toBe(true);
+    (engine as any).deck = [];
+    expect(engine.canDrawDeck()).toBe(false);
+    (engine as any).discardPile.push({ id: "recyclable", label: "2S", rank: 2 });
+    expect(engine.canDrawDeck()).toBe(true);
+    (engine as any).discardPile = [];
+    expect(engine.canDrawDeck()).toBe(false);
+    expect(engine.canDrawDiscard()).toBe(false);
   });
 
   it.each([2, 3, 4])("replaces %i matching cards from either draw source", (count) => {

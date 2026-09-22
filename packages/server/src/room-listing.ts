@@ -1,9 +1,13 @@
-import type { GamePhase } from "@cabo-game/shared";
+import type { GamePhase, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
 
 export interface PublicRoomListingSource {
   roomId: string;
   locked?: boolean;
   metadata?: {
+    memoryMode?: MemoryMode;
+    turnDurationSeconds?: TurnDurationSeconds;
+    deadlineAt?: number;
+    serverTime?: number;
     visibility?: string;
     roomName?: string;
     phase?: string;
@@ -14,6 +18,10 @@ export interface PublicRoomListingSource {
 }
 
 export interface PublicRoomListing {
+  memoryMode: MemoryMode;
+  turnDurationSeconds: TurnDurationSeconds;
+  deadlineAt: number;
+  serverTime: number;
   roomId: string;
   roomName: string;
   targetScore: number;
@@ -27,13 +35,17 @@ export interface PublicRoomListing {
 
 export function toPublicRoomListing(room: PublicRoomListingSource): PublicRoomListing | undefined {
   const metadata = room.metadata;
-  if (metadata?.visibility !== "public" || typeof metadata.roomName !== "string" || typeof metadata.phase !== "string") return undefined;
+  if (metadata?.visibility !== "public" || typeof metadata.roomName !== "string" || typeof metadata.phase !== "string" || !metadata.memoryMode || metadata.turnDurationSeconds === undefined) return undefined;
   const targetScore = metadata.targetScore ?? 100;
   const playerCount = metadata.playerCount ?? 0;
   const maxClients = metadata.maxClients ?? 4;
   const isFull = playerCount >= maxClients;
   const isStarted = metadata.phase !== "LOBBY";
   return {
+    memoryMode: metadata.memoryMode,
+    turnDurationSeconds: metadata.turnDurationSeconds,
+    deadlineAt: metadata.deadlineAt ?? 0,
+    serverTime: Date.now(),
     roomId: room.roomId,
     roomName: metadata.roomName,
     targetScore,

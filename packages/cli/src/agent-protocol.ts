@@ -1,5 +1,5 @@
 import { agentRequestSchema, type AgentObservation, type AgentRequest } from "@cabo-game/shared";
-import { legalActions } from "@cabo-game/client-core";
+import { legalActions, caboRisk } from "@cabo-game/client-core";
 import type { KnowledgeState } from "./knowledge.js";
 import type { CaboStateLike, StatePlayer } from "./model.js";
 
@@ -32,6 +32,10 @@ export function buildObservation(
     selfId,
     revision: state.revision,
     state: {
+      memoryMode: state.memoryMode,
+      turnDurationSeconds: state.turnDurationSeconds,
+      deadlineAt: state.deadlineAt,
+      serverTime: state.serverTime,
       phase: state.phase,
       round: state.round,
       targetScore: state.targetScore,
@@ -58,6 +62,7 @@ export function buildObservation(
       })),
     },
     knowledge: {
+      memoryMode: knowledge.memoryMode,
       round: knowledge.round,
       slots: knowledge.slots.map((card) => card ? { ...card } : null),
       opponents: knowledge.opponents.map((opponent) => ({
@@ -67,6 +72,7 @@ export function buildObservation(
       held: knowledge.held ? { ...knowledge.held } : null,
     },
     legalActions: legalActions(state, selfId),
+    caboRisk: caboRisk(state, selfId, knowledge),
   };
 }
 

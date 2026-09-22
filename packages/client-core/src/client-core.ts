@@ -1,4 +1,4 @@
-import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage, RoomChatMessage } from "@cabo-game/shared";
+import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage, RoomChatMessage, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { applyKnowledgeSnapshot, applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, ListedRoomResponse } from "./model.js";
@@ -33,6 +33,8 @@ export interface ExecuteOptions {
 }
 
 export interface CreateRoomOptions {
+  memoryMode: MemoryMode;
+  turnDurationSeconds: TurnDurationSeconds;
   visibility: "public" | "private";
   targetScore: number;
   roomName?: string;
@@ -71,6 +73,8 @@ export class CaboClientCore {
   room: Room<any, CaboStateLike> | undefined;
   state: CaboStateLike | undefined;
   knowledge: KnowledgeState = createKnowledge();
+  private serverOffset = 0;
+  serverNow(): number { return Date.now() + this.serverOffset; }
 
   private readonly handlers: ClientCoreHandlers;
   private readonly sessionStore: SessionStore | undefined;
@@ -100,6 +104,8 @@ export class CaboClientCore {
       name: this.playerName,
       visibility: options.visibility,
       targetScore: options.targetScore,
+      memoryMode: options.memoryMode,
+      turnDurationSeconds: options.turnDurationSeconds,
       ...(options.roomName !== undefined ? { roomName: options.roomName } : {}),
       ...(options.password ? { password: options.password } : {}),
     });
@@ -196,13 +202,14 @@ export class CaboClientCore {
       const state = withRoomName(receivedState, fallbackRoomName);
       const previousKnowledgeRound = this.knowledge.round;
       this.state = state;
+      this.serverOffset = state.serverTime - Date.now();
       if (!attached) {
         attached = true;
-        this.knowledge = createKnowledge(state.round, saved?.knowledge);
+        if (this.knowledge.round !== state.round || this.knowledge.memoryMode !== state.memoryMode) this.knowledge = createKnowledge(state.round, undefined, state.memoryMode);
         this.handlers.attached?.(nextRoom, saved);
         resolveReady();
       } else {
-        this.knowledge = resetForRound(this.knowledge, state.round);
+        this.knowledge = resetForRound(this.knowledge, state.round, state.memoryMode);
         if (this.knowledge.round !== previousKnowledgeRound) this.queueSessionPersist();
       }
       this.resolveRevisionWaiters(state.revision);
@@ -248,7 +255,7 @@ export class CaboClientCore {
       if (event.type === "swap") {
         this.knowledge = applySwapEvent(
           this.knowledge,
-          event.position,
+          event.playerId === nextRoom.sessionId ? event.ownPosition : event.targetPosition,
           event.playerId === nextRoom.sessionId || event.targetPlayerId === nextRoom.sessionId,
         );
         if (event.playerId === nextRoom.sessionId) this.pendingGameAction = undefined;
@@ -335,7 +342,7 @@ export class CaboClientCore {
       name: this.playerName,
       roomId: this.room.roomId,
       token: this.room.reconnectionToken,
-      knowledge: storedKnowledge(this.knowledge),
+      ...(this.knowledge.memoryMode === "assisted" ? { knowledge: storedKnowledge(this.knowledge) } : {}),
     });
   }
 
@@ -363,6 +370,10 @@ function normalizeListedRoom(room: ListedRoomResponse): ListedRoom {
   const isStarted = room.isStarted ?? phase !== "LOBBY";
   const roomName = typeof room.roomName === "string" && room.roomName.trim() ? room.roomName : "Unnamed room";
   return {
+    memoryMode: room.memoryMode,
+    turnDurationSeconds: room.turnDurationSeconds,
+    deadlineAt: room.deadlineAt,
+    serverTime: room.serverTime,
     roomId: room.roomId,
     roomName,
     targetScore: room.targetScore,

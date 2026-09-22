@@ -100,11 +100,14 @@ function RulesPage() {
         <div className="docs-callout"><strong>Memory is private.</strong><span>The table remembers only cards you have legitimately seen. Other players never receive that knowledge.</span></div>
       </Section>
       <Section id="turns" title="Taking a turn">
+        <p>Classic mode briefly shows initial cards for 5 seconds and peeked or mismatched cards for 3.2 seconds; remember them yourself. Assisted mode keeps known cards visible and restores them after reconnecting. Unresolved drawn cards stay visible in both modes.</p>
+        <p>The room can use an unlimited, 30, 60 (default), or 90-second step timer. Each valid game step resets it; the server safely completes timed-out turns. Between rounds, everyone can ready up early, or the next round starts automatically after 20 seconds.</p>
+        <p>If both draw sources are empty, timeout calls Cabo; final turns with no cards available can be skipped.</p>
         <ol>
           <li>At the start of your turn, draw from the deck, take the top discard, or call Cabo.</li>
           <li>A deck card is shown only to you. Replace one to four cards with it, or discard the drawn card.</li>
           <li>Taking the top discard must be followed by replacing one to four cards; it cannot activate a power.</li>
-          <li>When replacing multiple cards, all selected cards must share a rank. They are discarded and the drawn card occupies one selected position.</li>
+          <li>When replacing multiple cards, all selected cards must share a rank. Explicitly choose which selected position receives the drawn card before confirming.</li>
           <li>If selected cards do not match, they remain and are revealed. The drawn card is added to either end; selecting three or four wrong cards also adds one unseen penalty card.</li>
           <li>Your turn ends after the replacement or after resolving—or skipping—an available card power.</li>
         </ol>
@@ -114,7 +117,7 @@ function RulesPage() {
         <div className="docs-table-wrap"><table><thead><tr><th>Ranks</th><th>Power</th></tr></thead><tbody>
           <tr><td>7–8</td><td>Privately look at one of your own positions.</td></tr>
           <tr><td>9–10</td><td>Privately look at one position belonging to another active player.</td></tr>
-          <tr><td>J–Q</td><td>Blindly swap one of your positions with the same position of another active player.</td></tr>
+          <tr><td>J–Q</td><td>Blindly swap one of your positions with any position of another active player.</td></tr>
         </tbody></table></div>
         <p>You may skip a power. Swapped cards are not revealed to either player.</p>
       </Section>
@@ -173,7 +176,7 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
           ["discard", "Discard the deck card you are holding."],
           ["peek self POS", "Use a 7/8 power on one of your positions."],
           ["peek PLAYER POS", "Use a 9/10 power on another player’s position."],
-          ["swap PLAYER POS", "Use a J/Q power to blind-swap the same position."],
+          ["swap PLAYER OWN_POS TARGET_POS", "Use a J/Q power to blind-swap any own position with any opponent position."],
           ["skip", "Skip the pending card power."],
           ["cabo", "Call Cabo at the beginning of your turn."],
           ["ready", "Confirm the next round after reviewing a round result."],
@@ -220,7 +223,7 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Requests run serially, but pushed events and observations may appear before the matching result.</li>
           <li>The first frame is always <code>ready</code>; startup failures use a <code>fatal</code> frame and a non-zero exit.</li>
         </ul>
-        <CodeBlock>{`{"type":"ready","protocolVersion":6,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+        <CodeBlock>{`{"type":"ready","protocolVersion":7,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}`}</CodeBlock>
       </Section>
@@ -233,7 +236,7 @@ cabo-agent --print-schema`}</CodeBlock>
           <li>Send it inside an <code>action</code> request and correlate the eventual <code>result</code> by ID.</li>
           <li>Repeat when a newer observation arrives.</li>
         </ol>
-        <CodeBlock>{`{"id":"create","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
+        <CodeBlock>{`{"id":"create","type":"create","memoryMode":"classic","turnDurationSeconds":60,"visibility":"public","targetScore":100,"roomName":"Bots' room"}
 {"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"session-id","revision":3,"state":{"phase":"TURN_START","round":1,"targetScore":100,"currentPlayerId":"session-id","caboCallerId":null,"drawSource":null,"mismatchPenaltyCardPending":false,"discardTop":{"label":"6H","rank":6},"deckCount":43,"players":[],"winners":[],"roundHistory":[]},"knowledge":{"round":1,"slots":[{"label":"4C","rank":4},null,null,null],"opponents":[],"held":null},"legalActions":[{"type":"draw-deck"}]}
 {"id":"move-1","type":"action","action":{"type":"draw-deck"}}
 {"type":"result","id":"move-1","ok":true,"data":{"revision":4}}`}</CodeBlock>

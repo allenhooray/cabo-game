@@ -9,7 +9,7 @@ const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: t
 
 function state(overrides: Partial<CaboStateLike> = {}): CaboStateLike {
   return {
-    revision: 3,
+    memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 3,
     roomName: "Alice's room",
     phase: "LOBBY",
     round: 0,
@@ -60,7 +60,7 @@ describe("agent JSONL protocol", () => {
     expect(legalActions(state({ phase: "POWER_PENDING", currentPlayerId: "a", discardRank: 9 }), "a"))
       .toContainEqual({ type: "peek-other", targetPlayerId: "b", position: 3 });
     expect(legalActions(state({ phase: "POWER_PENDING", currentPlayerId: "a", discardRank: 11 }), "a"))
-      .toContainEqual({ type: "swap", targetPlayerId: "b", position: 2 });
+      .toContainEqual({ type: "swap", targetPlayerId: "b", ownPosition: 2, targetPosition: 2 });
     expect(legalActions(state({ phase: "POWER_PENDING", currentPlayerId: "a", discardRank: 12 }), "a"))
       .toContainEqual({ type: "skip" });
   });
@@ -75,6 +75,8 @@ describe("agent JSONL protocol", () => {
     }] }), "a", "room", createKnowledge());
     expect(observation.state.players.map((player) => player.id)).toEqual(["a", "b"]);
     expect(observation.state.currentPlayerId).toBeNull();
+    expect(observation.state).toMatchObject({ memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0 });
+    expect(observation.caboRisk).toBeNull();
     expect(observation.state.caboCallerId).toBeNull();
     expect(observation.state.discardTop).toBeNull();
     expect(observation.state.players[0]?.nextRoundReady).toBe(false);

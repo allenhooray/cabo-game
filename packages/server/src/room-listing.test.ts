@@ -5,7 +5,7 @@ describe("public room listings", () => {
   const source = (overrides: Record<string, unknown> = {}) => ({
     roomId: "room-1",
     locked: false,
-    metadata: { visibility: "public", roomName: "Friday", phase: "LOBBY", targetScore: 100, playerCount: 1, maxClients: 5 },
+    metadata: { memoryMode: "assisted" as const, turnDurationSeconds: 60 as const, visibility: "public", roomName: "Friday", phase: "LOBBY", targetScore: 100, playerCount: 1, maxClients: 5 },
     ...overrides,
   });
 

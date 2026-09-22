@@ -182,22 +182,24 @@ export class GameEngine {
     return [{ type: "private-reveal", playerId, card, position, reason: "peek" }, ...this.finishTurn()];
   }
 
-  swap(playerId: string, targetPlayerId: string, position: Position): EngineEvent[] {
+  swap(playerId: string, targetPlayerId: string, ownPosition: Position, targetPosition: Position): EngineEvent[] {
     this.assertPower(playerId, [11, 12]);
     this.assertOtherActive(playerId, targetPlayerId);
     const player = this.player(playerId);
     const target = this.player(targetPlayerId);
-    const own = player.hand[position - 1];
-    const other = target.hand[position - 1];
-    if (!own || !other) throw new GameRuleError("INVALID_POSITION", "That card position does not exist.");
-    player.hand[position - 1] = other;
-    target.hand[position - 1] = own;
+    const own = this.cardAt(playerId, ownPosition);
+    const other = this.cardAt(targetPlayerId, targetPosition);
+    player.hand[ownPosition - 1] = other;
+    target.hand[targetPosition - 1] = own;
     this.pendingPower = undefined;
-    return [{ type: "swap", playerId, targetPlayerId, position }, ...this.finishTurn()];
+    return [{ type: "swap", playerId, targetPlayerId, ownPosition, targetPosition }, ...this.finishTurn()];
   }
 
   skipPower(playerId: string): EngineEvent[] {
     this.assertCurrent(playerId);
+    // All cards can be in hands after repeated failed exchanges. A final turn
+    // with neither draw source available must still be able to finish.
+    if (this.phase === "FINAL_TURNS" && this.deck.length === 0 && this.discardPile.length === 0) return this.finishTurn();
     this.assertPhase("POWER_PENDING");
     this.pendingPower = undefined;
     return this.finishTurn();
@@ -281,6 +283,14 @@ export class GameEngine {
 
   getPendingDraw(): { card: Card; source: DrawSource } | undefined {
     return this.heldCard && this.heldSource ? { card: this.heldCard, source: this.heldSource } : undefined;
+  }
+
+  canDrawDeck(): boolean {
+    return this.deck.length > 0 || this.discardPile.length > 1;
+  }
+
+  canDrawDiscard(): boolean {
+    return this.discardPile.length > 0;
   }
 
   private startRound(): EngineEvent[] {

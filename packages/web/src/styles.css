@@ -15,6 +15,16 @@
   --danger: #4d1717;
 }
 
+.share-room { position: relative; font-size: 11px; }
+.share-room summary { cursor: pointer; padding: 10px; }
+.share-room > div { position: absolute; z-index: 30; right: 0; width: 250px; display: grid; gap: 10px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.share-room input { width: 100%; }
+.deadline-banner { position: fixed; z-index: 40; bottom: 8px; right: 12px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 12px; pointer-events: none; }
+.exchange-controls { height: auto !important; min-height: 44px; flex-wrap: wrap; }
+.exchange-controls > div { flex-wrap: wrap; }
+.exchange-controls select { min-height: 36px; margin-left: 5px; }
+@media (max-width: 760px) { .topbar-actions { flex-wrap: wrap; justify-content: flex-end; } .topbar-actions > span { font-size: 10px; } }
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #0b0b0c;
@@ -102,6 +112,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .room-meta .room-title { color: var(--ink); font-weight: 500; }
 .room-meta .room-id { font-weight: 400; }
 .topbar-actions { justify-self: end; display: flex; align-items: center; gap: 18px; }
+.room-settings { font-size: 11px; white-space: nowrap; color: var(--muted); }
 .score-history { width: 154px; height: 38px; position: relative; z-index: 17; }
 .score-history-shell { width: 154px; height: 38px; position: absolute; top: 0; right: 0; overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: transparent; transition: width 340ms cubic-bezier(.2, .8, .2, 1), height 360ms cubic-bezier(.2, .8, .2, 1), border-color 180ms ease, background 180ms ease, box-shadow 220ms ease; }
 .score-history.is-open .score-history-shell { width: min(920px, calc(100vw - 48px)); height: min(560px, calc(100vh - 84px)); border-color: var(--line); background: color-mix(in srgb, var(--surface) 97%, transparent); box-shadow: 0 28px 90px var(--shadow); backdrop-filter: blur(22px); }

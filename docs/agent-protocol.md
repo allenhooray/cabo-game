@@ -1,6 +1,16 @@
 # Cabo Agent JSONL 协议
 
-`cabo-agent` 是供任意语言通过子进程控制 Cabo 玩家使用的稳定机器接口。协议版本为 `6`，新增由房间权威状态同步的完整回合历史。
+`cabo-agent` 是供任意语言通过子进程控制 Cabo 玩家使用的稳定机器接口。协议版本 `7`，加入记忆模式、服务端截止时间、Cabo 风险和双位置交换；不兼容旧版命令。
+
+## v7 房间与计时契约
+
+建房必须显式传入 `memoryMode: "classic" | "assisted"` 和 `turnDurationSeconds: 0 | 30 | 60 | 90`。旧版建房和单位置 `swap` 命令均被拒绝。交换动作形如 `{"type":"swap","targetPlayerId":"other","ownPosition":1,"targetPosition":3}`。
+
+公开房列表和 observation.state 包含上述配置以及 `deadlineAt`、`serverTime`，均为毫秒；`deadlineAt = 0` 表示无截止时间。用服务端时间差安排动作，不要自行判定回合结束。有效游戏步骤重置时限；超时通过正常动作广播完成安全收尾。局末全员就绪或 20 秒后继续。
+
+经典模式的 knowledge 不保存任何历史牌位，只保留尚未解决的 `held`。私密 reveal 会输出一次，并携带 `memoryMode`、`round`、`ownerId`；Agent 可自行记忆这些事件。辅助模式知识由服务端恢复，不应拿本地缓存覆盖服务端快照。
+
+可宣告 Cabo 时 observation.caboRisk 为 `{ strictLowest: true, tieFails: true, failurePenalty: 5, knownScore, unknownCount }`，否则为 `null`。经典模式 `knownScore = null`，`unknownCount` 为公开手牌张数；辅助模式给出已知小计和未知张数，未知数为零时小计即确切总分。
 
 ## 启动
 
@@ -23,7 +33,7 @@ stdout 只包含 JSONL 协议帧。stderr 只包含不属于协议的诊断信�
 进程启动后的第一帧为：
 
 ```json
-{"type":"ready","protocolVersion":6,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":7,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 ```
 
 ## 请求与结果
@@ -34,8 +44,8 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 
 ```json
 {"id":"1","type":"rooms"}
-{"id":"2","type":"create","visibility":"public","targetScore":100,"roomName":"Friday night"}
-{"id":"3","type":"create","visibility":"private","targetScore":100,"roomName":"Friends","password":"123456"}
+{"id":"2","type":"create","memoryMode":"classic","turnDurationSeconds":60,"visibility":"public","targetScore":100,"roomName":"Friday night"}
+{"id":"3","type":"create","memoryMode":"classic","turnDurationSeconds":60,"visibility":"private","targetScore":100,"roomName":"Friends","password":"123456"}
 {"id":"4","type":"join","roomId":"ROOM_ID","password":"123456"}
 {"id":"5","type":"reconnect"}
 {"id":"6","type":"observe"}
@@ -56,7 +66,7 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
 - `discard`
 - `peek-self`，带 `position`
 - `peek-other`，带 `targetPlayerId` 和 `position`
-- `swap`，带 `targetPlayerId` 和 `position`
+- `swap`，带 `targetPlayerId`、`ownPosition` 和 `targetPosition`
 - `skip`
 - `cabo`
 - `ready-next-round`（仅 `ROUND_RESULT`；所有未弃权玩家确认后开始下一回合）
@@ -88,6 +98,10 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
   "selfId": "session-id",
   "revision": 12,
   "state": {
+    "memoryMode": "assisted",
+    "turnDurationSeconds": 60,
+    "deadlineAt": 1800000060000,
+    "serverTime": 1800000000000,
     "phase": "TURN_START",
     "round": 1,
     "targetScore": 100,
@@ -102,11 +116,13 @@ stdin 的每个非空行必须是一个 JSON 对象，并带有用于关联结�
     "roundHistory": []
   },
   "knowledge": {
+    "memoryMode": "assisted",
     "round": 1,
     "slots": [{"label":"4♣","rank":4},null,null,null],
     "opponents": [{"playerId":"opponent-id","slots":[null,{"label":"9♥","rank":9},null,null]}],
     "held": null
   },
+  "caboRisk": {"strictLowest":true,"tieFails":true,"failurePenalty":5,"knownScore":4,"unknownCount":3},
   "legalActions": [
     {"type":"draw-deck"},
     {"type":"draw-discard"},
@@ -143,8 +159,8 @@ Agent 应以 observation 作为决策状态，以 event 作为增量通知和日
 ## 完整交互片段
 
 ```jsonl
-{"type":"ready","protocolVersion":6,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
-{"id":"1","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
+{"type":"ready","protocolVersion":7,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"id":"1","type":"create","memoryMode":"classic","turnDurationSeconds":60,"visibility":"public","targetScore":100,"roomName":"Bots' room"}
 {"type":"observation","roomId":"abc123","roomName":"Bots' room","selfId":"a","revision":1,"state":{"phase":"LOBBY"},"knowledge":{"round":0,"slots":[null,null,null,null],"opponents":[],"held":null},"legalActions":[]}
 {"type":"result","id":"1","ok":true,"data":{"roomId":"abc123","roomName":"Bots' room","selfId":"a"}}
 {"id":"2","type":"action","action":{"type":"start"}}

@@ -4,6 +4,9 @@ import { escapeTerminalText, flowPrompt, selectionOptionsFor, type InteractionCo
 import type { RoomChatMessage } from "@cabo-game/shared";
 
 export interface DashboardInput extends InteractionContext {
+  transientLines?: string[];
+  remainingSeconds?: number | undefined;
+  caboWarning?: string | undefined;
   knowledge: KnowledgeState;
   events: string[];
   chat?: RoomChatMessage[];
@@ -30,6 +33,9 @@ export function renderDashboard(input: DashboardInput): string {
   }
 
   const state = input.state;
+  lines.push(`Mode: ${state.memoryMode} · Step timer: ${state.turnDurationSeconds || "unlimited"}${input.remainingSeconds !== undefined ? ` · ${input.remainingSeconds}s remaining` : ""}`);
+  if (input.transientLines?.length) lines.push("Temporary reveal", ...input.transientLines.map(formatCardText));
+  if (input.caboWarning) lines.push(input.caboWarning);
   lines.push(
     `${escapeTerminalText(state.roomName)}  Room ${escapeTerminalText(input.roomId ?? "-")}  Round ${state.round || "-"}  Target ${state.targetScore}`,
     statusLine(state, input.selfId),

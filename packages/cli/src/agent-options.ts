@@ -81,7 +81,7 @@ export function renderAgentHelp(): string {
     "  --name NAME                  Player name (default: current OS user)",
     "  --session-file PATH          Persist this Agent's reconnect session",
     `  --request-timeout-ms N       Request timeout, ${MIN_REQUEST_TIMEOUT_MS}-${MAX_REQUEST_TIMEOUT_MS} (default: ${DEFAULT_REQUEST_TIMEOUT_MS})`,
-    "  --print-schema               Print the JSON Schema for protocol v6",
+    "  --print-schema               Print the JSON Schema for protocol v7",
     "  -v, --version                Print the CLI package version",
     "  -h, --help                   Show this help",
     "",

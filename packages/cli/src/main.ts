@@ -5,6 +5,7 @@ import { Writable } from "node:stream";
 import type { ClientCommand, ErrorMessage, PrivateRevealMessage, RoomChatMessage } from "@cabo-game/shared";
 import type { Room } from "@colyseus/sdk";
 import { CaboClientCore, DEFAULT_SERVER_URL } from "./client-core.js";
+import { caboRisk, formatCaboRisk } from "@cabo-game/client-core";
 import { caboDiscoveryMode, caboHelpLines, readCliVersion, renderCaboHelp } from "./cli-discovery.js";
 import { createConnectionEventGate, isRedundantSelfReconnectEvent } from "./connection-events.js";
 import { createFileSessionStore, defaultSessionPath } from "./config.js";
@@ -45,6 +46,25 @@ let recentChat: RoomChatMessage[] = [];
 let roundResult: RoundResultView | undefined;
 let selectionIndex = 0;
 let currentSelectionSignature = "";
+let transientLines: string[] = [];
+let transientEntries: Array<{ message: string; expiresAt: number }> = [];
+let transientRound = 0;
+let transientTimer: ReturnType<typeof setTimeout> | undefined;
+function transient(message: string, duration: number): void {
+  transientEntries.push({ message, expiresAt: Date.now() + duration });
+  refreshTransient();
+}
+function refreshTransient(): void {
+  transientEntries = transientEntries.filter((entry) => entry.expiresAt > Date.now());
+  transientLines = transientEntries.map((entry) => entry.message);
+  if (transientTimer) clearTimeout(transientTimer);
+  if (transientEntries.length) {
+    transientTimer = setTimeout(() => { refreshTransient(); renderNow(); }, Math.max(1, Math.min(...transientEntries.map((entry) => entry.expiresAt)) - Date.now()));
+    transientTimer.unref();
+  }
+}
+const ticker = setInterval(() => { if (interactive && latestState?.deadlineAt) renderNow(); }, 1000);
+ticker.unref();
 
 const readlineOutput = new Writable({
   write(chunk, encoding, callback) {
@@ -95,6 +115,9 @@ function renderNow(): void {
   stdout.write("\x1b[2J\x1b[H");
   stdout.write(renderDashboard({
     ...context(), knowledge, events: recentEvents, chat: recentChat, flow, selectionIndex,
+    transientLines,
+    remainingSeconds: latestState?.deadlineAt ? Math.max(0, Math.ceil((latestState.deadlineAt - gameClient.serverNow()) / 1000)) : undefined,
+    caboWarning: latestState && room && flow.kind === "confirm-cabo" ? (() => { const risk = caboRisk(latestState, room.sessionId, knowledge); return risk ? formatCaboRisk(risk) : undefined; })() : undefined,
     ...(notice ? { notice } : {}),
     ...(room ? { roomId: room.roomId } : {}),
     ...(roundResult ? { roundResult } : {}),
@@ -122,13 +145,14 @@ function formatEvent(event: any): string {
       if (event.action === "discard") return `${actor} discarded the drawn card.`;
       if (event.action === "peek-self") return `${actor} peeked at own position ${event.position}.`;
       if (event.action === "peek-other") return `${actor} peeked at ${playerLabel(event.targetPlayerId)} position ${event.position}.`;
-      if (event.action === "swap") return `${actor} swapped position ${event.position} with ${playerLabel(event.targetPlayerId)}.`;
+      if (event.action === "swap") return `${actor} swapped ${event.ownPosition} with ${playerLabel(event.targetPlayerId)}'s ${event.targetPosition}.`;
       if (event.action === "skip") return `${actor} skipped the power.`;
       if (event.action === "cabo") return `${actor} called CABO!`;
       return JSON.stringify(event);
     }
     case "discard": return `${playerLabel(event.playerId)} discarded ${event.card.label}.`;
-    case "swap": return `${playerLabel(event.playerId)} blind-swapped position ${event.position} with ${playerLabel(event.targetPlayerId)}.`;
+    case "swap": return `${playerLabel(event.playerId)} blind-swapped ${event.ownPosition} with ${playerLabel(event.targetPlayerId)}'s ${event.targetPosition}.`;
+    case "turn-timeout": return `${playerLabel(event.playerId)} timed out; the server completed their turn.`;
     case "cabo": return `${playerLabel(event.playerId)} called CABO!`;
     case "forfeit": return `${playerLabel(event.playerId)} forfeited.`;
     case "joined": return `${event.name} joined.`;
@@ -171,6 +195,7 @@ const gameClient = new CaboClientCore({
       latestState = state;
       knowledge = gameClient.knowledge;
       if (state.round !== lastRound) {
+        if (transientRound !== state.round) { transientLines = []; transientEntries = []; }
         if (lastRound !== 0) roundResult = undefined;
         lastRound = state.round;
       }
@@ -182,6 +207,15 @@ const gameClient = new CaboClientCore({
     },
     reveal: (message: PrivateRevealMessage) => {
       knowledge = gameClient.knowledge;
+      // An unresolved draw is rendered from held; never keep its value in Recent.
+      if (interactive && message.memoryMode === "classic" && message.reason === "draw") { renderNow(); return; }
+      if (interactive && message.memoryMode === "classic" && message.reason !== "draw") {
+        if (transientRound !== message.round) { transientLines = []; transientEntries = []; }
+        transientRound = message.round;
+        transient(`${message.ownerId === room?.sessionId ? "Your" : playerLabel(message.ownerId)} position ${message.position}: ${message.card.label} (${message.card.rank} pts)`, message.reason === "initial" ? 5000 : 3200);
+        renderNow();
+        return;
+      }
       if (message.reason === "draw") addEvent(`You drew ${message.card.label} (${message.card.rank} pts).`);
       else addEvent(`Private reveal${message.position ? ` at position ${message.position}` : ""}: ${message.card.label} (${message.card.rank} pts).`);
       renderNow();
@@ -200,6 +234,11 @@ const gameClient = new CaboClientCore({
     },
     event: (event: any) => {
       knowledge = gameClient.knowledge;
+      if (event.type === "action" && event.action === "exchange-mismatch") {
+        const text = `${playerLabel(event.playerId)} revealed ${event.positions.map((position: number, index: number) => `${position}: ${event.revealedCards[index].label}`).join(", ")}`;
+        if (interactive && latestState?.memoryMode === "classic") { transientRound = latestState.round; transient(text, 3200); }
+        else addEvent(text);
+      }
       if (event.type === "round-result") roundResult = makeRoundResult(event);
       if (event.type === "match-result" && roundResult) roundResult.nextRoundPending = false;
       if (isRedundantSelfReconnectEvent(event, room?.sessionId)) return;
@@ -214,6 +253,9 @@ const gameClient = new CaboClientCore({
       latestState = undefined;
       flow = { kind: "idle" };
       recentChat = [];
+      transientLines = [];
+      transientEntries = [];
+      if (transientTimer) clearTimeout(transientTimer);
       renderNow();
     },
     persistenceError: (error) => inform(`Could not save the reconnect session: ${error instanceof Error ? error.message : String(error)}`, true),
@@ -299,7 +341,7 @@ async function execute(command: LocalCommand): Promise<boolean> {
         selectionIndex = 0;
       } else {
         if (!available.length) addEvent("No public rooms.");
-        for (const item of available) addEvent(`${escapeTerminalText(item.roomName)}  ${escapeTerminalText(item.roomId)}  ${roomStatus(item)}  ${item.playerCount}/${item.maxClients} players  target ${item.targetScore}`);
+        for (const item of available) addEvent(`${escapeTerminalText(item.roomName)}  ${escapeTerminalText(item.roomId)}  ${roomStatus(item)}  ${item.playerCount}/${item.maxClients} players  target ${item.targetScore}  ${item.memoryMode} · ${item.turnDurationSeconds || "unlimited"}`);
       }
       renderNow();
       break;
@@ -312,6 +354,8 @@ async function execute(command: LocalCommand): Promise<boolean> {
       await gameClient.create({
         visibility: command.visibility,
         targetScore: command.targetScore,
+        memoryMode: command.memoryMode,
+        turnDurationSeconds: command.turnDurationSeconds,
         ...(command.roomName !== undefined ? { roomName: command.roomName } : {}),
         ...(password ? { password } : {}),
       });
@@ -337,7 +381,16 @@ async function execute(command: LocalCommand): Promise<boolean> {
       const gameCommand = withTarget(command);
       if (gameCommand.type === "cabo") {
         flow = { kind: "confirm-cabo", guard: stateGuard(context()) };
+        if (!interactive && latestState && room) {
+          const risk = caboRisk(latestState, room.sessionId, knowledge);
+          if (risk) console.log(formatCaboRisk(risk));
+        }
         notice = undefined;
+        renderNow();
+      } else if (gameCommand.type === "swap") {
+        const target = players().find((player) => player.id === gameCommand.targetPlayerId);
+        if (!target) throw new Error("Choose an active opponent.");
+        flow = { kind: "confirm-swap", target, ownPosition: gameCommand.ownPosition, targetPosition: gameCommand.targetPosition, guard: stateGuard(context()) };
         renderNow();
       } else sendGame(gameCommand);
       break;
@@ -381,7 +434,7 @@ async function applyInteraction(result: InteractionResult): Promise<boolean> {
   if (result.kind === "create") {
     flow = { kind: "idle" };
     notice = undefined;
-    return execute({ kind: "create", visibility: result.visibility, targetScore: result.targetScore, ...(result.roomName !== undefined ? { roomName: result.roomName } : {}) });
+    return execute({ kind: "create", memoryMode: result.memoryMode, turnDurationSeconds: result.turnDurationSeconds, visibility: result.visibility, targetScore: result.targetScore, ...(result.roomName !== undefined ? { roomName: result.roomName } : {}) });
   }
   if (result.kind === "listed-room") {
     if (flow.kind !== "room-browser") return true;

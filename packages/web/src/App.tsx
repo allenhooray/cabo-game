@@ -9,8 +9,9 @@ import {
   savedServerUrl,
   validateServerUrl,
 } from "./browser-session.js";
-import { CaboClientCore, legalActions, type CaboStateLike, type ListedRoom, type StatePlayer } from "@cabo-game/client-core";
-import type { ClientCommand, KnownCard, PrivateRevealMessage, PublicActionEvent, RoomChatMessage } from "@cabo-game/shared";
+import { CaboClientCore, legalActions, caboRisk, formatCaboRisk, type CaboStateLike, type ListedRoom, type StatePlayer } from "@cabo-game/client-core";
+import type { ClientCommand, KnownCard, PrivateRevealMessage, PublicActionEvent, RoomChatMessage, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
+import { readInvitation, invitationLink, copyText } from "./invitation.js";
 
 type ConnectionState = "idle" | "connecting" | "live" | "reconnecting" | "offline";
 type Selection = "idle" | "replace" | "peek-other" | "swap";
@@ -35,6 +36,7 @@ interface MatchResult {
 type ResultEvent = RoundResult | MatchResult;
 
 interface Confirmation {
+  revision?: number;
   title: string;
   body: string;
   label: string;
@@ -44,6 +46,13 @@ interface Confirmation {
 const sessionStore = new BrowserSessionStore();
 
 export function App() {
+  const [invitation, setInvitation] = useState(readInvitation);
+  const [temporaryCards, setTemporaryCards] = useState<Array<{ ownerId: string; position: number; card: KnownCard; expiresAt: number; round: number }>>([]);
+  const [clockNow, setClockNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = setInterval(() => { setClockNow(Date.now()); setTemporaryCards((cards) => cards.filter((card) => card.expiresAt > Date.now())); }, 200);
+    return () => clearInterval(timer);
+  }, []);
   const [serverUrl, setServerUrl] = useState(savedServerUrl);
   const [serverDraft, setServerDraft] = useState(savedServerUrl);
   const [name, setName] = useState(savedPlayerName);
@@ -113,6 +122,8 @@ export function App() {
           setRevisionTick((value) => value + 1);
         },
         state: (nextState) => {
+          setConfirmation((current) => current?.revision !== undefined && current.revision !== nextState.revision ? undefined : current);
+          setTemporaryCards((cards) => cards.filter((card) => card.round === nextState.round));
           setConnection("live");
           if (nextState.phase !== "ROUND_RESULT" && nextState.phase !== "MATCH_RESULT") setResult(undefined);
           setSelection("idle");
@@ -120,6 +131,9 @@ export function App() {
           setRevisionTick((value) => value + 1);
         },
         reveal: (message) => {
+          if (message.memoryMode === "classic" && message.reason !== "draw" && message.position) {
+            setTemporaryCards((cards) => [...cards.filter((entry) => entry.round === message.round && !(entry.ownerId === message.ownerId && entry.position === message.position)), { ownerId: message.ownerId, position: message.position!, card: message.card, round: message.round, expiresAt: Date.now() + (message.reason === "initial" ? 5000 : 3200) }]);
+          }
           if (message.reason === "peek") {
             setPrivateReveal(message);
             if (revealTimer.current) clearTimeout(revealTimer.current);
@@ -129,6 +143,12 @@ export function App() {
         },
         knowledge: () => setRevisionTick((value) => value + 1),
         event: (event: any) => {
+          if (event.type === "action" && event.action === "exchange-mismatch" && instance.state?.memoryMode === "classic") {
+            const round = instance.state.round;
+            setTemporaryCards((cards) => [...cards.filter((card) => card.ownerId !== event.playerId), ...event.positions.map((position: number, index: number) => ({ ownerId: event.playerId, position, card: event.revealedCards[index], round, expiresAt: Date.now() + 3200 }))]);
+          } else if (event.type === "action" && ["replace", "resolve-mismatch", "swap"].includes(event.action)) {
+            setTemporaryCards((cards) => cards.filter((card) => card.ownerId !== event.playerId && card.ownerId !== event.targetPlayerId));
+          }
           if (event.type === "round-result" || event.type === "match-result") setResult(event as ResultEvent);
           if (event.type === "action") enqueueCardMotion(event as PublicActionEvent);
           const label = formatEvent(event, (id) => instance.state?.players.get(id)?.name ?? id);
@@ -187,7 +207,7 @@ export function App() {
     if (reconnectAttempted.current) return;
     reconnectAttempted.current = true;
     void sessionStore.load().then(async (saved) => {
-      if (!saved || saved.server !== serverUrl) return;
+      if (!saved || saved.server !== serverUrl || invitation) return;
       const savedName = savePlayerName(saved.name);
       setName(savedName);
       const next = makeCore(savedName, serverUrl);
@@ -231,10 +251,10 @@ export function App() {
     };
   }, [room, serverUrl]);
 
-  const beginConnection = useCallback(() => {
+  const beginConnection = useCallback((targetServer = serverUrl) => {
     const normalizedName = savePlayerName(name);
     if (!normalizedName) throw new Error("Enter a player name.");
-    const next = makeCore(normalizedName, serverUrl);
+    const next = makeCore(normalizedName, targetServer);
     setChatMessages([]);
     setChatUnread(0);
     setChatDraft("");
@@ -244,11 +264,20 @@ export function App() {
     return next;
   }, [makeCore, name, serverUrl]);
 
-  const connect = useCallback(async (operation: (next: CaboClientCore) => Promise<void>) => {
+  const connect = useCallback(async (operation: (next: CaboClientCore) => Promise<void>, targetServer = serverUrl) => {
     setBusy(true);
     setNotice(undefined);
     try {
-      await operation(beginConnection());
+      await operation(beginConnection(targetServer));
+      setServerUrl(targetServer);
+      saveServerUrl(targetServer);
+      setServerDraft(targetServer);
+      if (invitation) {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("room"); url.searchParams.delete("server");
+        window.history.replaceState(null, "", url);
+        setInvitation(undefined);
+      }
     } catch (error) {
       setCore(undefined);
       setConnection("idle");
@@ -256,7 +285,7 @@ export function App() {
     } finally {
       setBusy(false);
     }
-  }, [beginConnection]);
+  }, [beginConnection, serverUrl, invitation]);
 
   const execute = useCallback(async (command: ClientCommand) => {
     if (!core || readOnly) return;
@@ -313,6 +342,7 @@ export function App() {
   if (!state || !state.players || !room || !selfId) {
     return (
       <Home
+        invitation={invitation}
         serverUrl={serverUrl}
         serverDraft={serverDraft}
         name={name}
@@ -333,8 +363,8 @@ export function App() {
           setNotice(`Server reset to ${next}.`);
         }}
         onRefresh={() => void refreshRooms()}
-        onCreate={(visibility, targetScore, roomName, password) => void connect((next) => next.create({ visibility, targetScore, roomName, ...(password ? { password } : {}) }))}
-        onJoin={(roomId, password) => void connect((next) => next.join(roomId, password))}
+        onCreate={(visibility, targetScore, roomName, memoryMode, turnDurationSeconds, password) => void connect((next) => next.create({ visibility, targetScore, roomName, memoryMode, turnDurationSeconds, ...(password ? { password } : {}) }))}
+        onJoin={(roomId, password, targetServer) => void connect((next) => next.join(roomId, password), targetServer ?? serverUrl)}
       />
     );
   }
@@ -356,10 +386,12 @@ export function App() {
 
   return (
     <div className={`app-shell ${concealed ? "is-concealed" : ""}`}>
-      <header className="topbar">
+      <header className="topbar" data-state-revision={state.revision}>
         <button className="wordmark" type="button" onClick={() => setNotice(`${state.roomName} · Room ${room.roomId}`)}>CABO</button>
         <div className="room-meta"><strong className="room-title">{state.roomName}</strong> <span /> Room <b className="room-id">{room.roomId}</b> <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
         <div className="topbar-actions">
+          <span className="room-settings">{state.memoryMode} · {state.turnDurationSeconds ? `${state.turnDurationSeconds}s` : "Unlimited"}</span>
+          <ShareRoom roomId={room.roomId} server={serverUrl} />
           <button ref={chatTriggerRef} className="chat-trigger" type="button" aria-haspopup="dialog" aria-expanded={chatOpen} onClick={openChat}>
             Chat{chatUnread > 0 ? ` (${chatUnread})` : ""}
           </button>
@@ -396,6 +428,7 @@ export function App() {
           />
         ) : (
           <GameTable
+          temporaryCards={temporaryCards}
           state={state}
           selfId={selfId}
           players={players}
@@ -430,6 +463,7 @@ export function App() {
       )}
 
       {privateReveal && <PrivateReveal message={privateReveal} onClose={() => setPrivateReveal(undefined)} />}
+      {state.deadlineAt > 0 && <div className="deadline-banner" role="timer">{state.phase === "ROUND_RESULT" ? "Next round" : "Auto action"} in {Math.max(0, Math.ceil((state.deadlineAt - (core.serverNow() + clockNow - Date.now())) / 1000))}s</div>}
       {result && <Results result={result} state={state} selfId={selfId} playerName={playerName} busy={busy || readOnly} onReady={() => void execute({ type: "ready-next-round" })} onLeave={leave} />}
       {!result && state.phase === "ROUND_RESULT" && <ScoreFallback state={state} selfId={selfId} busy={busy || readOnly} onReady={() => void execute({ type: "ready-next-round" })} />}
       {!result && state.phase === "MATCH_RESULT" && (
@@ -447,6 +481,7 @@ export function App() {
           <div className="modal-actions">
             <button className="button ghost" type="button" onClick={() => setConfirmation(undefined)}>Cancel</button>
             <button className="button primary" type="button" onClick={() => {
+              if (confirmation.revision !== undefined && confirmation.revision !== core.state?.revision) { setConfirmation(undefined); return; }
               const action = confirmation.action;
               setConfirmation(undefined);
               void action();
@@ -568,6 +603,7 @@ function chatStatus(connection: ConnectionState, readOnly: boolean): string {
 }
 
 interface HomeProps {
+  invitation: ReturnType<typeof readInvitation>;
   serverUrl: string;
   serverDraft: string;
   name: string;
@@ -582,18 +618,20 @@ interface HomeProps {
   onApplyServer(event: FormEvent): void;
   onResetServer(): void;
   onRefresh(): void;
-  onCreate(visibility: "public" | "private", targetScore: number, roomName: string, password?: string): void;
-  onJoin(roomId: string, password?: string): void;
+  onCreate(visibility: "public" | "private", targetScore: number, roomName: string, memoryMode: MemoryMode, turnDurationSeconds: TurnDurationSeconds, password?: string): void;
+  onJoin(roomId: string, password?: string, targetServer?: string): void;
 }
 
 function Home(props: HomeProps) {
   const [createOpen, setCreateOpen] = useState(false);
-  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinOpen, setJoinOpen] = useState(Boolean(props.invitation));
+  const [memoryMode, setMemoryMode] = useState<MemoryMode>("classic");
+  const [turnDurationSeconds, setTurnDurationSeconds] = useState<TurnDurationSeconds>(60);
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [targetScore, setTargetScore] = useState(100);
   const [roomName, setRoomName] = useState("");
   const [createPassword, setCreatePassword] = useState("");
-  const [roomCode, setRoomCode] = useState("");
+  const [roomCode, setRoomCode] = useState(props.invitation?.roomId ?? "");
   const [joinPassword, setJoinPassword] = useState("");
   const [nameSaved, setNameSaved] = useState(false);
 
@@ -638,7 +676,7 @@ function Home(props: HomeProps) {
             {createOpen && (
               <form className="inline-form" onSubmit={(event) => {
                 event.preventDefault();
-                props.onCreate(visibility, targetScore, roomName, visibility === "private" ? createPassword : undefined);
+                props.onCreate(visibility, targetScore, roomName, memoryMode, turnDurationSeconds, visibility === "private" ? createPassword : undefined);
               }}>
                 <div className="segmented" aria-label="Room visibility">
                   <button type="button" aria-pressed={visibility === "public"} onClick={() => setVisibility("public")}>Public</button>
@@ -646,16 +684,19 @@ function Home(props: HomeProps) {
                 </div>
                 <label className="field-label" htmlFor="create-room-name">Room name <span>up to 40 characters</span><input id="create-room-name" className="input" value={roomName} onChange={(event) => setRoomName(event.target.value)} /></label>
                 <label className="field-label">Target score<input className="input" type="number" min={20} max={500} value={targetScore} onChange={(event) => setTargetScore(Number(event.target.value))} /></label>
+                <label className="field-label">Memory mode<select className="input" value={memoryMode} onChange={(event) => setMemoryMode(event.target.value as MemoryMode)}><option value="classic">Classic — remember cards yourself</option><option value="assisted">Assisted — keep seen cards visible</option></select></label>
+                <label className="field-label">Step timer<select className="input" value={turnDurationSeconds} onChange={(event) => setTurnDurationSeconds(Number(event.target.value) as TurnDurationSeconds)}>{[0, 30, 60, 90].map((seconds) => <option key={seconds} value={seconds}>{seconds ? `${seconds} seconds` : "Unlimited"}</option>)}</select></label>
                 {visibility === "private" && <label className="field-label">Six-digit password<input className="input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={createPassword} onChange={(event) => setCreatePassword(event.target.value.replace(/\D/g, ""))} /></label>}
                 <button className="button primary" disabled={props.busy || Array.from(roomName.trim()).length > 40 || targetScore < 20 || targetScore > 500 || (visibility === "private" && !/^\d{6}$/.test(createPassword))}>Create table</button>
               </form>
             )}
 
             {joinOpen && (
-              <form className="inline-form" onSubmit={(event) => { event.preventDefault(); props.onJoin(roomCode.trim(), joinPassword || undefined); }}>
-                <label className="field-label">Room code<input className="input code-input" autoCapitalize="characters" value={roomCode} onChange={(event) => setRoomCode(event.target.value)} /></label>
+              <form className="inline-form" onSubmit={(event) => { event.preventDefault(); if (!props.invitation?.error) props.onJoin(roomCode.trim(), joinPassword || undefined, props.invitation?.server); }}>
+                {props.invitation && <p role={props.invitation.error ? "alert" : undefined}>Invitation server: <strong>{props.invitation.server}</strong>{props.invitation.error ? ` — ${props.invitation.error}` : " — Join table to confirm."}</p>}
+                <label className="field-label">Room code<input className="input code-input" autoCapitalize="none" value={roomCode} onChange={(event) => setRoomCode(event.target.value)} /></label>
                 <label className="field-label">Password <span>optional</span><input className="input" inputMode="numeric" maxLength={6} value={joinPassword} onChange={(event) => setJoinPassword(event.target.value.replace(/\D/g, ""))} /></label>
-                <button className="button primary" disabled={props.busy || !roomCode.trim()}>Join table</button>
+                <button className="button primary" disabled={props.busy || !roomCode.trim() || Boolean(props.invitation?.error)}>Join table</button>
               </form>
             )}
           </section>
@@ -666,7 +707,7 @@ function Home(props: HomeProps) {
           <div className="room-list">
             {props.rooms.length ? props.rooms.map((room) => (
               <article className="room-row" key={room.roomId}>
-                <div><strong>{room.roomName}</strong><span>Room <span className="room-id">{room.roomId}</span> · Target {room.targetScore}</span></div>
+                <div><strong>{room.roomName}</strong><span>Room <span className="room-id">{room.roomId}</span> · Target {room.targetScore} · {room.memoryMode} · {room.turnDurationSeconds ? `${room.turnDurationSeconds}s` : "Unlimited"}</span></div>
                 <span>{room.isFull ? "Full" : "Open"} · {room.isStarted ? "Started" : "Waiting"} · {room.playerCount} / {room.maxClients} players</span>
                 <button className="button small" type="button" disabled={props.busy || !room.canJoin} onClick={() => props.onJoin(room.roomId)}>Join</button>
               </article>
@@ -693,6 +734,21 @@ function Home(props: HomeProps) {
       </footer>
     </div>
   );
+}
+
+function ShareRoom(props: { roomId: string; server: string }) {
+  const [fallback, setFallback] = useState<string>();
+  const [copied, setCopied] = useState(false);
+  const copy = async (value: string) => {
+    const ok = await copyText(value);
+    setCopied(ok); setFallback(ok ? undefined : value);
+  };
+  return <details className="share-room"><summary>Share</summary><div>
+    <button className="button" type="button" onClick={() => void copy(props.roomId)}>Copy room code</button>
+    <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>Copy invite link</button>
+    {copied && <span role="status">Copied</span>}
+    {fallback && <label>Copy manually<input aria-label="Copy manually" readOnly value={fallback} onFocus={(event) => event.target.select()} /></label>}
+  </div></details>;
 }
 
 function Lobby(props: { roomId: string; roomName: string; targetScore: number; players: StatePlayer[]; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void }) {
@@ -746,7 +802,7 @@ function RulesPopover() {
           <li>Keep the lowest total. Draw from the deck, take the discard, or call Cabo.</li>
           <li>One drawn card may replace 1–4 cards; selections of 2–4 must match. A failed match reveals them and can add a penalty card.</li>
           <li><strong>7–8</strong> peek at your card; <strong>9–10</strong> peek at another player's card.</li>
-          <li><strong>J–Q</strong> blindly swap matching positions with another player.</li>
+          <li><strong>J–Q</strong> blindly swap any own card with any card of another player.</li>
           <li>After Cabo, everyone else gets one final turn. A successful caller scores zero.</li>
           <li>Exactly two Queens and both Kings shoots the moon: 0 for you, half the target for everyone else.</li>
         </ul>
@@ -879,6 +935,7 @@ function roundOutcome(entry: NonNullable<CaboStateLike["roundHistory"]>[number],
 }
 
 interface GameTableProps {
+  temporaryCards?: Array<{ ownerId: string; position: number; card: KnownCard; expiresAt: number; round: number }>;
   state: CaboStateLike;
   selfId: string;
   players: StatePlayer[];
@@ -907,21 +964,36 @@ function GameTable(props: GameTableProps) {
   const selectedTarget = props.targetId ? state.players.get(props.targetId) : undefined;
   const phaseCopy = gameStatus(state, selfId);
   const [exchangePositions, setExchangePositions] = useState<number[]>([]);
+  const [replacementPosition, setReplacementPosition] = useState<number>();
+  const [swapOwnPosition, setSwapOwnPosition] = useState<number>();
   const [mismatchDrawnPlacement, setMismatchDrawnPlacement] = useState<"left" | "right">();
 
   const hasAction = (type: ClientCommand["type"]) => actions.some((action) => action.type === type);
   const canReplace = myTurn && hasAction("replace");
 
   useEffect(() => {
-    if (!canReplace) setExchangePositions([]);
+    setExchangePositions([]);
+    setReplacementPosition(undefined);
+    setSwapOwnPosition(undefined);
     if (state.phase !== "MISMATCH_PENDING") setMismatchDrawnPlacement(undefined);
-  }, [canReplace, state.phase, state.round]);
+  }, [canReplace, state.phase, state.round, state.revision]);
+
+  useEffect(() => {
+    if (exchangePositions.length === 1) setReplacementPosition(exchangePositions[0]);
+    else if (replacementPosition !== undefined && !exchangePositions.includes(replacementPosition)) setReplacementPosition(undefined);
+  }, [exchangePositions, replacementPosition]);
+  const displayedCard = (ownerId: string, position: number, known: KnownCard | null | undefined) => {
+    if (state.memoryMode === "assisted") return known;
+    return props.temporaryCards?.find((entry) => entry.ownerId === ownerId && entry.position === position && entry.round === state.round && entry.expiresAt > Date.now())?.card;
+  };
 
   const chooseOwnPosition = (position: number) => {
+    if (props.selection === "swap") { setSwapOwnPosition(position); return; }
     if (canReplace) {
       setExchangePositions((current) => {
         if (current.includes(position)) return current.filter((candidate) => candidate !== position);
         if (current.length >= 4) return current;
+        if (current.length === 1) setReplacementPosition(undefined);
         return [...current, position];
       });
     }
@@ -932,11 +1004,13 @@ function GameTable(props: GameTableProps) {
     if (!selectedTarget) return;
     if (props.selection === "peek-other") props.onExecute({ type: "peek-other", targetPlayerId: selectedTarget.id, position });
     if (props.selection === "swap") {
+      if (!swapOwnPosition) return;
       props.onConfirm({
+        revision: state.revision,
         title: `Swap with ${selectedTarget.name}?`,
-        body: `Your card ${position} and ${selectedTarget.name}'s card ${position} will be swapped without revealing either card.`,
+        body: `Your card ${swapOwnPosition} and ${selectedTarget.name}'s card ${position} will be swapped without revealing either card.`,
         label: "Blind swap",
-        action: async () => props.onExecute({ type: "swap", targetPlayerId: selectedTarget.id, position }),
+        action: async () => props.onExecute({ type: "swap", targetPlayerId: selectedTarget.id, ownPosition: swapOwnPosition, targetPosition: position }),
       });
     }
   };
@@ -945,7 +1019,7 @@ function GameTable(props: GameTableProps) {
     <main className="game-shell">
       <section className="opponents" aria-label="Other players">
         {opponents.map((player) => {
-          const targetable = (props.selection === "peek-other" || props.selection === "swap") && !player.forfeited;
+          const targetable = (props.selection === "peek-other" || (props.selection === "swap" && Boolean(swapOwnPosition))) && !player.forfeited;
           const selected = props.targetId === player.id;
           const playerMotion = props.cardMotion && (props.cardMotion.playerId === player.id || ("targetPlayerId" in props.cardMotion && props.cardMotion.targetPlayerId === player.id)) ? props.cardMotion : undefined;
           const known = props.core.knowledge.opponents.find((entry) => entry.playerId === player.id)?.slots ?? [null, null, null, null];
@@ -956,13 +1030,13 @@ function GameTable(props: GameTableProps) {
                 <span className="player-copy"><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : !player.connected ? "Offline · 60s grace" : `${player.score} pts`}</small></span>
                 <span className="opponent-hand" aria-label={`${player.cardCount} cards`}>
                   {Array.from({ length: player.cardCount }, (_, index) => {
-                    const card = known[index];
+                    const card = displayedCard(player.id, index + 1, known[index]);
                     return <span className={`opponent-slot ${card ? "known" : ""}`} data-card-anchor={`slot-${player.id}-${index + 1}`} key={index}>{card ? formatCardLabel(card.label) : ""}</span>;
                   })}
                   <span className={`opponent-decision ${state.phase === "DRAWN" && state.currentPlayerId === player.id ? "occupied" : ""}`} data-card-anchor={`decision-${player.id}`} aria-label="Drawn card" />
                 </span>
               </button>
-              {selected && <PositionPicker count={props.selection === "swap" ? Math.min(player.cardCount, self?.cardCount ?? 0) : player.cardCount} onChoose={chooseOpponentPosition} disabled={props.busy} label={`Choose ${player.name}'s card`} />}
+              {selected && <PositionPicker count={player.cardCount} onChoose={chooseOpponentPosition} disabled={props.busy} label={`Choose ${player.name}'s card`} />}
             </article>
           );
         })}
@@ -980,7 +1054,7 @@ function GameTable(props: GameTableProps) {
             <small>Discard</small>
           </div>
         </div>
-        {hasAction("cabo") && <button className="cabo-button" type="button" disabled={props.busy} onClick={() => props.onConfirm({ title: "Call Cabo?", body: "Every other active player will receive one final turn.", label: "Call Cabo", action: async () => props.onExecute({ type: "cabo" }) })}>Call Cabo</button>}
+        {hasAction("cabo") && <button className="cabo-button" type="button" disabled={props.busy} onClick={() => { const risk = caboRisk(state, selfId, props.core.knowledge); if (risk) props.onConfirm({ revision: state.revision, title: "Call Cabo?", body: formatCaboRisk(risk), label: "Call Cabo", action: async () => props.onExecute({ type: "cabo" }) }); }}>Call Cabo</button>}
         <button className="leave-button" type="button" onClick={props.onLeave}>Leave</button>
       </section>
 
@@ -988,14 +1062,17 @@ function GameTable(props: GameTableProps) {
         <div className="hand-block">
           <div className="hand-heading"><div><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length)} hidden</span></div><button className="privacy-button" type="button" onPointerDown={props.onConcealStart} onPointerUp={props.onConcealEnd} onPointerCancel={props.onConcealEnd}>Hold to conceal</button></div>
           <div className={`exchange-controls ${canReplace && exchangePositions.length > 0 ? "" : "is-empty"}`} aria-hidden={canReplace && exchangePositions.length > 0 ? undefined : true}>
-            {canReplace && exchangePositions.length > 0 && <><span>Selected: {exchangePositions.join(", ")} · Drawn card → {exchangePositions[0]}</span><div><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: exchangePositions[0] as number })}>Confirm exchange</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>Clear</button></div></>}
+            {canReplace && exchangePositions.length > 0 && <><span>Discard positions: {exchangePositions.join(", ")} · Drawn card → {replacementPosition ?? "choose"}</span><div>{exchangePositions.length > 1 && <label>Drawn card destination<select aria-label="Drawn card destination" value={replacementPosition ?? ""} onChange={(event) => setReplacementPosition(Number(event.target.value))}><option value="" disabled>Choose position</option>{exchangePositions.map((position) => <option key={position} value={position}>{position}</option>)}</select></label>}<button className="button primary" type="button" disabled={props.busy || !replacementPosition} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: replacementPosition! })}>Confirm exchange</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>Clear</button></div></>}
           </div>
           <div className="own-hand">
-            {Array.from({ length: self?.cardCount ?? props.core.knowledge.slots.length }, (_, index) => props.core.knowledge.slots[index] ?? null).map((card, index) => {
+            {Array.from({ length: self?.cardCount ?? props.core.knowledge.slots.length }, (_, index) => displayedCard(selfId, index + 1, props.core.knowledge.slots[index]) ?? null).map((card, index) => {
               const position = index + 1;
-              const selectable = canReplace || (state.phase === "POWER_PENDING" && myTurn && (power === 7 || power === 8));
-              const slotMotion = props.cardMotion && "position" in props.cardMotion && props.cardMotion.position === position && (props.cardMotion.action !== "swap" || props.cardMotion.playerId === selfId || props.cardMotion.targetPlayerId === selfId) ? props.cardMotion : undefined;
-              return <button aria-pressed={canReplace ? exchangePositions.includes(position) : undefined} className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${exchangePositions.includes(position) ? "selected" : ""} ${slotMotion ? `motion-${slotMotion.action}` : ""}`} data-card-anchor={`slot-${selfId}-${position}`} type="button" disabled={!selectable || props.busy} key={`${position}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>{String(position).padStart(2, "0")}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
+              const selectable = canReplace || (state.phase === "POWER_PENDING" && myTurn && (power === 7 || power === 8 || props.selection === "swap"));
+              const motion = props.cardMotion;
+              const motionPosition = motion?.action === "swap" ? (motion.playerId === selfId ? motion.ownPosition : motion.targetPlayerId === selfId ? motion.targetPosition : undefined) : motion && "position" in motion ? motion.position : undefined;
+              const slotMotion = motionPosition === position ? motion : undefined;
+              const selected = props.selection === "swap" ? swapOwnPosition === position : exchangePositions.includes(position);
+              return <button aria-pressed={selectable ? selected : undefined} className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${selected ? "selected" : ""} ${slotMotion ? `motion-${slotMotion.action}` : ""}`} data-card-anchor={`slot-${selfId}-${position}`} type="button" disabled={!selectable || props.busy} key={`${position}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>{String(position).padStart(2, "0")}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
             })}
             <div className={`decision-card ${props.core.knowledge.held ? "occupied" : ""}`} data-card-anchor={`decision-${selfId}`} aria-label="Drawn card">
               {props.core.knowledge.held ? <CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /> : <span>Draw</span>}
@@ -1005,6 +1082,7 @@ function GameTable(props: GameTableProps) {
         <div className="action-zone">
           <ActionPanel
             {...props}
+            swapOwnPosition={swapOwnPosition}
             actions={actions}
             phaseCopy={phaseCopy}
             mismatchDrawnPlacement={mismatchDrawnPlacement}
@@ -1059,7 +1137,7 @@ function buildFlights(motion: CardMotion): CardFlight[] {
   const deck = anchorRect("deck");
   const discard = anchorRect("discard");
   const decision = anchorRect(`decision-${motion.playerId}`);
-  const position = "position" in motion ? motion.position : motion.action === "replace" ? motion.replacementPosition : undefined;
+  const position = motion.action === "swap" ? motion.ownPosition : "position" in motion ? motion.position : motion.action === "replace" ? motion.replacementPosition : undefined;
   const slot = position ? anchorRect(`slot-${motion.playerId}-${position}`) : undefined;
   const flight = (key: string, from: DOMRect | undefined, to: DOMRect | undefined, card?: KnownCard, delay?: number, peek?: boolean): CardFlight[] => from && to ? [{ key, from, to, card, delay, peek }] : [];
 
@@ -1074,8 +1152,8 @@ function buildFlights(motion: CardMotion): CardFlight[] {
     case "peek-self": return flight("peek-self", slot, decision, undefined, 0, true);
     case "peek-other": return flight("peek-other", anchorRect(`slot-${motion.targetPlayerId}-${motion.position}`), decision, undefined, 0, true);
     case "swap": return [
-      ...flight("swap-own", slot, anchorRect(`slot-${motion.targetPlayerId}-${motion.position}`)),
-      ...flight("swap-target", anchorRect(`slot-${motion.targetPlayerId}-${motion.position}`), slot, undefined, 70),
+      ...flight("swap-own", slot, anchorRect(`slot-${motion.targetPlayerId}-${motion.targetPosition}`)),
+      ...flight("swap-target", anchorRect(`slot-${motion.targetPlayerId}-${motion.targetPosition}`), slot, undefined, 70),
     ];
     default: return [];
   }
@@ -1100,18 +1178,21 @@ function motionAnnouncement(motion: PublicActionEvent): string {
   if (motion.action === "resolve-mismatch") return "The mismatch cards were placed at the chosen ends.";
   if (motion.action === "discard") return "The drawn card moved to the discard pile.";
   if (motion.action === "peek-self" || motion.action === "peek-other") return `Card ${motion.position} was inspected.`;
-  if (motion.action === "swap") return `Card ${motion.position} was swapped.`;
+  if (motion.action === "swap") return `Card ${motion.ownPosition} was swapped with opponent card ${motion.targetPosition}.`;
   return motion.action === "skip" ? "The card power was skipped." : "Cabo was called.";
 }
 
 function ActionPanel(props: GameTableProps & {
+  swapOwnPosition: number | undefined;
   actions: ReturnType<typeof legalActions>;
   phaseCopy: { eyebrow: string; title: string; detail: string };
   mismatchDrawnPlacement: "left" | "right" | undefined;
   onMismatchDrawnPlacement(placement: "left" | "right" | undefined): void;
 }) {
+  if (props.state.phase === "FINAL_TURNS" && props.actions.some((action) => action.type === "skip")) return <><h3>No cards left to draw.</h3><button className="button primary" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Finish final turn</button></>;
   const { state, selfId } = props;
   if (state.currentPlayerId !== selfId) return <><p className="action-kicker">Waiting</p><h3>{props.phaseCopy.title}</h3><p>{props.phaseCopy.detail}</p></>;
+  if (props.selection === "swap" && !props.swapOwnPosition) return <><h3>Choose your card to swap.</h3><p>Then choose another player and any of their cards.</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>Cancel</button></>;
   if (props.selection === "peek-other" || props.selection === "swap") return <><p className="action-kicker">{props.selection === "swap" ? "Blind swap" : "Private peek"}</p><h3>{props.targetId ? "Choose one of their cards." : "Choose another player."}</h3><p>{props.selection === "swap" ? "Neither card will be revealed." : "Only you will see the selected card."}</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>Cancel</button></>;
   if (state.phase === "DRAWN") return <><p className="action-kicker">Card drawn</p><h3>Choose what it replaces.</h3><p>Select up to four cards directly from your hand. Multiple cards must share the same rank.</p>{state.drawSource === "deck" && <button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "discard" })}>Discard drawn card</button>}</>;
   if (state.phase === "MISMATCH_PENDING") {
@@ -1122,7 +1203,7 @@ function ActionPanel(props: GameTableProps & {
     const rank = state.discardRank;
     if (rank === 7 || rank === 8) return <><p className="action-kicker">Memory power</p><h3>Peek at one of your cards.</h3><p>Choose a position, or skip the power.</p><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Skip power</button></>;
     if (rank === 9 || rank === 10) return <><p className="action-kicker">Insight power</p><h3>Peek at another player's card.</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("peek-other")}>Choose player</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Skip</button></div></>;
-    if (rank === 11 || rank === 12) return <><p className="action-kicker">Exchange power</p><h3>Blind-swap matching positions.</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("swap")}>Choose player</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Skip</button></div></>;
+    if (rank === 11 || rank === 12) return <><p className="action-kicker">Exchange power</p><h3>Blind-swap any two positions.</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("swap")}>Choose your card</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Skip</button></div></>;
     return <><p className="action-kicker">No power</p><h3>Continue the table.</h3><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Continue</button></>;
   }
   return <><p className="action-kicker">Your turn</p><h3>Draw with intention.</h3><p>Take a hidden card from the deck, choose the discard, or call Cabo.</p></>;
@@ -1203,17 +1284,18 @@ function formatEvent(event: any, name: (id: string) => string): string | undefin
     case "disconnected": return `${name(event.playerId)} went offline.`;
     case "reconnected": return `${name(event.playerId)} reconnected.`;
     case "turn": return `${name(event.playerId)} is playing${event.finalTurn ? " their final turn" : ""}.`;
+    case "turn-timeout": return `${name(event.playerId)} timed out; the server completed their turn.`;
     case "action": {
       const actor = name(event.playerId);
       if (event.action === "draw-deck") return `${actor} drew a hidden card from the deck.`;
       if (event.action === "draw-discard") return `${actor} took ${event.takenCard.label} from the discard pile.`;
-      if (event.action === "replace") return `${actor} replaced positions ${event.positions.join(", ")} with the drawn card.`;
+      if (event.action === "replace") return `${actor} replaced positions ${event.positions.join(", ")}; drawn card placed at ${event.replacementPosition}.`;
       if (event.action === "exchange-mismatch") return `${actor}'s selected cards did not match and were revealed.`;
       if (event.action === "resolve-mismatch") return `${actor} placed the mismatch cards at the chosen ends.`;
       if (event.action === "discard") return `${actor} discarded the drawn ${event.discardedCard.label}.`;
       if (event.action === "peek-self") return `${actor} looked at their card ${event.position}.`;
       if (event.action === "peek-other") return `${actor} looked at ${name(event.targetPlayerId)}'s card ${event.position}.`;
-      if (event.action === "swap") return `${actor} swapped card ${event.position} with ${name(event.targetPlayerId)}.`;
+      if (event.action === "swap") return `${actor} swapped card ${event.ownPosition} with ${name(event.targetPlayerId)}'s card ${event.targetPosition}.`;
       if (event.action === "skip") return `${actor} skipped the card power.`;
       if (event.action === "cabo") return `${actor} called Cabo.`;
       return undefined;

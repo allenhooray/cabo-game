@@ -42,7 +42,7 @@ describe("cabo-agent process protocol", () => {
     const disconnectedPing = await request(bob, { id: "ping-before", type: "ping" });
     expect(disconnectedPing.data).toMatchObject({ connected: false, roomId: null, revision: null });
 
-    const created = await request(alice, { id: "create", type: "create", visibility: "public", targetScore: 100, roomName: "Bots' room" });
+    const created = await request(alice, { id: "create", type: "create", memoryMode: "assisted", turnDurationSeconds: 60, visibility: "public", targetScore: 100, roomName: "Bots' room" });
     const roomId = created.data.roomId as string;
     expect(created.data.roomName).toBe("Bots' room");
     const listed = await request(bob, { id: "rooms", type: "rooms" });

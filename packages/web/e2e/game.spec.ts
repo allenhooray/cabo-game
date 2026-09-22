@@ -15,6 +15,19 @@ async function closeChatIfDrawer(chat: Locator): Promise<void> {
   if (await close.isVisible()) await close.click();
 }
 
+async function waitForRevisionToSettle(page: Page): Promise<void> {
+  let lastRevision = "";
+  let stableSince = Date.now();
+  await expect.poll(async () => {
+    const revision = await page.locator(".topbar").getAttribute("data-state-revision") ?? "";
+    if (revision !== lastRevision) {
+      lastRevision = revision;
+      stableSince = Date.now();
+    }
+    return Date.now() - stableSince;
+  }, { timeout: 5_000, intervals: [100] }).toBeGreaterThanOrEqual(400);
+}
+
 test("two isolated players create, join, start, and reconnect", async ({ browser }) => {
   const aliceContext = await browser.newContext();
   const bobContext = await browser.newContext();
@@ -62,7 +75,7 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await alice.getByRole("region", { name: "Your hand and actions" }).hover();
   await expect(alice).toHaveScreenshot("game-table.png", {
     animations: "disabled",
-    mask: [alice.locator(".room-code, .card-memory, .playing-card:not(.card-back)")],
+    mask: [alice.locator(".room-id, .card-memory, .playing-card:not(.card-back), .deadline-banner, .chat-message time")],
     maskColor: "#777777",
     maxDiffPixelRatio: 0.02,
   });
@@ -77,6 +90,8 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
 
   await actor.locator(".hand-slot").first().click();
   await actor.locator(".hand-slot").nth(1).click();
+  await expect(actor.getByRole("button", { name: "Confirm exchange" })).toBeDisabled();
+  await actor.getByLabel("Drawn card destination").selectOption("2");
   await actor.getByRole("button", { name: "Confirm exchange" }).click();
   await expect(observer.getByRole("complementary", { name: "Recent activity" })).toContainText(/positions 1, 2|did not match/);
   const mismatchPlacement = actor.getByRole("button", { name: "Left end" });
@@ -92,6 +107,71 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await aliceContext.close();
   await bobContext.close();
 });
+
+for (const mode of ["classic", "assisted"] as const) {
+  test(`${mode}: invite, authoritative memory, reconnect and automatic next round`, async ({ browser }) => {
+    test.setTimeout(60_000);
+    const hostContext = await browser.newContext();
+    const guestContext = await browser.newContext();
+    const host = await hostContext.newPage();
+    const guest = await guestContext.newPage();
+    await host.addInitScript(() => Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("denied")) } }));
+    await host.goto("/");
+    await host.getByRole("button", { name: "Create room" }).click();
+    await host.getByLabel("Memory mode").selectOption(mode);
+    await host.getByLabel("Step timer").selectOption("0");
+    await host.getByRole("button", { name: "Create table" }).click();
+    const roomId = await host.locator(".lobby-copy .room-id").innerText();
+    await host.locator(".share-room summary").click();
+    await host.getByRole("button", { name: "Copy room code" }).click();
+    await expect(host.getByLabel("Copy manually")).toHaveValue(roomId);
+    await host.getByRole("button", { name: "Copy invite link" }).click();
+    await expect(host.getByLabel("Copy manually")).toHaveValue(/server=/);
+    const link = await host.getByLabel("Copy manually").inputValue();
+    await host.locator(".share-room summary").click();
+    await guest.goto(link);
+    await expect(guest.getByLabel("Room code")).toHaveValue(roomId);
+    await expect(guest.getByText(/Invitation server:/)).toContainText("http://127.0.0.1:2567");
+    await guest.getByRole("button", { name: "Join table" }).click();
+    await expect(guest.locator(".lobby-copy .room-id")).toHaveText(roomId);
+    expect(new URL(guest.url()).search).toBe("");
+    await expect.poll(() => guest.evaluate(() => localStorage.getItem("cabo.server.v1"))).toBe("http://127.0.0.1:2567");
+    await host.getByRole("button", { name: "Start game" }).click();
+    await expect(host.locator(".hand-slot.known")).toHaveCount(2);
+    if (mode === "classic") await expect(host.locator(".hand-slot.known")).toHaveCount(0, { timeout: 7000 });
+    await host.reload();
+    await expect(host.getByText("Live", { exact: true })).toBeVisible();
+    await expect(host.locator(".hand-slot.known")).toHaveCount(mode === "classic" ? 0 : 2);
+    if (mode === "classic") {
+      const session = await host.evaluate(() => JSON.parse(localStorage.getItem("cabo.session.v1")!));
+      expect(session.knowledge).toBeUndefined();
+    }
+    const caller = await host.getByRole("button", { name: "Call Cabo", exact: true }).isVisible() ? host : guest;
+    const finalPlayer = caller === host ? guest : host;
+    await caller.getByRole("button", { name: "Call Cabo", exact: true }).click();
+    const confirmation = caller.getByRole("dialog", { name: "Call Cabo?" });
+    await expect(confirmation).toContainText("strictly lowest");
+    await expect(confirmation).toContainText(mode === "classic" ? "4 cards" : "Known subtotal");
+    // Reconnection changes the authoritative revision and invalidates a pending declaration.
+    const beforeReconnect = Number(await caller.locator(".topbar").getAttribute("data-state-revision"));
+    await finalPlayer.reload();
+    await expect(finalPlayer.getByText("Live", { exact: true })).toBeVisible();
+    await expect.poll(async () => Number(await caller.locator(".topbar").getAttribute("data-state-revision"))).toBeGreaterThanOrEqual(beforeReconnect + 2);
+    await expect(confirmation).not.toBeVisible();
+    await Promise.all([waitForRevisionToSettle(caller), waitForRevisionToSettle(finalPlayer)]);
+    await caller.getByRole("button", { name: "Call Cabo", exact: true }).click();
+    await confirmation.getByRole("button", { name: "Call Cabo", exact: true }).click();
+    await finalPlayer.getByRole("button", { name: /Draw pile/ }).click();
+    await finalPlayer.locator(".hand-slot").first().click();
+    await finalPlayer.getByRole("button", { name: "Confirm exchange" }).click();
+    await expect(host.getByRole("button", { name: "Ready for next round" })).toBeVisible();
+    await expect(host.getByRole("timer")).toContainText(/Next round in (19|20)s/);
+    await expect(host.getByRole("button", { name: "Ready for next round" })).not.toBeVisible({ timeout: 23_000 });
+    await expect(guest.getByRole("button", { name: "Ready for next round" })).not.toBeVisible({ timeout: 23_000 });
+    await expect(host.locator(".hand-slot.known")).toHaveCount(2);
+    await Promise.all([hostContext.close(), guestContext.close()]);
+  });
+}
 
 test("a five-player room fills every seat and starts", async ({ browser }) => {
   const contexts = await Promise.all(Array.from({ length: 5 }, () => browser.newContext()));

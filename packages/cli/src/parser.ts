@@ -1,9 +1,9 @@
-import type { ClientCommand } from "@cabo-game/shared";
+import type { ClientCommand, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
 
 export type LocalCommand =
   | { kind: "help" }
   | { kind: "rooms" }
-  | { kind: "create"; visibility: "public" | "private"; targetScore: number; roomName?: string }
+  | { kind: "create"; visibility: "public" | "private"; targetScore: number; roomName?: string; memoryMode: MemoryMode; turnDurationSeconds: TurnDurationSeconds }
   | { kind: "join"; roomId: string; password?: string }
   | { kind: "reconnect" }
   | { kind: "show" }
@@ -39,11 +39,25 @@ export function parseCommand(input: string): LocalCommand {
       const visibility = args[0]?.toLowerCase();
       if (visibility !== "public" && visibility !== "private") throw new Error('Usage: create public|private [target] --name "room name".');
       let targetScore = 100;
+      let memoryMode: MemoryMode = "classic";
+      let turnDurationSeconds: TurnDurationSeconds = 60;
       let roomName: string | undefined;
       let sawTarget = false;
       let sawName = false;
       for (let index = 1; index < args.length; index += 1) {
         const arg = args[index];
+        if (arg === "--mode") {
+          const mode = args[++index];
+          if (mode !== "classic" && mode !== "assisted") throw new Error("Mode must be classic or assisted.");
+          memoryMode = mode;
+          continue;
+        }
+        if (arg === "--timer") {
+          const duration = Number(args[++index]);
+          if (![0, 30, 60, 90].includes(duration)) throw new Error("Timer must be 0, 30, 60 or 90 seconds.");
+          turnDurationSeconds = duration as TurnDurationSeconds;
+          continue;
+        }
         if (arg === "--name") {
           if (sawName) throw new Error("--name may only be specified once.");
           if (index + 1 >= args.length || args[index + 1]?.startsWith("--")) throw new Error("--name requires a room name.");
@@ -58,7 +72,7 @@ export function parseCommand(input: string): LocalCommand {
         sawTarget = true;
       }
       if (!Number.isInteger(targetScore) || targetScore < 20 || targetScore > 500) throw new Error("Target must be an integer from 20 to 500.");
-      return { kind: "create", visibility, targetScore, ...(roomName !== undefined ? { roomName } : {}) };
+      return { kind: "create", visibility, targetScore, memoryMode, turnDurationSeconds, ...(roomName !== undefined ? { roomName } : {}) };
     }
     case "join":
       if (!args[0]) throw new Error("Usage: join ROOM_CODE [password].");
@@ -114,11 +128,11 @@ export function parseCommand(input: string): LocalCommand {
         command: { type: "peek-other", targetPlayerId: "", position: position(args[1]) },
       };
     case "swap":
-      if (!args[0]) throw new Error("Usage: swap PLAYER POSITION.");
+      if (args.length !== 3 || !args[0]) throw new Error("Usage: swap PLAYER OWN_POSITION TARGET_POSITION.");
       return {
         kind: "game",
         targetName: args[0],
-        command: { type: "swap", targetPlayerId: "", position: position(args[1]) },
+        command: { type: "swap", targetPlayerId: "", ownPosition: position(args[1]), targetPosition: position(args[2]) },
       };
     case "skip":
       return { kind: "game", command: { type: "skip" } };

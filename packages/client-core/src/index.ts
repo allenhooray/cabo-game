@@ -3,3 +3,4 @@ export * from "./knowledge.js";
 export * from "./legal-actions.js";
 export * from "./model.js";
 export * from "./session.js";
+export * from "./cabo-risk.js";

@@ -22,7 +22,8 @@ Use `cabo-agent --print-schema` when an exact request or frame shape is uncertai
 Send `{"id":"rooms-1","type":"rooms"}` and inspect `data.rooms` in the matching result.
 
 - Join a suitable room only when `canJoin` is true, using its exact `roomId`: `{"id":"join-1","type":"join","roomId":"..."}`. Include `password` only when the user supplied the six-digit password.
-- If no suitable room is joinable, create a public 100-point room: `{"id":"create-1","type":"create","visibility":"public","targetScore":100,"roomName":"Cabo Agent table"}`.
+- If no suitable room is joinable, create a public 100-point room: `{"id":"create-1","type":"create","memoryMode":"classic","turnDurationSeconds":60,"visibility":"public","targetScore":100,"roomName":"Cabo Agent table"}`.
+- Protocol v7 exposes `state.deadlineAt` and `state.serverTime` in milliseconds; act before the server deadline. Classic knowledge omits historical positions, so remember one-time private reveal events yourself if needed; assisted mode restores server knowledge. `caboRisk` explains strict-lowest, tie failure and +5 scoring. Swap commands require both `ownPosition` and `targetPosition`.
 - After creating a room, report its `roomId` so another player can join. Keep the process alive and wait for observations.
 - In `LOBBY`, send `start` only when it appears in `legalActions`. Otherwise wait; a host cannot start until at least two active players are present.
 

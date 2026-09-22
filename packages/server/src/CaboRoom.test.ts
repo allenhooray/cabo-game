@@ -32,7 +32,7 @@ describe("agent command acknowledgements", () => {
 });
 
 describe("interactive command compatibility", () => {
-  it("defaults a missing replacement position to the first selected position", () => {
+  it("rejects a missing replacement position", () => {
     const room = new CaboRoom();
     const client = { sessionId: "a", send: vi.fn() } as unknown as Client;
     const internals = room as unknown as {
@@ -44,11 +44,8 @@ describe("interactive command compatibility", () => {
 
     internals.handleCommand(client, { type: "replace", positions: [2] });
 
-    expect(runCommand).toHaveBeenCalledWith(client, {
-      type: "replace",
-      positions: [2],
-      replacementPosition: 2,
-    });
+    expect(runCommand).not.toHaveBeenCalled();
+    expect(client.send).toHaveBeenCalledWith("error", expect.objectContaining({ code: "INVALID_COMMAND" }));
   });
 });
 
@@ -229,7 +226,7 @@ describe("room names", () => {
     internals.setPrivate = vi.fn(async () => undefined);
     internals.setMetadata = setMetadata;
 
-    await internals.onCreate({ name: "Alice", visibility: "public", targetScore: 100, roomName: "  Game night  " });
+    await internals.onCreate({ name: "Alice", memoryMode: "assisted", turnDurationSeconds: 60, visibility: "public", targetScore: 100, roomName: "  Game night  " });
 
     expect(room.state.roomName).toBe("Game night");
     expect(setMetadata).toHaveBeenLastCalledWith(expect.objectContaining({ roomName: "Game night" }));
@@ -245,7 +242,7 @@ describe("room names", () => {
     internals.setPrivate = vi.fn(async () => undefined);
     internals.setMetadata = vi.fn(async () => undefined);
 
-    await internals.onCreate({ name: "Alice", visibility: "public", targetScore: 100, roomName: "  " });
+    await internals.onCreate({ name: "Alice", memoryMode: "assisted", turnDurationSeconds: 60, visibility: "public", targetScore: 100, roomName: "  " });
 
     expect(room.state.roomName).toBe("Alice's room");
   });

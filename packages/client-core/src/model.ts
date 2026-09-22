@@ -1,4 +1,11 @@
-import type { GamePhase } from "@cabo-game/shared";
+import type { GamePhase, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
+
+export interface RoomSettings {
+  memoryMode: MemoryMode;
+  turnDurationSeconds: TurnDurationSeconds;
+  deadlineAt: number;
+  serverTime: number;
+}
 
 export interface StatePlayer {
   id: string;
@@ -28,7 +35,7 @@ export interface RoundHistoryEntry {
   players: RoundHistoryPlayer[];
 }
 
-export interface CaboStateLike {
+export interface CaboStateLike extends RoomSettings {
   revision: number;
   roomName: string;
   phase: GamePhase;
@@ -47,7 +54,7 @@ export interface CaboStateLike {
   roundHistory?: RoundHistoryEntry[];
 }
 
-export interface ListedRoom {
+export interface ListedRoom extends RoomSettings {
   roomId: string;
   roomName: string;
   targetScore: number;
@@ -60,7 +67,7 @@ export interface ListedRoom {
 }
 
 /** Room-list payload accepted from both current and pre-room-name servers. */
-export interface ListedRoomResponse {
+export interface ListedRoomResponse extends RoomSettings {
   roomId: string;
   locked?: boolean;
   roomName?: string;

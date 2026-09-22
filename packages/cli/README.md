@@ -1,5 +1,7 @@
 # Cabo Agent CLI
 
+Protocol v7 requires `memoryMode: "classic" | "assisted"` and `turnDurationSeconds: 0 | 30 | 60 | 90` on create requests. The interactive CLI defaults to classic/60 and accepts `create public --mode assisted --timer 90`. Classic reveals are temporary, assisted knowledge is restored by the server. Round results advance after everyone is ready or 20 seconds. Use `swap PLAYER OWN_POS TARGET_POS` for different-position swaps; Cabo confirmation explains ties and the +5 penalty.
+
 `cabo-agent` exposes one Cabo player as a language-neutral JSONL subprocess. It is designed for supervisors and bots written in Python, Go, Rust, Node.js, or any runtime that can manage a child process.
 
 ## Install
@@ -35,10 +37,10 @@ cabo-agent \
 stdin and stdout contain exactly one JSON object per line. stderr is reserved for diagnostics. The first runtime frame is `ready`.
 
 ```jsonl
-{"type":"ready","protocolVersion":6,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
+{"type":"ready","protocolVersion":7,"cliVersion":"0.1.0","server":"https://cabo-api.human404.link","name":"Bot-A","sessionPersistence":false,"requestTimeoutMs":15000,"capabilities":["describe","ping","json-schema","request-timeout"]}
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}
-{"id":"create","type":"create","visibility":"public","targetScore":100,"roomName":"Bots' room"}
+{"id":"create","type":"create","memoryMode":"classic","turnDurationSeconds":60,"visibility":"public","targetScore":100,"roomName":"Bots' room"}
 ```
 
 Every request has a unique string `id`. Requests are processed serially, but pushed `event` and `observation` frames may appear before the matching `result`.

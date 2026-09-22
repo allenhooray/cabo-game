@@ -20,10 +20,11 @@ export function caboHelpLines(): string[] {
     "Usage: cabo [--server URL] [--name NAME] [-h|--help] [-v|--version]",
     `Options: --server URL (default: ${DEFAULT_SERVER_URL}) | --name NAME (default: current OS user)`,
     'Connection: rooms | create public|private [target] --name "room name" | join ROOM [password] | reconnect | quit',
+    "Create options: --mode classic|assisted (default classic) | --timer 0|30|60|90 (default 60)",
     "Lobby:      players | start | leave",
     "Chat:       chat MESSAGE | chat (guided input) | press t at an empty prompt",
     "Game:       show | draw deck | draw discard | replace POS [POS ...] [at POS] | resolve LEFT [PENALTY] | discard",
-    "            peek self POS | peek PLAYER POS | swap PLAYER POS | skip | cabo | ready",
+    "            peek self POS | peek PLAYER POS | swap PLAYER OWN_POS TARGET_POS | skip | cabo | ready",
     "Positions follow the current hand size. Player arguments accept an exact nickname or session id; type cancel to leave a guided prompt.",
     "Want an Agent to play? Ask it to use the cabo-agent command.",
   ];

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { GAME_PHASES } from "./types.js";
 
-export const AGENT_PROTOCOL_VERSION = 6 as const;
+export const AGENT_PROTOCOL_VERSION = 7 as const;
 export const AGENT_REQUEST_TYPES = ["rooms", "create", "join", "reconnect", "observe", "describe", "ping", "action", "leave", "shutdown"] as const;
 export const AGENT_FRAME_TYPES = ["ready", "result", "observation", "event", "fatal"] as const;
 export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "resolve-mismatch", "discard", "peek-self", "peek-other", "swap", "skip", "cabo", "ready-next-round"] as const;
@@ -9,12 +9,22 @@ export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replac
 const position = z.number().int().min(1);
 const placement = z.enum(["left", "right"]);
 const targetScore = z.number().int().min(20).max(500);
+export const memoryModeSchema = z.enum(["classic", "assisted"]);
+export const turnDurationSchema = z.union([z.literal(0), z.literal(30), z.literal(60), z.literal(90)]);
+const roomSettings = { memoryMode: memoryModeSchema, turnDurationSeconds: turnDurationSchema };
+const roomTiming = { deadlineAt: z.number().nonnegative(), serverTime: z.number().nonnegative() };
+export const caboRiskSchema = z.object({
+  strictLowest: z.literal(true), tieFails: z.literal(true), failurePenalty: z.literal(5),
+  knownScore: z.number().nullable(), unknownCount: z.number().int().nonnegative(),
+}).strict();
+export type CaboRisk = z.infer<typeof caboRiskSchema>;
 export const roomNameSchema = z.string().refine(
   (value) => Array.from(value.trim()).length <= 40,
   "Room name must contain at most 40 characters.",
 ).meta({ maxLength: 40, description: "A room label of at most 40 Unicode characters; surrounding whitespace is ignored by the server." });
 
 export const roomOptionsSchema = z.object({
+  ...roomSettings,
   name: z.string().trim().min(1).max(20),
   roomName: roomNameSchema.optional(),
   visibility: z.enum(["public", "private"]).default("public"),
@@ -44,7 +54,7 @@ const agentActionVariants = [
   z.object({ type: z.literal("discard") }).strict(),
   z.object({ type: z.literal("peek-self"), position }).strict(),
   z.object({ type: z.literal("peek-other"), targetPlayerId: z.string().min(1), position }).strict(),
-  z.object({ type: z.literal("swap"), targetPlayerId: z.string().min(1), position }).strict(),
+  z.object({ type: z.literal("swap"), targetPlayerId: z.string().min(1), ownPosition: position, targetPosition: position }).strict(),
   z.object({ type: z.literal("skip") }).strict(),
   z.object({ type: z.literal("cabo") }).strict(),
   z.object({ type: z.literal("ready-next-round") }).strict(),
@@ -89,7 +99,7 @@ export const agentCommandRequestSchema = z.object({
 const requestId = z.string().trim().min(1);
 export const agentRequestSchema = z.discriminatedUnion("type", [
   z.object({ id: requestId, type: z.literal("rooms") }).strict(),
-  z.object({ id: requestId, type: z.literal("create"), visibility: z.enum(["public", "private"]), targetScore: targetScore.default(100), roomName: roomNameSchema.optional(), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
+  z.object({ id: requestId, type: z.literal("create"), ...roomSettings, visibility: z.enum(["public", "private"]), targetScore: targetScore.default(100), roomName: roomNameSchema.optional(), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
   z.object({ id: requestId, type: z.literal("join"), roomId: z.string().min(1), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
   z.object({ id: requestId, type: z.literal("reconnect") }).strict(),
   z.object({ id: requestId, type: z.literal("observe") }).strict(),
@@ -134,6 +144,8 @@ export const agentObservationSchema = z.object({
   selfId: z.string(),
   revision: z.number().int().nonnegative(),
   state: z.object({
+    ...roomSettings,
+    ...roomTiming,
     phase: z.enum(GAME_PHASES),
     round: z.number().int().nonnegative(),
     targetScore,
@@ -148,6 +160,7 @@ export const agentObservationSchema = z.object({
     roundHistory: z.array(roundHistoryEntrySchema),
   }).strict(),
   knowledge: z.object({
+    memoryMode: memoryModeSchema,
     round: z.number().int().nonnegative(),
     slots: z.array(displayCardSchema.nullable()),
     opponents: z.array(z.object({
@@ -157,6 +170,7 @@ export const agentObservationSchema = z.object({
     held: displayCardSchema.nullable(),
   }).strict(),
   legalActions: z.array(legalActionSchema),
+  caboRisk: caboRiskSchema.nullable(),
 }).strict();
 
 export const agentReadyFrameSchema = z.object({
@@ -171,6 +185,8 @@ export const agentReadyFrameSchema = z.object({
 }).strict();
 
 const listedRoomSchema = z.object({
+  ...roomSettings,
+  ...roomTiming,
   roomId: z.string(),
   roomName: z.string(),
   targetScore,
@@ -272,6 +288,9 @@ export interface ErrorMessage {
 }
 
 export interface PrivateRevealMessage {
+  round: number;
+  memoryMode: import("./types.js").MemoryMode;
+  ownerId: string;
   card: { id: string; rank: number; label: string };
   position?: number;
   reason: "initial" | "draw" | "peek";

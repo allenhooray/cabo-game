@@ -14,12 +14,18 @@ import {
   type ErrorMessage,
   type Position,
   type RoomChatMessage,
+  type MemoryMode,
+  type TurnDurationSeconds,
 } from "@cabo-game/shared";
 import { type Client, Room } from "colyseus";
 import { CaboState, PlayerState, RoundHistoryCardState, RoundHistoryEntryState, RoundHistoryPlayerState } from "./state.js";
 import { PrivateKnowledgeStore, publicAction } from "./private-knowledge.js";
 
 interface RoomMetadata {
+  memoryMode: MemoryMode;
+  turnDurationSeconds: TurnDurationSeconds;
+  deadlineAt: number;
+  serverTime: number;
   visibility: "public" | "private";
   roomName: string;
   phase: string;
@@ -38,6 +44,11 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private passwordHash: Buffer | undefined;
   private visibility: "public" | "private" = "public";
   private targetScore = 100;
+  private memoryMode: MemoryMode = "classic";
+  private turnDurationSeconds: TurnDurationSeconds = 60;
+  private deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+  private timerGeneration = 0;
+  private timingKey = "";
   private readonly knowledge = new PrivateKnowledgeStore();
   private chatSequence = 0;
   private readonly chatBuckets = new Map<string, { tokens: number; updatedAt: number }>();
@@ -57,6 +68,11 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     }
     this.visibility = options.visibility;
     this.targetScore = options.targetScore;
+    this.memoryMode = options.memoryMode;
+    this.turnDurationSeconds = options.turnDurationSeconds;
+    this.state.memoryMode = this.memoryMode;
+    this.state.turnDurationSeconds = this.turnDurationSeconds;
+    this.state.serverTime = Date.now();
     this.state.roomName = options.roomName?.trim() || `${options.name}'s room`;
     this.state.targetScore = this.targetScore;
     if (options.password) this.passwordHash = this.hashPassword(options.password);
@@ -131,7 +147,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   }
 
   private handleCommand(client: Client, rawPayload: unknown): void {
-    const parsed = clientCommandSchema.safeParse(normalizeLegacyClientCommand(rawPayload));
+    const parsed = clientCommandSchema.safeParse(rawPayload);
     if (!parsed.success) {
       this.sendError(client, "INVALID_COMMAND", parsed.error.issues[0]?.message ?? "Invalid command.");
       return;
@@ -210,6 +226,11 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   }
 
   private runCommand(client: Client, command: ClientCommand): void {
+    // Resolve an elapsed deadline before accepting a late network command.
+    if (this.state.deadlineAt && Date.now() >= this.state.deadlineAt) {
+      this.handleDeadline(this.timerGeneration);
+      throw new GameRuleError("INVALID_PHASE", "The deadline passed; refresh the current action.");
+    }
     if (command.type === "start") {
       this.startGame(client);
       return;
@@ -228,44 +249,49 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       return;
     }
 
+    this.applyGameCommand(client.sessionId, command);
+  }
+
+  private applyGameCommand(playerId: string, command: ClientCommand): void {
+    if (!this.engine) throw new GameRuleError("INVALID_PHASE", "The game has not started.");
     let events: EngineEvent[];
     const discardBefore = this.engine.getSnapshot().discardTop;
     const pendingDraw = this.engine.getPendingDraw();
     switch (command.type) {
       case "draw-deck":
-        events = this.engine.drawDeck(client.sessionId);
+        events = this.engine.drawDeck(playerId);
         break;
       case "draw-discard":
-        events = this.engine.drawDiscard(client.sessionId);
+        events = this.engine.drawDiscard(playerId);
         break;
       case "replace":
-        events = this.engine.replaceHeld(client.sessionId, command.positions as Position[], command.replacementPosition as Position);
+        events = this.engine.replaceHeld(playerId, command.positions as Position[], command.replacementPosition as Position);
         break;
       case "resolve-mismatch":
-        events = this.engine.resolveMismatch(client.sessionId, command.drawnPlacement, command.penaltyPlacement);
+        events = this.engine.resolveMismatch(playerId, command.drawnPlacement, command.penaltyPlacement);
         break;
       case "discard":
-        events = this.engine.discardHeld(client.sessionId);
+        events = this.engine.discardHeld(playerId);
         break;
       case "peek-self":
-        events = this.engine.peekSelf(client.sessionId, command.position as Position);
+        events = this.engine.peekSelf(playerId, command.position as Position);
         break;
       case "peek-other":
-        events = this.engine.peekOther(client.sessionId, command.targetPlayerId, command.position as Position);
+        events = this.engine.peekOther(playerId, command.targetPlayerId, command.position as Position);
         break;
       case "swap":
-        events = this.engine.swap(client.sessionId, command.targetPlayerId, command.position as Position);
+        events = this.engine.swap(playerId, command.targetPlayerId, command.ownPosition, command.targetPosition);
         break;
       case "skip":
-        events = this.engine.skipPower(client.sessionId);
+        events = this.engine.skipPower(playerId);
         break;
       case "cabo":
-        events = this.engine.callCabo(client.sessionId);
+        events = this.engine.callCabo(playerId);
         break;
       default:
         throw new GameRuleError("INVALID_COMMAND", "Unsupported command.");
     }
-    const action = publicAction(command, client.sessionId, events, discardBefore as Card | undefined, pendingDraw);
+    const action = publicAction(command, playerId, events, discardBefore as Card | undefined, pendingDraw);
     if (action) {
       this.knowledge.applyAction(action);
       this.broadcast("event", action);
@@ -288,7 +314,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     void this.setPrivate(true);
     const events = this.engine.startMatch();
     const snapshot = this.engine.getSnapshot();
-    this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id));
+    this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id), this.memoryMode);
     this.dispatch(events);
     this.sendAllKnowledge();
     this.syncFromEngine();
@@ -299,6 +325,9 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
       if (event.type === "private-reveal") {
         this.knowledge.applyPrivateReveal(event, command);
         this.clients.find((client) => client.sessionId === event.playerId)?.send("reveal", {
+          round: this.engine?.round ?? this.state.round,
+          memoryMode: this.memoryMode,
+          ownerId: command?.type === "peek-other" ? command.targetPlayerId : event.playerId,
           card: event.card,
           ...(event.position ? { position: event.position } : {}),
           reason: event.reason,
@@ -347,14 +376,14 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     this.startNextRoundIfReady();
   }
 
-  private startNextRoundIfReady(): void {
+  private startNextRoundIfReady(force = false): void {
     if (!this.engine || this.engine.phase !== "ROUND_RESULT") return;
     const activePlayers = [...this.state.players.values()].filter((player) => !player.forfeited);
-    if (activePlayers.length === 0 || activePlayers.some((player) => !player.nextRoundReady)) return;
+    if (activePlayers.length === 0 || (!force && activePlayers.some((player) => !player.nextRoundReady))) return;
     for (const player of this.state.players.values()) player.nextRoundReady = false;
     const nextEvents = this.engine.startNextRound();
     const snapshot = this.engine.getSnapshot();
-    this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id));
+    this.knowledge.reset(snapshot.round, snapshot.players.filter((player) => !player.forfeited).map((player) => player.id), this.memoryMode);
     this.dispatch(nextEvents);
     this.sendAllKnowledge();
     this.syncFromEngine();
@@ -382,6 +411,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     this.state.discardLabel = snapshot.discardTop?.label ?? "";
     this.state.discardRank = snapshot.discardTop?.rank ?? -1;
     this.state.deckCount = snapshot.deckCount;
+    this.scheduleDeadline();
     this.state.winners.clear();
     for (const winner of snapshot.winners) this.state.winners.push(winner);
     for (const publicPlayer of snapshot.players) {
@@ -398,7 +428,59 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private bumpRevision(): void {
     // revision 是 Agent 的状态屏障：动作回执只能引用已经提交到 Schema 的版本。
     this.state.revision += 1;
+    this.state.serverTime = Date.now();
   }
+
+  private scheduleDeadline(): void {
+    const key = `${this.state.round}:${this.state.phase}:${this.state.currentPlayerId}`;
+    if (key === this.timingKey) return;
+    this.timingKey = key;
+    this.clearDeadline();
+    const duration = this.state.phase === "ROUND_RESULT" ? 20
+      : ["TURN_START", "FINAL_TURNS", "DRAWN", "POWER_PENDING", "MISMATCH_PENDING"].includes(this.state.phase)
+        ? this.turnDurationSeconds : 0;
+    this.state.deadlineAt = duration ? Date.now() + duration * 1000 : 0;
+    if (duration) {
+      const generation = this.timerGeneration;
+      this.deadlineTimer = setTimeout(() => this.handleDeadline(generation), duration * 1000);
+      this.deadlineTimer.unref?.();
+    }
+  }
+
+  private clearDeadline(): void {
+    if (this.deadlineTimer) clearTimeout(this.deadlineTimer);
+    this.deadlineTimer = undefined;
+    this.timerGeneration += 1;
+    this.state.deadlineAt = 0;
+  }
+
+  private handleDeadline(generation: number): void {
+    if (generation !== this.timerGeneration || !this.engine || !this.state.deadlineAt) return;
+    this.clearDeadline();
+    if (this.engine.phase === "ROUND_RESULT") {
+      this.startNextRoundIfReady(true);
+      return;
+    }
+    const playerId = this.engine.currentPlayerId;
+    if (!playerId) return;
+    this.broadcast("event", { type: "turn-timeout", playerId, phase: this.engine.phase });
+    const apply = (command: ClientCommand) => this.applyGameCommand(playerId, command);
+    if (this.engine.phase === "TURN_START" || this.engine.phase === "FINAL_TURNS") {
+      if (this.engine.canDrawDeck()) apply({ type: "draw-deck" });
+      else if (this.engine.canDrawDiscard()) apply({ type: "draw-discard" });
+      else apply({ type: this.engine.caboCallerId ? "skip" : "cabo" });
+    }
+    // Read the new phase after every ordinary action; never duplicate engine rules.
+    if (this.engine.getSnapshot().phase === "DRAWN") {
+      if (this.engine.getPendingDraw()?.source === "deck") apply({ type: "discard" });
+      else apply({ type: "replace", positions: [1], replacementPosition: 1 });
+    } else if (this.engine.getSnapshot().phase === "MISMATCH_PENDING") {
+      apply({ type: "resolve-mismatch", drawnPlacement: "right", ...(this.state.mismatchPenaltyCardPending ? { penaltyPlacement: "right" as const } : {}) });
+    }
+    if (this.engine.currentPlayerId === playerId && this.engine.getSnapshot().phase === "POWER_PENDING") apply({ type: "skip" });
+  }
+
+  onDispose(): void { this.clearDeadline(); }
 
   private transferHost(): void {
     const next = [...this.state.players.values()].sort((a, b) => a.seat - b.seat)[0];
@@ -408,6 +490,10 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
 
   private async updateListing(): Promise<void> {
     await this.setMetadata({
+      memoryMode: this.memoryMode,
+      turnDurationSeconds: this.turnDurationSeconds,
+      deadlineAt: this.state.deadlineAt,
+      serverTime: this.state.serverTime,
       visibility: this.visibility,
       roomName: this.state.roomName,
       phase: this.state.phase,
@@ -435,13 +521,4 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private sendAgentResult(client: Client, payload: AgentCommandResult): void {
     client.send("agent-result", payload);
   }
-}
-
-function normalizeLegacyClientCommand(rawPayload: unknown): unknown {
-  if (typeof rawPayload !== "object" || rawPayload === null) return rawPayload;
-  const command = rawPayload as { type?: unknown; positions?: unknown; replacementPosition?: unknown };
-  if (command.type !== "replace" || command.replacementPosition !== undefined || !Array.isArray(command.positions)) return rawPayload;
-  const [firstPosition] = command.positions;
-  if (typeof firstPosition !== "number") return rawPayload;
-  return { ...command, replacementPosition: firstPosition };
 }

@@ -8,7 +8,7 @@ const bob: StatePlayer = { id: "b", name: "Bob", seat: 1, score: 0, connected: t
 
 function context(phase: string, currentPlayerId = "a", discardRank = 5): InteractionContext {
   const state: CaboStateLike = {
-    revision: 1,
+    memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 1,
     roomName: "Alice's room",
     phase, round: 1, targetScore: 100, currentPlayerId, caboCallerId: "", drawSource: phase === "DRAWN" ? "deck" : "", mismatchPenaltyCardPending: false, discardLabel: "5♣", discardRank,
     deckCount: 43, players: new Map([["a", alice], ["b", bob]]), winners: [],
@@ -36,9 +36,13 @@ describe("context actions", () => {
     const ctx = context("POWER_PENDING", "a", 11);
     const selected = selectMenu("1", ctx);
     if (selected?.kind !== "flow") throw new Error("missing target flow");
-    const target = advanceFlow("1", selected.flow, ctx);
+    const own = advanceFlow("2", selected.flow, ctx);
+    if (own.kind !== "flow") throw new Error("missing own flow");
+    const target = advanceFlow("1", own.flow, ctx);
     if (target.kind !== "flow") throw new Error("missing position flow");
-    expect(advanceFlow("4", target.flow, ctx)).toEqual({ kind: "game", command: { type: "swap", targetPlayerId: "b", position: 4 } });
+    const confirmation = advanceFlow("4", target.flow, ctx);
+    if (confirmation.kind !== "flow") throw new Error("missing confirmation");
+    expect(advanceFlow("y", confirmation.flow, ctx)).toEqual({ kind: "game", command: { type: "swap", targetPlayerId: "b", ownPosition: 2, targetPosition: 4 } });
     expect(advanceFlow("cancel", target.flow, ctx)).toMatchObject({ kind: "flow", flow: { kind: "idle" } });
   });
 
@@ -100,7 +104,11 @@ describe("context actions", () => {
     expect(started.flow).toEqual({ kind: "create-name", visibility: "public", defaultRoomName: "Alice's room" });
     const named = advanceFlow("Friday night", started.flow, {});
     if (named.kind !== "flow") throw new Error("missing target flow");
-    expect(advanceFlow("150", named.flow, {})).toEqual({ kind: "create", visibility: "public", targetScore: 150, roomName: "Friday night" });
+    const mode = advanceFlow("150", named.flow, {});
+    if (mode.kind !== "flow") throw new Error("missing mode");
+    const timer = advanceFlow("assisted", mode.flow, {});
+    if (timer.kind !== "flow") throw new Error("missing timer");
+    expect(advanceFlow("60", timer.flow, {})).toEqual({ kind: "create", memoryMode: "assisted", turnDurationSeconds: 60, visibility: "public", targetScore: 150, roomName: "Friday night" });
   });
 
   it("always includes the destination position in replacement commands", () => {
@@ -120,7 +128,7 @@ describe("context actions", () => {
 
   it("paginates room browsing in groups of ten and stops at page boundaries", () => {
     const rooms: ListedRoom[] = Array.from({ length: 21 }, (_, index) => ({
-      roomId: `id-${index + 1}`, roomName: `Room ${index + 1}`, targetScore: 100, playerCount: 1, maxClients: 5,
+      roomId: `id-${index + 1}`, roomName: `Room ${index + 1}`, memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 1, maxClients: 5,
       phase: "LOBBY", isFull: false, isStarted: false, canJoin: true,
     }));
     const first = { kind: "room-browser", rooms, page: 0 } as const;

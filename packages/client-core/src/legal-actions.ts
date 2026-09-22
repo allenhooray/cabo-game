@@ -14,6 +14,7 @@ export function legalActions(state: CaboStateLike, selfId: string): LegalAction[
   if (state.currentPlayerId !== selfId) return [];
   const positions = Array.from({ length: self.cardCount }, (_, index) => index + 1);
   if (state.phase === "TURN_START" || state.phase === "FINAL_TURNS") {
+    if (state.phase === "FINAL_TURNS" && state.deckCount === 0 && !state.discardLabel) return [{ type: "skip" }];
     return [
       { type: "draw-deck" },
       { type: "draw-discard" },
@@ -40,7 +41,7 @@ export function legalActions(state: CaboStateLike, selfId: string): LegalAction[
   } else if (state.discardRank === 9 || state.discardRank === 10) {
     powers = targets.flatMap((target) => Array.from({ length: target.cardCount }, (_, index) => ({ type: "peek-other" as const, targetPlayerId: target.id, position: index + 1 })));
   } else if (state.discardRank === 11 || state.discardRank === 12) {
-    powers = targets.flatMap((target) => Array.from({ length: Math.min(self.cardCount, target.cardCount) }, (_, index) => ({ type: "swap" as const, targetPlayerId: target.id, position: index + 1 })));
+    powers = targets.flatMap((target) => positions.flatMap((ownPosition) => Array.from({ length: target.cardCount }, (_, index) => ({ type: "swap" as const, targetPlayerId: target.id, ownPosition, targetPosition: index + 1 }))));
   }
   return [...powers, { type: "skip" }];
 }

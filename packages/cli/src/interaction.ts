@@ -1,4 +1,4 @@
-import type { ClientCommand } from "@cabo-game/shared";
+import type { ClientCommand, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
 import type { CaboStateLike, ListedRoom, StatePlayer } from "./model.js";
 
 export type MenuAction =
@@ -23,6 +23,10 @@ export type InteractionFlow =
   | { kind: "idle" }
   | { kind: "create-name"; visibility: "public" | "private"; defaultRoomName: string }
   | { kind: "create-target"; visibility: "public" | "private"; roomName?: string }
+  | { kind: "create-mode"; visibility: "public" | "private"; roomName?: string; targetScore: number }
+  | { kind: "create-timer"; visibility: "public" | "private"; roomName?: string; targetScore: number; memoryMode: MemoryMode }
+  | { kind: "swap-own"; guard: string }
+  | { kind: "confirm-swap"; target: StatePlayer; ownPosition: number; targetPosition: number; guard: string }
   | { kind: "join-room" }
   | { kind: "chat-message" }
   | { kind: "room-browser"; rooms: ListedRoom[]; page: number; message?: string }
@@ -31,8 +35,8 @@ export type InteractionFlow =
   | { kind: "replacement-position"; positions: number[]; guard: string }
   | { kind: "mismatch-drawn-placement"; penaltyCardPending: boolean; guard: string }
   | { kind: "mismatch-penalty-placement"; drawnPlacement: "left" | "right"; guard: string }
-  | { kind: "target"; action: "peek-other" | "swap"; guard: string }
-  | { kind: "target-position"; action: "peek-other" | "swap"; target: StatePlayer; guard: string }
+  | { kind: "target"; action: "peek-other" | "swap"; ownPosition?: number; guard: string }
+  | { kind: "target-position"; action: "peek-other" | "swap"; ownPosition?: number; target: StatePlayer; guard: string }
   | { kind: "confirm-cabo"; guard: string };
 
 export interface InteractionContext {
@@ -44,7 +48,7 @@ export interface InteractionContext {
 export type InteractionResult =
   | { kind: "flow"; flow: InteractionFlow; message?: string }
   | { kind: "local"; command: string }
-  | { kind: "create"; visibility: "public" | "private"; targetScore: number; roomName?: string }
+  | { kind: "create"; visibility: "public" | "private"; targetScore: number; roomName?: string; memoryMode: MemoryMode; turnDurationSeconds: TurnDurationSeconds }
   | { kind: "listed-room"; room: ListedRoom }
   | { kind: "chat"; text: string }
   | { kind: "game"; command: ClientCommand };
@@ -55,7 +59,7 @@ export function stateGuard(context: InteractionContext): string {
   const state = context.state;
   if (!state) return "disconnected";
   const players = [...state.players.values()].map((player) => `${player.id}:${player.connected}:${player.forfeited}:${player.nextRoundReady}:${player.cardCount}`).join("|");
-  return [state.phase, state.round, state.currentPlayerId, state.caboCallerId, state.drawSource, state.mismatchPenaltyCardPending, state.discardLabel, players].join(":");
+  return [state.revision, state.phase, state.round, state.currentPlayerId, state.caboCallerId, state.drawSource, state.mismatchPenaltyCardPending, state.discardLabel, players].join(":");
 }
 
 export function menuFor(context: InteractionContext): MenuItem[] {
@@ -87,6 +91,7 @@ export function menuFor(context: InteractionContext): MenuItem[] {
 
   if (state.currentPlayerId !== selfId) return [];
   if (state.phase === "TURN_START" || state.phase === "FINAL_TURNS") {
+    if (state.phase === "FINAL_TURNS" && state.deckCount === 0 && !state.discardLabel) return [{ key: "1", label: "No cards to draw — finish final turn", action: "skip" }];
     const items: MenuItem[] = [
       { key: "1", label: "Draw from deck", action: "draw-deck" },
       { key: "2", label: `Take discard ${state.discardLabel || "-"}`, action: "draw-discard" },
@@ -120,6 +125,7 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
     case "idle":
       return menuFor(context).map((item) => ({ value: item.key, label: item.label }));
     case "position":
+    case "swap-own":
       return positions(context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0).map((position) => ({ value: position, label: `Card position ${position}` }));
     case "replacement-position":
       return flow.positions.map(String).map((position) => ({ value: position, label: `Place the drawn card at selected position ${position}` }));
@@ -129,9 +135,10 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
     case "target":
       return activeTargets(context).map((player, index) => ({ value: String(index + 1), label: player.name }));
     case "target-position":
-      return positions(flow.action === "swap"
-        ? Math.min(flow.target.cardCount, context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0)
-        : flow.target.cardCount).map((position) => ({ value: position, label: `${flow.target.name}'s position ${position}` }));
+      return positions(flow.target.cardCount).map((position) => ({ value: position, label: `${flow.target.name}'s position ${position}` }));
+    case "create-mode": return [{ value: "classic", label: "Classic memory (default)" }, { value: "assisted", label: "Assisted memory" }];
+    case "create-timer": return [60, 30, 90, 0].map((seconds) => ({ value: String(seconds), label: seconds ? `${seconds} seconds per step` : "Unlimited" }));
+    case "confirm-swap": return [{ value: "n", label: "Cancel" }, { value: "y", label: `Swap your ${flow.ownPosition} with ${flow.target.name}'s ${flow.targetPosition}` }];
     case "confirm-cabo":
       return [
         { value: "n", label: "No, keep playing" },
@@ -141,7 +148,7 @@ export function selectionOptionsFor(flow: InteractionFlow, context: InteractionC
       const start = flow.page * ROOM_PAGE_SIZE;
       return [...flow.rooms.slice(start, start + ROOM_PAGE_SIZE).map((room, index) => ({
         value: String(index + 1),
-        label: `${escapeTerminalText(room.roomName)}  ID ${escapeTerminalText(room.roomId)}  ${roomStatus(room)}  ${room.playerCount}/${room.maxClients}`,
+        label: `${escapeTerminalText(room.roomName)}  ID ${escapeTerminalText(room.roomId)}  ${roomStatus(room)}  ${room.playerCount}/${room.maxClients}  ${room.memoryMode} · ${room.turnDurationSeconds || "unlimited"}`,
       })), { value: "cancel", label: "Back to main menu" }];
     }
     case "create-name":
@@ -188,7 +195,8 @@ export function selectMenu(input: string, context: InteractionContext): Interact
     case "replace": return { kind: "flow", flow: { kind: "replace-positions", guard } };
     case "peek-self": return { kind: "flow", flow: { kind: "position", action: item.action, guard } };
     case "resolve-mismatch": return { kind: "flow", flow: { kind: "mismatch-drawn-placement", penaltyCardPending: Boolean(context.state?.mismatchPenaltyCardPending), guard } };
-    case "peek-other": case "swap":
+    case "swap": return { kind: "flow", flow: { kind: "swap-own", guard } };
+    case "peek-other":
       return { kind: "flow", flow: { kind: "target", action: item.action, guard } };
     case "cabo": return { kind: "flow", flow: { kind: "confirm-cabo", guard } };
   }
@@ -205,7 +213,26 @@ export function advanceFlow(input: string, flow: InteractionFlow, context: Inter
   if (flow.kind === "create-target") {
     const target = value === "" ? 100 : Number(value);
     if (!Number.isInteger(target) || target < 20 || target > 500) return { kind: "flow", flow, message: "Enter a target score from 20 to 500, or press Enter for 100." };
-    return { kind: "create", visibility: flow.visibility, targetScore: target, ...(flow.roomName !== undefined ? { roomName: flow.roomName } : {}) };
+    return { kind: "flow", flow: { kind: "create-mode", visibility: flow.visibility, targetScore: target, ...(flow.roomName !== undefined ? { roomName: flow.roomName } : {}) } };
+  }
+  if (flow.kind === "create-mode") {
+    const memoryMode = value || "classic";
+    if (memoryMode !== "classic" && memoryMode !== "assisted") return { kind: "flow", flow, message: "Choose classic or assisted." };
+    return { kind: "flow", flow: { ...flow, kind: "create-timer", memoryMode } };
+  }
+  if (flow.kind === "create-timer") {
+    const duration = value ? Number(value) : 60;
+    if (![0, 30, 60, 90].includes(duration)) return { kind: "flow", flow, message: "Choose 0, 30, 60 or 90." };
+    return { ...flow, kind: "create", turnDurationSeconds: duration as TurnDurationSeconds };
+  }
+  if (flow.kind === "swap-own") {
+    const ownPosition = Number(value);
+    const count = context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0;
+    if (!Number.isInteger(ownPosition) || ownPosition < 1 || ownPosition > count) return { kind: "flow", flow, message: "Choose one of your card positions." };
+    return { kind: "flow", flow: { kind: "target", action: "swap", ownPosition, guard: flow.guard } };
+  }
+  if (flow.kind === "confirm-swap") {
+    return /^y(es)?$/i.test(value) ? { kind: "game", command: { type: "swap", targetPlayerId: flow.target.id, ownPosition: flow.ownPosition, targetPosition: flow.targetPosition } } : { kind: "flow", flow: { kind: "idle" } };
   }
   if (flow.kind === "join-room") {
     if (!value) return { kind: "flow", flow, message: "Enter a room code." };
@@ -265,16 +292,14 @@ export function advanceFlow(input: string, flow: InteractionFlow, context: Inter
     const targets = activeTargets(context);
     const target = targets[Number(value) - 1];
     if (!target) return { kind: "flow", flow, message: `Choose a player from 1 to ${targets.length}.` };
-    return { kind: "flow", flow: { kind: "target-position", action: flow.action, target, guard: flow.guard } };
+    return { kind: "flow", flow: { kind: "target-position", action: flow.action, target, ...(flow.ownPosition ? { ownPosition: flow.ownPosition } : {}), guard: flow.guard } };
   }
   if (flow.kind === "target-position") {
     const position = Number(value);
-    const max = flow.action === "swap"
-      ? Math.min(flow.target.cardCount, context.state?.players.get(context.selfId ?? "")?.cardCount ?? 0)
-      : flow.target.cardCount;
+    const max = flow.target.cardCount;
     if (!Number.isInteger(position) || position < 1 || position > max) return { kind: "flow", flow, message: `Choose position 1 to ${max}.` };
     if (flow.action === "peek-other") return { kind: "game", command: { type: "peek-other", targetPlayerId: flow.target.id, position } };
-    return { kind: "game", command: { type: "swap", targetPlayerId: flow.target.id, position } };
+    return { kind: "flow", flow: { kind: "confirm-swap", target: flow.target, ownPosition: flow.ownPosition!, targetPosition: position, guard: flow.guard } };
   }
   return { kind: "flow", flow: { kind: "idle" } };
 }
@@ -291,6 +316,10 @@ export function flowPrompt(flow: InteractionFlow, context: InteractionContext): 
     case "idle": return undefined;
     case "create-name": return `Room name (Enter = ${escapeTerminalText(flow.defaultRoomName)}):`;
     case "create-target": return `Target score for ${flow.visibility} room (20-500, Enter = 100):`;
+    case "create-mode": return "Memory mode (classic / assisted, default classic):";
+    case "create-timer": return "Seconds per step (0 / 30 / 60 / 90, default 60):";
+    case "swap-own": return "Choose your card to swap:";
+    case "confirm-swap": return `Swap your ${flow.ownPosition} with ${flow.target.name}'s ${flow.targetPosition}? Neither card is revealed.`;
     case "join-room": return "Room code:";
     case "chat-message": return "Chat message (type cancel to go back):";
     case "room-browser": return `Public rooms — page ${flow.page + 1}/${Math.max(1, Math.ceil(flow.rooms.length / ROOM_PAGE_SIZE))} (←/→ pages, ↑/↓ options, Enter selects):`;

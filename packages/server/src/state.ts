@@ -51,6 +51,10 @@ export type RoundHistoryEntryState = SchemaType<typeof RoundHistoryEntryState>;
 
 export const CaboState = schema(
   {
+    memoryMode: t.string().default("classic"),
+    turnDurationSeconds: t.number().default(60),
+    deadlineAt: t.number().default(0),
+    serverTime: t.number().default(0),
     revision: t.number().default(0),
     roomName: t.string().default(""),
     phase: t.string().default("LOBBY"),

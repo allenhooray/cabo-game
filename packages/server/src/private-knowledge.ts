@@ -7,18 +7,22 @@ import type {
   Position,
   PrivateKnowledgeSnapshot,
   PublicActionEvent,
+  MemoryMode,
 } from "@cabo-game/shared";
 
 const emptySlots = (length = 4): KnownSlots => Array.from({ length }, () => null);
 const displayCard = (card: Card | KnownCard): KnownCard => ({ label: card.label, rank: card.rank });
 
 export class PrivateKnowledgeStore {
+  private mode: MemoryMode = "assisted";
   private readonly viewers = new Map<string, PrivateKnowledgeSnapshot>();
 
-  reset(round: number, playerIds: string[]): void {
+  reset(round: number, playerIds: string[], mode: MemoryMode): void {
+    this.mode = mode;
     this.viewers.clear();
     for (const viewerId of playerIds) {
       this.viewers.set(viewerId, {
+        memoryMode: mode,
         round,
         slots: emptySlots(),
         opponents: playerIds.filter((id) => id !== viewerId).map((playerId) => ({ playerId, slots: emptySlots() })),
@@ -35,6 +39,7 @@ export class PrivateKnowledgeStore {
       viewer.held = card;
       return;
     }
+    if (this.mode === "classic") return;
     if (!event.position) return;
     if (event.reason === "initial" || command?.type === "peek-self") {
       viewer.slots[event.position - 1] = card;
@@ -80,11 +85,14 @@ export class PrivateKnowledgeStore {
       } else if (event.action === "swap") {
         const own = this.slotsFor(viewerId, knowledge, event.playerId);
         const target = this.slotsFor(viewerId, knowledge, event.targetPlayerId);
-        const index = event.position - 1;
-        const ownCard = own[index] ?? null;
-        const targetCard = target[index] ?? null;
-        own[index] = targetCard;
-        target[index] = ownCard;
+        const ownCard = own[event.ownPosition - 1] ?? null;
+        const targetCard = target[event.targetPosition - 1] ?? null;
+        own[event.ownPosition - 1] = targetCard;
+        target[event.targetPosition - 1] = ownCard;
+      }
+      if (this.mode === "classic") {
+        knowledge.slots.fill(null);
+        for (const opponent of knowledge.opponents) opponent.slots.fill(null);
       }
     }
   }
@@ -100,6 +108,7 @@ export class PrivateKnowledgeStore {
     const value = this.viewers.get(viewerId);
     if (!value) return undefined;
     return {
+      memoryMode: this.mode,
       round: value.round,
       slots: value.slots.map(copyCard),
       opponents: value.opponents.map((opponent) => ({
@@ -170,7 +179,7 @@ export function publicAction(
     case "discard": return discarded[0] ? { type: "action", action: command.type, playerId, discardedCard: displayCard(discarded[0]) } : undefined;
     case "peek-self": return { type: "action", action: command.type, playerId, position: command.position as Position };
     case "peek-other": return { type: "action", action: command.type, playerId, targetPlayerId: command.targetPlayerId, position: command.position as Position };
-    case "swap": return { type: "action", action: command.type, playerId, targetPlayerId: command.targetPlayerId, position: command.position as Position };
+    case "swap": return { type: "action", action: command.type, playerId, targetPlayerId: command.targetPlayerId, ownPosition: command.ownPosition, targetPosition: command.targetPosition };
     case "skip": return { type: "action", action: command.type, playerId };
     case "cabo": return { type: "action", action: command.type, playerId };
     default: return undefined;

@@ -4,7 +4,7 @@ import type { CaboStateLike } from "./model.js";
 import { formatCardText, renderCommandPrompt, renderDashboard, renderPlainState } from "./ui.js";
 
 const state: CaboStateLike = {
-  revision: 1, roomName: "Friends' room", phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
+  memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 1, roomName: "Friends' room", phase: "TURN_START", round: 2, targetScore: 100, currentPlayerId: "a", caboCallerId: "", discardLabel: "6♥", discardRank: 6,
   deckCount: 39,
   players: new Map([
     ["a", { id: "a", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
@@ -19,7 +19,7 @@ describe("terminal rendering", () => {
       round: 2,
       slots: [{ label: "4♣", rank: 4 }, null, null, null],
       opponents: [{ playerId: "b", slots: [null, { label: "9H", rank: 9 }, null, null] }],
-    });
+    }, "assisted");
     const output = renderDashboard({ state, selfId: "a", roomId: "room", knowledge, events: ["Bob joined."], flow: { kind: "idle" } });
     expect(output).toContain("YOUR TURN");
     expect(output).toContain("[1] 4♣ (4 pts)");
@@ -41,7 +41,7 @@ describe("terminal rendering", () => {
       { label: "2D", rank: 2 },
       { label: "3H", rank: 3 },
       { label: "4C", rank: 4 },
-    ] });
+    ] }, "assisted");
     const output = renderDashboard({ state: letterState, selfId: "a", roomId: "room", knowledge, events: ["Bob discarded 10D."], flow: { kind: "idle" } });
 
     expect(output).toContain("Discard 6♡");
@@ -178,7 +178,7 @@ describe("terminal rendering", () => {
       flow: {
         kind: "room-browser",
         page: 0,
-        rooms: [{ roomId: "room", roomName: "AS room", targetScore: 100, playerCount: 1, maxClients: 5, phase: "LOBBY", isFull: false, isStarted: false, canJoin: true }],
+        rooms: [{ roomId: "room", roomName: "AS room", memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, targetScore: 100, playerCount: 1, maxClients: 5, phase: "LOBBY", isFull: false, isStarted: false, canJoin: true }],
       },
     });
     expect(output).toContain("AS room");

@@ -133,7 +133,7 @@ async function run(options: Extract<AgentCliOptions, { mode: "run" }>, cliVersio
     switch (request.type) {
       case "rooms": return { ok: true, data: { rooms: await core.listRooms() } };
       case "create":
-        await core.create({ visibility: request.visibility, targetScore: request.targetScore, ...(request.roomName !== undefined ? { roomName: request.roomName } : {}), ...(request.password ? { password: request.password } : {}) });
+        await core.create({ memoryMode: request.memoryMode, turnDurationSeconds: request.turnDurationSeconds, visibility: request.visibility, targetScore: request.targetScore, ...(request.roomName !== undefined ? { roomName: request.roomName } : {}), ...(request.password ? { password: request.password } : {}) });
         return { ok: true, data: { roomId: core.room?.roomId, roomName: core.state?.roomName, selfId: core.room?.sessionId } };
       case "join":
         await core.join(request.roomId, request.password);
