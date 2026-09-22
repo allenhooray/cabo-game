@@ -12,8 +12,7 @@ describe("Cabo home", () => {
   it("renders the entry actions and empty public room state", async () => {
     render(<App />);
     expect(screen.getByRole("heading", { name: /keep the lowest hand/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /set player name/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /create or join a room/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /quick start/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create room/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/docs/rules/");
     expect(screen.getByRole("link", { name: "CLI" })).toHaveAttribute("href", "/docs/cli/");
@@ -21,15 +20,41 @@ describe("Cabo home", () => {
     await waitFor(() => expect(screen.getByText(/no public rooms yet/i)).toBeInTheDocument());
   });
 
-  it("starts with a generated name and saves a player-selected name", () => {
+  it("starts with a generated name and saves a player-selected name on blur", () => {
     const { container } = render(<App />);
     const nameInput = container.querySelector<HTMLInputElement>("#player-name")!;
     expect(nameInput.value).toMatch(/^Player[A-Z0-9]{4}$/);
     fireEvent.change(nameInput, { target: { value: "  Alice  " } });
-    fireEvent.click(container.querySelector<HTMLButtonElement>(".name-actions button")!);
+    fireEvent.blur(nameInput);
     expect(nameInput).toHaveValue("Alice");
     expect(localStorage.getItem("cabo.name.v1")).toBe("Alice");
-    expect(container.querySelector("[role=status]")).toHaveTextContent("Saved");
+  });
+
+  it("places the caret at the end when the player name receives focus", () => {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    const { container } = render(<App />);
+    const nameInput = container.querySelector<HTMLInputElement>("#player-name")!;
+
+    fireEvent.focus(nameInput);
+
+    expect(nameInput.selectionStart).toBe(nameInput.value.length);
+    expect(nameInput.selectionEnd).toBe(nameInput.value.length);
+  });
+
+  it("does not refresh public rooms while the player name is being edited", async () => {
+    const fetchMock = vi.mocked(fetch);
+    render(<App />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    const nameInput = screen.getByRole("textbox", { name: "Player name" });
+    fireEvent.change(nameInput, { target: { value: "A" } });
+    fireEvent.change(nameInput, { target: { value: "Al" } });
+    fireEvent.change(nameInput, { target: { value: "Ali" } });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("prefills the create form with a room name based on the current player", () => {

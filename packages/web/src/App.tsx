@@ -191,7 +191,7 @@ export function App() {
     setRoomsBusy(true);
     setNotice(undefined);
     try {
-      const listingCore = new CaboClientCore({ serverUrl, playerName: name.trim() || "Player" });
+      const listingCore = new CaboClientCore({ serverUrl, playerName: "Player" });
       setRooms(await listingCore.listRooms());
     } catch (error) {
       setNotice(errorMessage(error));
@@ -199,7 +199,7 @@ export function App() {
     } finally {
       setRoomsBusy(false);
     }
-  }, [name, serverUrl]);
+  }, [serverUrl]);
 
   useEffect(() => {
     void refreshRooms();
@@ -387,10 +387,13 @@ export function App() {
         <div className="room-meta">
           <strong className="room-title">{state.roomName}</strong>
           <span aria-hidden="true" />
-          <span className="room-progress">Round {state.round || "—"} · Goal {state.targetScore}</span>
+          <span className="room-setting">{state.memoryMode === "classic" ? "Classic memory" : "Assisted memory"}</span>
+          <span aria-hidden="true" />
+          <span className="room-setting">{state.turnDurationSeconds ? `${state.turnDurationSeconds}s turns` : "Untimed turns"}</span>
+          <span aria-hidden="true" />
+          <ShareRoom roomId={room.roomId} server={serverUrl} />
         </div>
         <div className="topbar-actions">
-          <ShareRoom roomId={room.roomId} server={serverUrl} memoryMode={state.memoryMode} turnDurationSeconds={state.turnDurationSeconds} />
           <button
             ref={chatTriggerRef}
             className="chat-trigger"
@@ -639,7 +642,6 @@ function Home(props: HomeProps) {
   const [createPassword, setCreatePassword] = useState("");
   const [roomCode, setRoomCode] = useState(props.invitation?.roomId ?? "");
   const [joinPassword, setJoinPassword] = useState("");
-  const [nameSaved, setNameSaved] = useState(false);
 
   return (
     <div className="home-shell">
@@ -653,34 +655,31 @@ function Home(props: HomeProps) {
         </section>
 
         <div className="entry-stack">
-          <section className="entry-panel" aria-labelledby="player-name-heading">
-            <p className="eyebrow">Your identity</p>
-            <h2 id="player-name-heading" className="module-heading">Set player name</h2>
-            <form onSubmit={(event) => {
-              event.preventDefault();
-              props.onSaveName();
-              setNameSaved(true);
-            }}>
-              <label className="field-label" htmlFor="player-name">Player name</label>
-              <input id="player-name" className="input hero-input" value={props.name} maxLength={20} placeholder="Your name" onChange={(event) => { props.onName(event.target.value); setNameSaved(false); }} />
-              <div className="name-actions">
-                <button className="button" type="submit" disabled={!props.name.trim()}>Save player name</button>
-                {nameSaved && <span className="saved-state" role="status">Saved</span>}
-              </div>
-            </form>
-          </section>
-
-          <section className="entry-panel" aria-labelledby="room-actions-heading">
+          <section className="entry-panel" aria-labelledby="quick-start-heading">
             <p className="eyebrow">Play Cabo</p>
-            <h2 id="room-actions-heading" className="module-heading">Create or join a room</h2>
+            <h2 id="quick-start-heading" className="module-heading">Quick start</h2>
+            <label className="field-label" htmlFor="player-name">Player name</label>
+            <input
+              id="player-name"
+              className="input hero-input"
+              value={props.name}
+              maxLength={20}
+              placeholder="Your name"
+              onChange={(event) => props.onName(event.target.value)}
+              onFocus={(event) => {
+                const input = event.currentTarget;
+                requestAnimationFrame(() => input.setSelectionRange(input.value.length, input.value.length));
+              }}
+              onBlur={props.onSaveName}
+            />
             <div className="entry-actions">
-              <button className="button primary" type="button" onClick={() => { setRoomName(`${props.name.trim() || "Player"}'s room`); setCreateOpen(true); setJoinOpen(false); }}>Create room</button>
-              <button className="button" type="button" onClick={() => { setJoinOpen(true); setCreateOpen(false); }}>Join by code</button>
+              <button className={`button ${joinOpen ? "" : "primary"}`} type="button" aria-expanded={createOpen} aria-controls="create-room-form" onClick={() => { setRoomName(`${props.name.trim() || "Player"}'s room`); setCreateOpen(true); setJoinOpen(false); }}>Create room</button>
+              <button className={`button ${joinOpen ? "primary" : ""}`} type="button" aria-expanded={joinOpen} aria-controls="join-room-form" onClick={() => { setJoinOpen(true); setCreateOpen(false); }}>Join by code</button>
             </div>
             {props.notice && <p className="form-notice" role="alert">{props.notice}</p>}
 
             {createOpen && (
-              <form className="inline-form" onSubmit={(event) => {
+              <form id="create-room-form" className="inline-form" onSubmit={(event) => {
                 event.preventDefault();
                 props.onCreate(visibility, targetScore, roomName, memoryMode, turnDurationSeconds, visibility === "private" ? createPassword : undefined);
               }}>
@@ -688,17 +687,21 @@ function Home(props: HomeProps) {
                   <button type="button" aria-pressed={visibility === "public"} onClick={() => setVisibility("public")}>Public</button>
                   <button type="button" aria-pressed={visibility === "private"} onClick={() => setVisibility("private")}>Private</button>
                 </div>
-                <label className="field-label" htmlFor="create-room-name">Room name <span>up to 40 characters</span><input id="create-room-name" className="input" value={roomName} onChange={(event) => setRoomName(event.target.value)} /></label>
-                <label className="field-label">Target score<input className="input" type="number" min={20} max={500} value={targetScore} onChange={(event) => setTargetScore(Number(event.target.value))} /></label>
-                <label className="field-label">Memory mode<select className="input" value={memoryMode} onChange={(event) => setMemoryMode(event.target.value as MemoryMode)}><option value="classic">Classic — remember cards yourself</option><option value="assisted">Assisted — keep seen cards visible</option></select></label>
-                <label className="field-label">Step timer<select className="input" value={turnDurationSeconds} onChange={(event) => setTurnDurationSeconds(Number(event.target.value) as TurnDurationSeconds)}>{[0, 30, 60, 90].map((seconds) => <option key={seconds} value={seconds}>{seconds ? `${seconds} seconds` : "Unlimited"}</option>)}</select></label>
+                <div className="create-fields create-fields-primary">
+                  <label className="field-label" htmlFor="create-room-name">Room name <span>up to 40 characters</span><input id="create-room-name" className="input" value={roomName} onChange={(event) => setRoomName(event.target.value)} /></label>
+                  <label className="field-label">Target score<input className="input" type="number" min={20} max={500} value={targetScore} onChange={(event) => setTargetScore(Number(event.target.value))} /></label>
+                </div>
+                <div className="create-fields">
+                  <label className="field-label">Memory mode<select className="input" value={memoryMode} onChange={(event) => setMemoryMode(event.target.value as MemoryMode)}><option value="classic">Classic — remember cards yourself</option><option value="assisted">Assisted — keep seen cards visible</option></select></label>
+                  <label className="field-label">Step timer<select className="input" value={turnDurationSeconds} onChange={(event) => setTurnDurationSeconds(Number(event.target.value) as TurnDurationSeconds)}>{[0, 30, 60, 90].map((seconds) => <option key={seconds} value={seconds}>{seconds ? `${seconds} seconds` : "Unlimited"}</option>)}</select></label>
+                </div>
                 {visibility === "private" && <label className="field-label">Six-digit password<input className="input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={createPassword} onChange={(event) => setCreatePassword(event.target.value.replace(/\D/g, ""))} /></label>}
                 <button className="button primary" disabled={props.busy || Array.from(roomName.trim()).length > 40 || targetScore < 20 || targetScore > 500 || (visibility === "private" && !/^\d{6}$/.test(createPassword))}>Create table</button>
               </form>
             )}
 
             {joinOpen && (
-              <form className="inline-form" onSubmit={(event) => { event.preventDefault(); if (!props.invitation?.error) props.onJoin(roomCode.trim(), joinPassword || undefined, props.invitation?.server); }}>
+              <form id="join-room-form" className="inline-form" onSubmit={(event) => { event.preventDefault(); if (!props.invitation?.error) props.onJoin(roomCode.trim(), joinPassword || undefined, props.invitation?.server); }}>
                 {props.invitation && <p role={props.invitation.error ? "alert" : undefined}>Invitation server: <strong>{props.invitation.server}</strong>{props.invitation.error ? ` — ${props.invitation.error}` : " — Join table to confirm."}</p>}
                 <label className="field-label">Room code<input className="input code-input" autoCapitalize="none" value={roomCode} onChange={(event) => setRoomCode(event.target.value)} /></label>
                 <label className="field-label">Password <span>optional</span><input className="input" inputMode="numeric" maxLength={6} value={joinPassword} onChange={(event) => setJoinPassword(event.target.value.replace(/\D/g, ""))} /></label>
@@ -742,26 +745,26 @@ function Home(props: HomeProps) {
   );
 }
 
-function ShareRoom(props: { roomId: string; server: string; memoryMode: MemoryMode; turnDurationSeconds: TurnDurationSeconds }) {
+function ShareRoom(props: { roomId: string; server: string }) {
   const [fallback, setFallback] = useState<string>();
   const [copied, setCopied] = useState(false);
   const copy = async (value: string) => {
     const ok = await copyText(value);
     setCopied(ok); setFallback(ok ? undefined : value);
   };
-  const modeLabel = props.memoryMode === "classic" ? "Classic memory" : "Assisted memory";
-  const timerLabel = props.turnDurationSeconds ? `${props.turnDurationSeconds}s turns` : "Untimed turns";
-  return <details className="share-room"><summary>Share</summary><div>
-    <div className="share-room-context">
-      <span>Room code</span>
-      <strong className="room-id">{props.roomId}</strong>
-      <small>{modeLabel} · {timerLabel}</small>
+  return <div className="share-room">
+    <button className="share-room-trigger" type="button" aria-haspopup="true">Share</button>
+    <div className="share-room-panel">
+      <div className="share-room-context">
+        <span>Room code</span>
+        <strong className="room-id">{props.roomId}</strong>
+      </div>
+      <button className="button" type="button" onClick={() => void copy(props.roomId)}>Copy room code</button>
+      <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>Copy invite link</button>
+      {copied && <span role="status">Copied</span>}
+      {fallback && <label>Copy manually<input aria-label="Copy manually" readOnly value={fallback} onFocus={(event) => event.target.select()} /></label>}
     </div>
-    <button className="button" type="button" onClick={() => void copy(props.roomId)}>Copy room code</button>
-    <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>Copy invite link</button>
-    {copied && <span role="status">Copied</span>}
-    {fallback && <label>Copy manually<input aria-label="Copy manually" readOnly value={fallback} onFocus={(event) => event.target.select()} /></label>}
-  </div></details>;
+  </div>;
 }
 
 function Lobby(props: { roomId: string; roomName: string; targetScore: number; players: StatePlayer[]; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void }) {
