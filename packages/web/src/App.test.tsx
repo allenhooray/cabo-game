@@ -81,7 +81,7 @@ describe("Cabo game table additions", () => {
         selfId="alice" players={players} core={{ knowledge: { slots: [null, null, null, null], opponents: [], held: null } } as any}
         busy={false} selection="swap" targetId={targetId} events={[]} cardMotion={undefined}
         onSelection={vi.fn()} onTarget={onTarget} onExecute={onExecute} onConfirm={onConfirm}
-        onLeave={vi.fn()} onConcealStart={vi.fn()} onConcealEnd={vi.fn()}
+        onLeave={vi.fn()}
       />;
     }
     const { container } = render(<Harness />);
@@ -224,8 +224,6 @@ describe("Cabo game table additions", () => {
         onExecute={vi.fn()}
         onConfirm={vi.fn()}
         onLeave={vi.fn()}
-        onConcealStart={vi.fn()}
-        onConcealEnd={vi.fn()}
       />,
     );
     expect(screen.getByText("Alice · 12 pts")).toBeVisible();
@@ -301,8 +299,6 @@ describe("Cabo game table additions", () => {
         onExecute={onExecute}
         onConfirm={vi.fn()}
         onLeave={vi.fn()}
-        onConcealStart={vi.fn()}
-        onConcealEnd={vi.fn()}
       />,
     );
     const slots = container.querySelectorAll<HTMLButtonElement>(".hand-slot");

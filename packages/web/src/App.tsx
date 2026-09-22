@@ -71,7 +71,6 @@ export function App() {
   const [privateReveal, setPrivateReveal] = useState<PrivateRevealMessage>();
   const [cardMotion, setCardMotion] = useState<CardMotion>();
   const [motionQueue, setMotionQueue] = useState<CardMotion[]>([]);
-  const [concealed, setConcealed] = useState(document.visibilityState !== "visible");
   const [readOnly, setReadOnly] = useState(false);
   const [chatMessages, setChatMessages] = useState<RoomChatMessage[]>([]);
   const [chatOpen, setChatOpen] = useState(false);
@@ -223,12 +222,6 @@ export function App() {
       }
     });
   }, [makeCore, serverUrl]);
-
-  useEffect(() => {
-    const onVisibility = () => setConcealed(document.visibilityState !== "visible");
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
 
   useEffect(() => () => {
     if (revealTimer.current) clearTimeout(revealTimer.current);
@@ -385,7 +378,7 @@ export function App() {
   };
 
   return (
-    <div className={`app-shell ${concealed ? "is-concealed" : ""}`}>
+    <div className="app-shell">
       <header className="topbar" data-state-revision={state.revision}>
         <button className="wordmark" type="button" onClick={() => setNotice(`${state.roomName} · Room ${room.roomId}`)}>CABO</button>
         <div className="room-meta"><strong className="room-title">{state.roomName}</strong> <span /> Room <b className="room-id">{room.roomId}</b> <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
@@ -443,8 +436,6 @@ export function App() {
           onExecute={(command) => void execute(command)}
           onConfirm={(next) => setConfirmation(next)}
           onLeave={() => setConfirmation({ title: "Leave the match?", body: "Leaving an active match counts as a forfeit.", label: "Forfeit and leave", action: leave })}
-          onConcealStart={() => setConcealed(true)}
-          onConcealEnd={() => setConcealed(document.visibilityState !== "visible")}
           />
         )}
         </main>
@@ -950,8 +941,6 @@ interface GameTableProps {
   onExecute(command: ClientCommand): void;
   onConfirm(confirmation: Confirmation): void;
   onLeave(): void;
-  onConcealStart(): void;
-  onConcealEnd(): void;
 }
 
 function GameTable(props: GameTableProps) {
@@ -1060,7 +1049,7 @@ function GameTable(props: GameTableProps) {
 
       <section className="player-dock" aria-label="Your hand and actions">
         <div className="hand-block">
-          <div className="hand-heading"><div><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length)} hidden</span></div><button className="privacy-button" type="button" onPointerDown={props.onConcealStart} onPointerUp={props.onConcealEnd} onPointerCancel={props.onConcealEnd}>Hold to conceal</button></div>
+          <div className="hand-heading"><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length)} hidden</span></div>
           <div className={`exchange-controls ${canReplace && exchangePositions.length > 0 ? "" : "is-empty"}`} aria-hidden={canReplace && exchangePositions.length > 0 ? undefined : true}>
             {canReplace && exchangePositions.length > 0 && <><span>Discard positions: {exchangePositions.join(", ")} · Drawn card → {replacementPosition ?? "choose"}</span><div>{exchangePositions.length > 1 && <label>Drawn card destination<select aria-label="Drawn card destination" value={replacementPosition ?? ""} onChange={(event) => setReplacementPosition(Number(event.target.value))}><option value="" disabled>Choose position</option>{exchangePositions.map((position) => <option key={position} value={position}>{position}</option>)}</select></label>}<button className="button primary" type="button" disabled={props.busy || !replacementPosition} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: replacementPosition! })}>Confirm exchange</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>Clear</button></div></>}
           </div>

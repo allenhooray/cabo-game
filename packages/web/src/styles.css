@@ -261,11 +261,10 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .leave-button { left: 10px; }
 
 .player-dock { width: min(1120px, calc(100% - 36px)); margin: 0 auto 14px; padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .55fr); gap: 30px; align-items: center; border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 18px 50px var(--shadow); backdrop-filter: blur(18px); }
-.hand-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.hand-heading { margin-bottom: 12px; }
 .hand-heading strong, .hand-heading span { display: block; }
 .hand-heading strong { font-size: 13px; }
 .hand-heading span { margin-top: 3px; color: var(--muted); font-size: 10px; }
-.privacy-button { min-height: 36px; padding: 0 4px; border: 0; background: none; color: var(--muted); font-size: 10px; cursor: pointer; }
 .exchange-controls { height: 44px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .exchange-controls.is-empty { visibility: hidden; pointer-events: none; }
 .exchange-controls > span { min-width: 0; overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
@@ -288,7 +287,6 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .player-card.motion-swap { animation: player-swap 620ms cubic-bezier(.2, .8, .2, 1) both; }
 .hand-slot small { position: absolute; top: 6px; left: 7px; color: var(--muted); font-size: 8px; }
 .card-memory { font: 400 20px Georgia, serif; }
-.is-concealed .card-memory, .is-concealed .opponent-slot.known, .is-concealed .decision-card.occupied { color: transparent; text-shadow: 0 0 12px var(--ink); user-select: none; }
 .action-zone { height: 100%; min-height: 112px; padding-left: 24px; border-left: 1px solid var(--soft-line); display: flex; flex-direction: column; justify-content: center; }
 .action-zone h3 { margin: 0; font: 400 20px Georgia, serif; }
 .action-zone p:not(.action-kicker) { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
@@ -432,7 +430,6 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
   .action-buttons { display: grid; grid-template-columns: 1fr 1fr; }
   .action-buttons .button { padding-inline: 10px; }
   .event-strip { padding-inline: 14px; }
-  .privacy-button { min-height: 44px; }
 }
 
 @media (max-width: 390px) {
