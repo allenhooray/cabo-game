@@ -87,6 +87,9 @@ export function App() {
   const state = core?.state;
   const room = core?.room;
   const selfId = room?.sessionId;
+  const remainingSeconds = state && state.deadlineAt > 0
+    ? Math.max(0, Math.ceil((state.deadlineAt - (core.serverNow() + clockNow - Date.now())) / 1000))
+    : undefined;
 
   const playerName = useCallback((id: string) => core?.state?.players.get(id)?.name ?? id, [core]);
 
@@ -440,6 +443,7 @@ export function App() {
           targetId={targetId}
           events={events}
           cardMotion={cardMotion}
+          remainingSeconds={remainingSeconds}
           onSelection={(next) => { setSelection(next); setTargetId(undefined); }}
           onTarget={setTargetId}
           onExecute={(command) => void execute(command)}
@@ -463,9 +467,8 @@ export function App() {
       )}
 
       {privateReveal && <PrivateReveal message={privateReveal} onClose={() => setPrivateReveal(undefined)} />}
-      {state.deadlineAt > 0 && <div className="deadline-banner" role="timer">{state.phase === "ROUND_RESULT" ? "Next round" : "Auto action"} in {Math.max(0, Math.ceil((state.deadlineAt - (core.serverNow() + clockNow - Date.now())) / 1000))}s</div>}
-      {result && <Results result={result} state={state} selfId={selfId} playerName={playerName} busy={busy || readOnly} onReady={() => void execute({ type: "ready-next-round" })} onLeave={leave} />}
-      {!result && state.phase === "ROUND_RESULT" && <ScoreFallback state={state} selfId={selfId} busy={busy || readOnly} onReady={() => void execute({ type: "ready-next-round" })} />}
+      {result && <Results result={result} state={state} selfId={selfId} playerName={playerName} busy={busy || readOnly} remainingSeconds={remainingSeconds} onReady={() => void execute({ type: "ready-next-round" })} onLeave={leave} />}
+      {!result && state.phase === "ROUND_RESULT" && <ScoreFallback state={state} selfId={selfId} busy={busy || readOnly} remainingSeconds={remainingSeconds} onReady={() => void execute({ type: "ready-next-round" })} />}
       {!result && state.phase === "MATCH_RESULT" && (
         <Results
           result={{ type: "match-result", winners: [...state.winners], totals: Object.fromEntries(players.map((player) => [player.id, player.score])) }}
@@ -945,6 +948,7 @@ interface GameTableProps {
   targetId: string | undefined;
   events: string[];
   cardMotion: CardMotion | undefined;
+  remainingSeconds?: number;
   onSelection(value: Selection): void;
   onTarget(value: string): void;
   onExecute(command: ClientCommand): void;
@@ -1023,6 +1027,7 @@ function GameTable(props: GameTableProps) {
           const known = props.core.knowledge.opponents.find((entry) => entry.playerId === player.id)?.slots ?? [null, null, null, null];
           return (
             <article className={`player-card ${state.currentPlayerId === player.id ? "active" : ""} ${selected ? "selected" : ""} ${playerMotion ? `motion-${playerMotion.action}` : ""}`} key={player.id}>
+              {state.currentPlayerId === player.id && props.remainingSeconds !== undefined && <TurnTimer seconds={props.remainingSeconds} />}
               <button className="player-main" type="button" disabled={!targetable || props.busy} onClick={() => props.onTarget(player.id)}>
                 <Avatar player={player} />
                 <span className="player-copy"><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : !player.connected ? "Offline · 60s grace" : `${player.score} pts`}</small></span>
@@ -1057,6 +1062,7 @@ function GameTable(props: GameTableProps) {
       </section>
 
       <section className="player-dock" aria-label="Your hand and actions">
+        {myTurn && props.remainingSeconds !== undefined && <TurnTimer seconds={props.remainingSeconds} />}
         <div className="hand-block">
           <div className="hand-heading"><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length)} hidden</span></div>
           <div className={`exchange-controls ${canReplace && exchangePositions.length > 0 ? "" : "is-empty"}`} aria-hidden={canReplace && exchangePositions.length > 0 ? undefined : true}>
@@ -1211,7 +1217,7 @@ function PositionPicker(props: { count: number; onChoose(position: number): void
   return <div className="position-picker" aria-label={props.label}>{Array.from({ length: props.count }, (_, index) => index + 1).map((position) => <button type="button" disabled={props.disabled} key={position} onClick={() => props.onChoose(position)}>{String(position).padStart(2, "0")}</button>)}</div>;
 }
 
-function Results(props: { result: ResultEvent; state: CaboStateLike; selfId?: string; playerName(id: string): string; busy: boolean; onReady?(): void; onLeave(): Promise<void> }) {
+function Results(props: { result: ResultEvent; state: CaboStateLike; selfId?: string; playerName(id: string): string; busy: boolean; remainingSeconds?: number; onReady?(): void; onLeave(): Promise<void> }) {
   if (props.result.type === "match-result") {
     const ranking = Object.entries(props.result.totals).sort(([, a], [, b]) => a - b);
     return <Modal title="Match complete"><p className="result-lede">{props.result.winners.map(props.playerName).join(" & ")} {props.result.winners.length > 1 ? "share" : "takes"} the table.</p><div className="score-list">{ranking.map(([id, score], index) => <div key={id}><span>0{index + 1} · {props.playerName(id)}</span><strong>{score} pts</strong></div>)}</div><div className="modal-actions"><button className="button primary" type="button" disabled={props.busy} onClick={() => void props.onLeave()}>{props.busy ? "Leaving…" : "Back to rooms"}</button></div></Modal>;
@@ -1220,20 +1226,24 @@ function Results(props: { result: ResultEvent; state: CaboStateLike; selfId?: st
   const headline = round.outcome.type === "shooting-the-moon"
     ? `${props.playerName(round.outcome.playerId)} shot the moon.`
     : `Cabo ${round.outcome.succeeded ? "succeeded." : "was challenged."}`;
-  return <Modal title={`Round ${props.state.round} complete`}><p className="result-lede">{headline} Confirm when you are ready to continue.</p><div className="result-hands">{round.hands.map((hand) => <div key={hand.playerId}><div><strong>{props.playerName(hand.playerId)}</strong><span>+{round.roundScores[hand.playerId] ?? 0} · {round.totals[hand.playerId] ?? 0} total</span></div><div className="result-cards">{hand.cards.map((card, index) => <span key={`${card.label}-${index}`}>{formatCardLabel(card.label)}</span>)}</div></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} onReady={props.onReady} /></Modal>;
+  return <Modal title={`Round ${props.state.round} complete`}><p className="result-lede">{headline} Confirm when you are ready to continue.</p><div className="result-hands">{round.hands.map((hand) => <div key={hand.playerId}><div><strong>{props.playerName(hand.playerId)}</strong><span>+{round.roundScores[hand.playerId] ?? 0} · {round.totals[hand.playerId] ?? 0} total</span></div><div className="result-cards">{hand.cards.map((card, index) => <span key={`${card.label}-${index}`}>{formatCardLabel(card.label)}</span>)}</div></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} remainingSeconds={props.remainingSeconds} onReady={props.onReady} /></Modal>;
 }
 
-function ScoreFallback(props: { state: CaboStateLike; selfId: string; busy: boolean; onReady(): void }) {
+function ScoreFallback(props: { state: CaboStateLike; selfId: string; busy: boolean; remainingSeconds?: number; onReady(): void }) {
   const players = [...props.state.players.values()].sort((a, b) => a.score - b.score);
-  return <Modal title={`Round ${props.state.round} complete`}><p className="result-lede">The private result arrived before this page reconnected. Current totals are shown while everyone confirms the next round.</p><div className="score-list">{players.map((player) => <div key={player.id}><span>{player.name}</span><strong>{player.score} pts</strong></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} onReady={props.onReady} /></Modal>;
+  return <Modal title={`Round ${props.state.round} complete`}><p className="result-lede">The private result arrived before this page reconnected. Current totals are shown while everyone confirms the next round.</p><div className="score-list">{players.map((player) => <div key={player.id}><span>{player.name}</span><strong>{player.score} pts</strong></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} remainingSeconds={props.remainingSeconds} onReady={props.onReady} /></Modal>;
 }
 
-function NextRoundReady(props: { state: CaboStateLike; selfId: string | undefined; busy: boolean; onReady: (() => void) | undefined }) {
+function NextRoundReady(props: { state: CaboStateLike; selfId: string | undefined; busy: boolean; remainingSeconds?: number; onReady: (() => void) | undefined }) {
   const active = [...props.state.players.values()].filter((player) => !player.forfeited);
   const ready = active.filter((player) => player.nextRoundReady).length;
   const self = props.selfId ? props.state.players.get(props.selfId) : undefined;
   const confirmed = Boolean(self?.nextRoundReady);
-  return <div className="modal-actions"><span>{ready} of {active.length} active players ready</span>{self && !self.forfeited && <button className="button primary" type="button" disabled={props.busy || confirmed || !props.onReady} onClick={props.onReady}>{confirmed ? "Waiting for others…" : props.busy ? "Confirming…" : "Ready for next round"}</button>}</div>;
+  return <><div className="modal-actions"><span>{ready} of {active.length} active players ready</span>{self && !self.forfeited && <button className="button primary" type="button" disabled={props.busy || confirmed || !props.onReady} onClick={props.onReady}>{confirmed ? "Waiting for others…" : props.busy ? "Confirming…" : "Ready for next round"}</button>}</div>{props.remainingSeconds !== undefined && <div className="next-round-timer" role="timer">Next round in {props.remainingSeconds}s</div>}</>;
+}
+
+function TurnTimer(props: { seconds: number }) {
+  return <span className="turn-timer" role="timer" aria-label={`${props.seconds} seconds remaining`}>{props.seconds}s</span>;
 }
 
 function PrivateReveal(props: { message: PrivateRevealMessage; onClose(): void }) {

@@ -19,7 +19,7 @@
 .share-room summary { cursor: pointer; padding: 10px; }
 .share-room > div { position: absolute; z-index: 30; right: 0; width: 250px; display: grid; gap: 10px; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .share-room input { width: 100%; }
-.deadline-banner { position: fixed; z-index: 40; bottom: 8px; right: 12px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 12px; pointer-events: none; }
+.turn-timer { position: absolute; z-index: 2; top: 7px; right: 8px; min-width: 36px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); box-shadow: 0 6px 16px var(--shadow); font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1; text-align: center; pointer-events: none; }
 .exchange-controls { height: auto !important; min-height: 44px; flex-wrap: wrap; }
 .exchange-controls > div { flex-wrap: wrap; }
 .exchange-controls select { min-height: 36px; margin-left: 5px; }
@@ -219,7 +219,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 
 .game-shell { min-height: calc(100vh - 68px); display: grid; grid-template-rows: auto minmax(310px, 1fr) auto auto; }
 .opponents { width: min(1040px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.player-card { min-width: 0; border: 1px solid transparent; border-radius: 16px; transition: background 180ms ease, border 180ms ease, box-shadow 180ms ease; }
+.player-card { min-width: 0; position: relative; border: 1px solid transparent; border-radius: 16px; transition: background 180ms ease, border 180ms ease, box-shadow 180ms ease; }
 .player-card.active { border-color: var(--line); background: color-mix(in srgb, var(--surface) 84%, transparent); box-shadow: 0 10px 26px var(--shadow); animation: player-breathe 2.8s ease-in-out infinite; }
 .player-card.selected { border-color: var(--ink); }
 .player-main { width: 100%; min-height: 61px; padding: 10px 12px; display: flex; align-items: center; gap: 11px; border: 0; background: none; color: inherit; text-align: left; }
@@ -262,7 +262,8 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .cabo-button { right: 10px; }
 .leave-button { left: 10px; }
 
-.player-dock { width: min(1120px, calc(100% - 36px)); margin: 0 auto 14px; padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .55fr); gap: 30px; align-items: center; border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 18px 50px var(--shadow); backdrop-filter: blur(18px); }
+.player-dock { width: min(1120px, calc(100% - 36px)); margin: 0 auto 14px; padding: 18px 20px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .55fr); gap: 30px; align-items: center; border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 18px 50px var(--shadow); backdrop-filter: blur(18px); }
+.player-dock > .turn-timer { top: 12px; right: 14px; }
 .hand-heading { margin-bottom: 12px; }
 .hand-heading strong, .hand-heading span { display: block; }
 .hand-heading strong { font-size: 13px; }
@@ -312,6 +313,7 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .modal-card h2 { margin: 0; font: 400 34px Georgia, serif; }
 .modal-card > p { color: var(--muted); line-height: 1.6; }
 .modal-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 24px; }
+.next-round-timer { margin-top: 12px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
 .result-lede { margin-bottom: 24px; }
 .score-list > div, .result-hands > div { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--soft-line); }
 .score-list span, .result-hands span { color: var(--muted); font-size: 11px; }
