@@ -384,10 +384,13 @@ export function App() {
     <div className="app-shell">
       <header className="topbar" data-state-revision={state.revision}>
         <button className="wordmark" type="button" onClick={() => setNotice(`${state.roomName} · Room ${room.roomId}`)}>CABO</button>
-        <div className="room-meta"><strong className="room-title">{state.roomName}</strong> <span /> Room <b className="room-id">{room.roomId}</b> <span /> Round {state.round || "—"} <span /> Target {state.targetScore}</div>
+        <div className="room-meta">
+          <strong className="room-title">{state.roomName}</strong>
+          <span aria-hidden="true" />
+          <span className="room-progress">Round {state.round || "—"} · Goal {state.targetScore}</span>
+        </div>
         <div className="topbar-actions">
-          <span className="room-settings">{state.memoryMode} · {state.turnDurationSeconds ? `${state.turnDurationSeconds}s` : "Unlimited"}</span>
-          <ShareRoom roomId={room.roomId} server={serverUrl} />
+          <ShareRoom roomId={room.roomId} server={serverUrl} memoryMode={state.memoryMode} turnDurationSeconds={state.turnDurationSeconds} />
           <button
             ref={chatTriggerRef}
             className="chat-trigger"
@@ -400,7 +403,7 @@ export function App() {
             Chat
             {chatUnread > 0 && <span className="chat-unread-dot" aria-hidden="true" />}
           </button>
-          {state.phase !== "LOBBY" && <ScoreHistoryPanel state={state} />}
+          {state.phase !== "LOBBY" && <ScoreHistoryPanel state={state} selfId={selfId} />}
           <RulesPopover />
           <div className={`connection connection-${connection}`}><i />{connectionLabel(connection)}</div>
         </div>
@@ -739,14 +742,21 @@ function Home(props: HomeProps) {
   );
 }
 
-function ShareRoom(props: { roomId: string; server: string }) {
+function ShareRoom(props: { roomId: string; server: string; memoryMode: MemoryMode; turnDurationSeconds: TurnDurationSeconds }) {
   const [fallback, setFallback] = useState<string>();
   const [copied, setCopied] = useState(false);
   const copy = async (value: string) => {
     const ok = await copyText(value);
     setCopied(ok); setFallback(ok ? undefined : value);
   };
+  const modeLabel = props.memoryMode === "classic" ? "Classic memory" : "Assisted memory";
+  const timerLabel = props.turnDurationSeconds ? `${props.turnDurationSeconds}s turns` : "Untimed turns";
   return <details className="share-room"><summary>Share</summary><div>
+    <div className="share-room-context">
+      <span>Room code</span>
+      <strong className="room-id">{props.roomId}</strong>
+      <small>{modeLabel} · {timerLabel}</small>
+    </div>
     <button className="button" type="button" onClick={() => void copy(props.roomId)}>Copy room code</button>
     <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>Copy invite link</button>
     {copied && <span role="status">Copied</span>}
@@ -815,7 +825,7 @@ function RulesPopover() {
   );
 }
 
-function ScoreHistoryPanel(props: { state: CaboStateLike }) {
+function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string }) {
   const [preview, setPreview] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [revealedCell, setRevealedCell] = useState<string>();
@@ -823,8 +833,7 @@ function ScoreHistoryPanel(props: { state: CaboStateLike }) {
   const ignoreNextFocus = useRef(false);
   const history = [...(props.state.roundHistory ?? [])].sort((a, b) => a.round - b.round);
   const players = [...props.state.players.values()].sort((a, b) => a.seat - b.seat);
-  const leaders = players.filter((player) => !player.forfeited);
-  const leader = [...(leaders.length ? leaders : players)].sort((a, b) => a.score - b.score)[0];
+  const self = props.state.players.get(props.selfId);
   const open = preview || pinned;
 
   useEffect(() => {
@@ -839,7 +848,10 @@ function ScoreHistoryPanel(props: { state: CaboStateLike }) {
     <div
       className={`score-history ${open ? "is-open" : ""} ${pinned ? "is-pinned" : ""}`}
       onMouseEnter={() => setPreview(true)}
-      onMouseLeave={() => setPreview(false)}
+      onMouseLeave={() => {
+        setPreview(false);
+        setPinned(false);
+      }}
       onFocus={() => {
         if (ignoreNextFocus.current) {
           ignoreNextFocus.current = false;
@@ -848,7 +860,10 @@ function ScoreHistoryPanel(props: { state: CaboStateLike }) {
         setPreview(true);
       }}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setPreview(false);
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setPreview(false);
+          setPinned(false);
+        }
       }}
       onKeyDown={(event) => {
         if (event.key === "Escape") {
@@ -868,20 +883,11 @@ function ScoreHistoryPanel(props: { state: CaboStateLike }) {
           type="button"
           aria-expanded={open}
           aria-controls="score-history-matrix"
-          onClick={(event) => {
-            if (pinned) {
-              setPinned(false);
-              setPreview(false);
-              event.currentTarget.blur();
-            } else {
-              setPinned(true);
-            }
-          }}
+          onClick={() => setPinned(true)}
         >
           <span>Scores</span>
-          <strong>{history.length ? `R${history.at(-1)?.round}` : `R${props.state.round}`}</strong>
-          <small>{leader ? `${leader.name} ${leader.score}` : "Waiting"}</small>
-          <i aria-hidden="true">{pinned ? "×" : "+"}</i>
+          <strong>R{props.state.round}</strong>
+          <small>{self ? `${self.score} / ${props.state.targetScore}` : `— / ${props.state.targetScore}`}</small>
         </button>
         <div className="score-history-content" aria-hidden={!open}>
           <div className="score-history-heading">

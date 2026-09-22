@@ -287,9 +287,10 @@ describe("Cabo game table additions", () => {
       ["alice", { id: "alice", name: "Alice", seat: 0, score: 4, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
       ["bob", { id: "bob", name: "Bob", seat: 1, score: 12, connected: true, forfeited: true, nextRoundReady: false, cardCount: 0, isHost: false }],
     ]);
-    render(<__test.ScoreHistoryPanel state={{
+    render(<__test.ScoreHistoryPanel selfId="alice" state={{
       players,
-      round: 2,
+      round: 3,
+      targetScore: 100,
       roundHistory: [{
         round: 1,
         outcomeType: "cabo",
@@ -309,15 +310,17 @@ describe("Cabo game table additions", () => {
     } as any} />);
 
     const trigger = screen.getByRole("button", { name: /scores/i });
+    expect(trigger).toHaveTextContent("ScoresR34 / 100");
+    expect(trigger).not.toHaveTextContent(/Alice|Bob|[+×]/);
     fireEvent.mouseEnter(trigger.parentElement?.parentElement as HTMLElement);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("columnheader", { name: /round 2 alice · moon/i })).toBeVisible();
     expect(screen.getByRole("button", { name: /alice, round 1: plus 4, 4 total/i })).toBeVisible();
     expect(screen.getAllByText("DNF")).toHaveLength(2);
     fireEvent.click(trigger);
-    fireEvent.mouseLeave(trigger.parentElement?.parentElement as HTMLElement);
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.mouseLeave(trigger.parentElement?.parentElement as HTMLElement);
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
