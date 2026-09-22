@@ -385,8 +385,17 @@ export function App() {
         <div className="topbar-actions">
           <span className="room-settings">{state.memoryMode} · {state.turnDurationSeconds ? `${state.turnDurationSeconds}s` : "Unlimited"}</span>
           <ShareRoom roomId={room.roomId} server={serverUrl} />
-          <button ref={chatTriggerRef} className="chat-trigger" type="button" aria-haspopup="dialog" aria-expanded={chatOpen} onClick={openChat}>
-            Chat{chatUnread > 0 ? ` (${chatUnread})` : ""}
+          <button
+            ref={chatTriggerRef}
+            className="chat-trigger"
+            type="button"
+            aria-label={chatUnread > 0 ? `Chat, ${chatUnread} unread ${chatUnread === 1 ? "message" : "messages"}` : "Chat"}
+            aria-haspopup="dialog"
+            aria-expanded={chatOpen}
+            onClick={openChat}
+          >
+            Chat
+            {chatUnread > 0 && <span className="chat-unread-dot" aria-hidden="true" />}
           </button>
           {state.phase !== "LOBBY" && <ScoreHistoryPanel state={state} />}
           <RulesPopover />

@@ -198,7 +198,8 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .chat-compose button:disabled { opacity: .35; cursor: default; }
 .chat-compose > small { display: block; min-height: 13px; margin-top: 5px; color: var(--muted); font-size: 9px; text-align: right; }
 .chat-compose > .chat-validation { color: #8b342f; }
-.chat-trigger { display: none; min-height: 34px; font-size: 10px; }
+.chat-trigger { display: none; min-height: 34px; position: relative; font-size: 10px; }
+.chat-unread-dot { width: 8px; height: 8px; position: absolute; top: -3px; right: -3px; border: 2px solid var(--surface); border-radius: 50%; background: #d93025; box-sizing: content-box; }
 .chat-drawer-layer { display: none; }
 
 .lobby-shell { width: min(1040px, calc(100% - 40px)); min-height: calc(100vh - 68px); margin: 0 auto; padding: clamp(64px, 9vw, 120px) 0; display: grid; grid-template-columns: 1fr minmax(360px, .75fr); gap: clamp(50px, 9vw, 120px); align-items: center; }
