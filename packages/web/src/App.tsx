@@ -383,7 +383,7 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="topbar" data-state-revision={state.revision}>
-        <button className="wordmark" type="button" onClick={() => setNotice(`${state.roomName} · Room ${room.roomId}`)}>CABO</button>
+        <span className="wordmark">CABO</span>
         <div className="room-meta">
           <strong className="room-title">{state.roomName}</strong>
           <span aria-hidden="true" />
