@@ -195,13 +195,56 @@ describe("Cabo game table additions", () => {
         selfId="alice"
         playerName={(id) => id}
         busy={false}
+        remainingSeconds={18}
         onReady={onReady}
         onLeave={vi.fn(async () => undefined)}
       />,
     );
     expect(screen.getByText("1 of 2 active players ready")).toBeVisible();
+    expect(screen.getByRole("timer")).toHaveTextContent("Next round in 18s");
     fireEvent.click(screen.getByRole("button", { name: "Ready for next round" }));
     expect(onReady).toHaveBeenCalledOnce();
+  });
+
+  it("shows only seconds beside the current player", () => {
+    const players = new Map([
+      ["alice", { id: "alice", name: "Alice", seat: 0, score: 12, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
+      ["bob", { id: "bob", name: "Bob", seat: 1, score: 7, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false }],
+    ]);
+    const common = {
+      players: [...players.values()],
+      core: { knowledge: { slots: [null, null, null, null], opponents: [{ playerId: "bob", slots: [null, null, null, null] }], held: null } } as any,
+      busy: false,
+      selection: "idle" as const,
+      targetId: undefined,
+      events: [],
+      cardMotion: undefined,
+      remainingSeconds: 23,
+      onSelection: vi.fn(),
+      onTarget: vi.fn(),
+      onExecute: vi.fn(),
+      onConfirm: vi.fn(),
+      onLeave: vi.fn(),
+    };
+    const state = (currentPlayerId: string) => ({ memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 1, serverTime: 0, revision: 2, roomName: "Room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId, caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] } as any);
+    const { container, rerender } = render(<__test.GameTable {...common} state={state("bob")} selfId="alice" />);
+
+    const opponent = container.querySelector(".player-card.active")!;
+    expect(within(opponent as HTMLElement).getByRole("timer", { name: "23 seconds remaining" })).toHaveTextContent("23s");
+    expect(container.querySelector(".player-dock .turn-timer")).not.toBeInTheDocument();
+    expect(container).not.toHaveTextContent("Auto action");
+
+    rerender(<__test.GameTable {...common} state={state("alice")} selfId="alice" />);
+    expect(container.querySelector(".player-card .turn-timer")).not.toBeInTheDocument();
+    expect(within(container.querySelector(".player-dock") as HTMLElement).getByRole("timer", { name: "23 seconds remaining" })).toHaveTextContent("23s");
+  });
+
+  it("shows the next-round timer in the reconnect fallback", () => {
+    const players = new Map([
+      ["alice", { id: "alice", name: "Alice", seat: 0, score: 4, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
+    ]);
+    render(<__test.ScoreFallback state={{ round: 1, players } as any} selfId="alice" busy={false} remainingSeconds={9} onReady={vi.fn()} />);
+    expect(within(screen.getByRole("dialog")).getByRole("timer")).toHaveTextContent("Next round in 9s");
   });
 
   it("shows the local player's running score", () => {

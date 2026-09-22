@@ -948,7 +948,7 @@ interface GameTableProps {
   targetId: string | undefined;
   events: string[];
   cardMotion: CardMotion | undefined;
-  remainingSeconds?: number;
+  remainingSeconds?: number | undefined;
   onSelection(value: Selection): void;
   onTarget(value: string): void;
   onExecute(command: ClientCommand): void;
@@ -1217,7 +1217,7 @@ function PositionPicker(props: { count: number; onChoose(position: number): void
   return <div className="position-picker" aria-label={props.label}>{Array.from({ length: props.count }, (_, index) => index + 1).map((position) => <button type="button" disabled={props.disabled} key={position} onClick={() => props.onChoose(position)}>{String(position).padStart(2, "0")}</button>)}</div>;
 }
 
-function Results(props: { result: ResultEvent; state: CaboStateLike; selfId?: string; playerName(id: string): string; busy: boolean; remainingSeconds?: number; onReady?(): void; onLeave(): Promise<void> }) {
+function Results(props: { result: ResultEvent; state: CaboStateLike; selfId?: string; playerName(id: string): string; busy: boolean; remainingSeconds?: number | undefined; onReady?(): void; onLeave(): Promise<void> }) {
   if (props.result.type === "match-result") {
     const ranking = Object.entries(props.result.totals).sort(([, a], [, b]) => a - b);
     return <Modal title="Match complete"><p className="result-lede">{props.result.winners.map(props.playerName).join(" & ")} {props.result.winners.length > 1 ? "share" : "takes"} the table.</p><div className="score-list">{ranking.map(([id, score], index) => <div key={id}><span>0{index + 1} · {props.playerName(id)}</span><strong>{score} pts</strong></div>)}</div><div className="modal-actions"><button className="button primary" type="button" disabled={props.busy} onClick={() => void props.onLeave()}>{props.busy ? "Leaving…" : "Back to rooms"}</button></div></Modal>;
@@ -1229,12 +1229,12 @@ function Results(props: { result: ResultEvent; state: CaboStateLike; selfId?: st
   return <Modal title={`Round ${props.state.round} complete`}><p className="result-lede">{headline} Confirm when you are ready to continue.</p><div className="result-hands">{round.hands.map((hand) => <div key={hand.playerId}><div><strong>{props.playerName(hand.playerId)}</strong><span>+{round.roundScores[hand.playerId] ?? 0} · {round.totals[hand.playerId] ?? 0} total</span></div><div className="result-cards">{hand.cards.map((card, index) => <span key={`${card.label}-${index}`}>{formatCardLabel(card.label)}</span>)}</div></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} remainingSeconds={props.remainingSeconds} onReady={props.onReady} /></Modal>;
 }
 
-function ScoreFallback(props: { state: CaboStateLike; selfId: string; busy: boolean; remainingSeconds?: number; onReady(): void }) {
+function ScoreFallback(props: { state: CaboStateLike; selfId: string; busy: boolean; remainingSeconds?: number | undefined; onReady(): void }) {
   const players = [...props.state.players.values()].sort((a, b) => a.score - b.score);
   return <Modal title={`Round ${props.state.round} complete`}><p className="result-lede">The private result arrived before this page reconnected. Current totals are shown while everyone confirms the next round.</p><div className="score-list">{players.map((player) => <div key={player.id}><span>{player.name}</span><strong>{player.score} pts</strong></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} remainingSeconds={props.remainingSeconds} onReady={props.onReady} /></Modal>;
 }
 
-function NextRoundReady(props: { state: CaboStateLike; selfId: string | undefined; busy: boolean; remainingSeconds?: number; onReady: (() => void) | undefined }) {
+function NextRoundReady(props: { state: CaboStateLike; selfId: string | undefined; busy: boolean; remainingSeconds?: number | undefined; onReady: (() => void) | undefined }) {
   const active = [...props.state.players.values()].filter((player) => !player.forfeited);
   const ready = active.filter((player) => player.nextRoundReady).length;
   const self = props.selfId ? props.state.players.get(props.selfId) : undefined;
@@ -1328,4 +1328,4 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export const __test = { validateServerUrl, buildFlights, Results, RulesPopover, ScoreHistoryPanel, GameTable, Lobby, RoomChat };
+export const __test = { validateServerUrl, buildFlights, Results, ScoreFallback, RulesPopover, ScoreHistoryPanel, GameTable, Lobby, RoomChat };

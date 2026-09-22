@@ -75,7 +75,7 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await alice.getByRole("region", { name: "Your hand and actions" }).hover();
   await expect(alice).toHaveScreenshot("game-table.png", {
     animations: "disabled",
-    mask: [alice.locator(".room-id, .card-memory, .playing-card:not(.card-back), .deadline-banner, .chat-message time")],
+    mask: [alice.locator(".room-id, .card-memory, .playing-card:not(.card-back), .turn-timer, .next-round-timer, .chat-message time")],
     maskColor: "#777777",
     maxDiffPixelRatio: 0.02,
   });
@@ -165,7 +165,7 @@ for (const mode of ["classic", "assisted"] as const) {
     await finalPlayer.locator(".hand-slot").first().click();
     await finalPlayer.getByRole("button", { name: "Confirm exchange" }).click();
     await expect(host.getByRole("button", { name: "Ready for next round" })).toBeVisible();
-    await expect(host.getByRole("timer")).toContainText(/Next round in (19|20)s/);
+    await expect(host.getByRole("dialog").getByRole("timer")).toContainText(/Next round in (19|20)s/);
     await expect(host.getByRole("button", { name: "Ready for next round" })).not.toBeVisible({ timeout: 23_000 });
     await expect(guest.getByRole("button", { name: "Ready for next round" })).not.toBeVisible({ timeout: 23_000 });
     await expect(host.locator(".hand-slot.known")).toHaveCount(2);
