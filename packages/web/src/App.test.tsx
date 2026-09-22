@@ -155,6 +155,7 @@ describe("Cabo game table additions", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("complementary", { name: "Quick rules" })).toBeVisible();
     expect(screen.getByRole("link", { name: /read the full rules/i })).toHaveAttribute("href", "/docs/rules/");
+    expect(screen.getByRole("link", { name: /read the full rules/i })).toHaveAttribute("target", "_blank");
     fireEvent.keyDown(trigger.parentElement as HTMLElement, { key: "Escape" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     fireEvent.mouseLeave(trigger.parentElement as HTMLElement);

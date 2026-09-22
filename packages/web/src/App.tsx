@@ -806,7 +806,7 @@ function RulesPopover() {
           <li>After Cabo, everyone else gets one final turn. A successful caller scores zero.</li>
           <li>Exactly two Queens and both Kings shoots the moon: 0 for you, half the target for everyone else.</li>
         </ul>
-        <a href="/docs/rules/">Read the full rules <span aria-hidden="true">↗</span></a>
+        <a href="/docs/rules/" target="_blank" rel="noreferrer">Read the full rules <span aria-hidden="true">↗</span></a>
       </aside>
     </div>
   );
