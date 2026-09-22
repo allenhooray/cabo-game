@@ -13,6 +13,11 @@
   --glow: rgba(255, 255, 255, .76);
   --overlay: rgba(236, 235, 234, .78);
   --danger: #4d1717;
+  --status-live: #287a45;
+  --status-connecting: #966b00;
+  --status-inactive: #77736d;
+  --topbar-glass-background: color-mix(in srgb, var(--surface) 82%, transparent);
+  --topbar-glass-filter: blur(16px);
 }
 
 .share-room { position: relative; font-size: 11px; }
@@ -42,6 +47,9 @@
     --glow: rgba(255, 255, 255, .07);
     --overlay: rgba(11, 11, 12, .8);
     --danger: #e9b0b0;
+    --status-live: #68c982;
+    --status-connecting: #e0b84f;
+    --status-inactive: #96928c;
   }
 }
 
@@ -110,7 +118,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .server-settings summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 20px; }
 .server-settings form { max-width: 560px; padding-top: 20px; }
 
-.topbar { height: 68px; padding: 0 24px; position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--soft-line); backdrop-filter: blur(16px); }
+.topbar { height: 68px; padding: 0 24px; position: sticky; top: 0; z-index: 10; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--soft-line); background: var(--topbar-glass-background); -webkit-backdrop-filter: var(--topbar-glass-filter); backdrop-filter: var(--topbar-glass-filter); }
 .room-meta { min-width: 0; display: flex; align-items: center; color: var(--muted); font-size: 11px; letter-spacing: .06em; }
 .room-meta span { display: inline-block; width: 3px; height: 3px; margin: 0 8px 2px; border-radius: 50%; background: var(--muted); }
 .room-meta .room-title { max-width: min(32vw, 300px); overflow: hidden; color: var(--ink); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
@@ -118,7 +126,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .topbar-actions { justify-self: end; display: flex; align-items: center; gap: 18px; }
 .score-history { width: 154px; height: 38px; position: relative; z-index: 17; }
 .score-history-shell { width: 154px; height: 38px; position: absolute; top: 0; right: 0; overflow: hidden; border: 1px solid transparent; border-radius: 12px; background: transparent; transition: width 340ms cubic-bezier(.2, .8, .2, 1), height 360ms cubic-bezier(.2, .8, .2, 1), border-color 180ms ease, background 180ms ease, box-shadow 220ms ease; }
-.score-history.is-open .score-history-shell { width: min(920px, calc(100vw - 48px)); height: min(560px, calc(100vh - 84px)); border-color: var(--line); background: color-mix(in srgb, var(--surface) 97%, transparent); box-shadow: 0 28px 90px var(--shadow); backdrop-filter: blur(22px); }
+.score-history.is-open .score-history-shell { width: min(920px, calc(100vw - 48px)); height: min(560px, calc(100vh - 84px)); border-color: var(--line); background: var(--topbar-glass-background); box-shadow: 0 28px 90px var(--shadow); -webkit-backdrop-filter: var(--topbar-glass-filter); backdrop-filter: var(--topbar-glass-filter); }
 .score-history-trigger { width: 100%; height: 36px; padding: 0 10px; display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; border: 0; background: transparent; color: var(--muted); cursor: pointer; text-align: left; }
 .score-history-trigger span { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 .score-history-trigger strong { color: var(--ink); font: 400 13px Georgia, serif; }
@@ -130,17 +138,20 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .score-history-heading h2 { margin: 0; font: 400 24px Georgia, serif; }
 .score-history-heading > span { color: var(--muted); font-size: 10px; white-space: nowrap; }
 .score-matrix-scroll { min-height: 0; flex: 1; overflow: auto; border: 1px solid var(--soft-line); border-radius: 12px; overscroll-behavior: contain; scroll-behavior: smooth; }
-.score-matrix { min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.score-matrix { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.score-matrix-player-column { width: 50px; }
 .score-matrix th, .score-matrix td { width: 158px; min-width: 158px; height: 92px; padding: 0; border-right: 1px solid var(--soft-line); border-bottom: 1px solid var(--soft-line); background: var(--surface); vertical-align: middle; }
 .score-matrix thead th { height: 58px; position: sticky; top: 0; z-index: 2; color: var(--muted); text-align: left; }
 .score-matrix thead th > strong, .score-matrix thead th > span { display: block; padding-inline: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .score-matrix thead th > strong { color: var(--ink); font-size: 11px; font-weight: 500; }
 .score-matrix thead th > span { margin-top: 4px; font-size: 9px; }
-.score-matrix th:first-child { width: 174px; min-width: 174px; position: sticky; left: 0; z-index: 3; }
-.score-matrix tbody th { padding: 0 12px; display: flex; align-items: center; gap: 9px; text-align: left; }
-.score-matrix tbody th .avatar { width: 30px; height: 30px; }
-.score-matrix tbody th > span, .score-matrix tbody th strong, .score-matrix tbody th small { min-width: 0; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.score-matrix tbody th > span { flex: 1; }
+.score-matrix th:first-child { width: 50px; min-width: 50px; max-width: 50px; position: sticky; left: 0; z-index: 3; }
+.score-matrix thead th:first-child { padding-left: 10px; }
+.score-matrix tbody th { padding: 0 4px; text-align: left; }
+.score-matrix-player { width: 100%; display: flex; align-items: center; gap: 3px; }
+.score-matrix tbody th .avatar { width: 20px; min-width: 20px; max-width: 20px; height: 20px; min-height: 20px; max-height: 20px; flex: 0 0 20px; aspect-ratio: 1; border-radius: 50%; }
+.score-player-copy, .score-matrix tbody th strong, .score-matrix tbody th small { min-width: 0; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-player-copy { min-width: 0; flex: 1; }
 .score-matrix tbody th strong { font-size: 11px; font-weight: 500; }
 .score-matrix tbody th small { margin-top: 4px; color: var(--muted); font-size: 9px; }
 .score-matrix .latest { background: color-mix(in srgb, var(--surface-2) 42%, var(--surface)); }
@@ -157,9 +168,11 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .score-cell-empty span, .score-cell-empty small { display: block; }
 .score-cell-empty small { margin-top: 4px; font-size: 8px; letter-spacing: .12em; }
 .score-history-empty { margin: auto; color: var(--muted); font-size: 11px; }
-.connection { justify-self: end; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
-.connection i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 4px var(--soft-line); }
-.connection-offline i { background: var(--muted); }
+.connection { justify-self: end; display: flex; align-items: center; gap: 8px; color: var(--status-inactive); font-size: 12px; }
+.connection i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 4px var(--soft-line); }
+.connection-live { color: var(--status-live); }
+.connection-connecting, .connection-reconnecting { color: var(--status-connecting); }
+.connection-idle, .connection-offline { color: var(--status-inactive); }
 .rules-popover { position: relative; }
 .rules-trigger { min-height: 38px; padding: 0 2px; border: 0; background: none; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
 .rules-trigger:hover, .rules-trigger[aria-expanded="true"] { color: var(--ink); }
@@ -396,7 +409,8 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
   .score-history-heading h2 { font-size: 20px; }
   .score-history-heading > span { display: none; }
   .score-matrix th, .score-matrix td { width: 132px; min-width: 132px; height: 78px; }
-  .score-matrix th:first-child { width: 132px; min-width: 132px; }
+  .score-matrix-player-column { width: 50px; }
+  .score-matrix th:first-child { width: 50px; min-width: 50px; max-width: 50px; }
   .score-mini-cards { display: none; }
   .score-cell.is-revealed .score-mini-cards { display: flex; }
   .score-cell.is-revealed { min-height: 96px; }

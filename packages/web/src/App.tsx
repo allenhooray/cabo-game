@@ -900,6 +900,7 @@ function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string }) {
           {history.length ? (
             <div className="score-matrix-scroll" id="score-history-matrix" ref={matrix}>
               <table className="score-matrix">
+                <colgroup><col className="score-matrix-player-column" /><col span={history.length} /></colgroup>
                 <thead><tr><th scope="col">Player</th>{history.map((entry) => (
                   <th scope="col" className={entry === history.at(-1) ? "latest" : ""} key={entry.round}>
                     <strong>Round {entry.round}</strong>
@@ -908,7 +909,7 @@ function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string }) {
                 ))}</tr></thead>
                 <tbody>{players.map((player) => (
                   <tr key={player.id}>
-                    <th scope="row"><Avatar player={player} /><span><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : `${player.score} pts now`}</small></span></th>
+                    <th scope="row" aria-label={`${player.name}, ${player.forfeited ? "DNF" : `${player.score} points now`}`}><div className="score-matrix-player"><Avatar player={player} /><span className="score-player-copy"><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : `${player.score} pts now`}</small></span></div></th>
                     {history.map((entry) => {
                       const result = [...entry.players].find((candidate) => candidate.playerId === player.id);
                       const key = `${entry.round}:${player.id}`;
