@@ -72,7 +72,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .home-footer a { color: var(--muted); text-decoration: none; }
 .home-footer a:hover { color: var(--ink); }
 .wordmark-static, .wordmark { color: var(--ink); font-size: 15px; font-weight: 500; letter-spacing: .26em; }
-.wordmark { border: 0; background: none; cursor: pointer; }
+.wordmark { width: fit-content; justify-self: start; border: 0; background: none; cursor: pointer; }
 .home-main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: clamp(54px, 8vw, 108px) 0 60px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .75fr); column-gap: clamp(48px, 9vw, 120px); row-gap: 60px; }
 .intro h1 { margin: 0; max-width: 760px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(44px, 6vw, 82px); font-weight: 400; line-height: .98; letter-spacing: -.045em; }
 .lede { margin: 28px 0 0; color: var(--muted); font-size: 16px; }
