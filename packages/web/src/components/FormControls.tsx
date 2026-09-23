@@ -9,7 +9,7 @@ export const TextButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTM
 });
 
 export function Field(props: { label: ReactNode; hint?: ReactNode; htmlFor?: string; children: ReactNode }) {
-  return <label className="field-label" htmlFor={props.htmlFor}>{props.label}{props.hint && <> <span>{props.hint}</span></>}{props.children}</label>;
+  return <label className="field-label" {...(props.htmlFor === undefined ? {} : { htmlFor: props.htmlFor })}>{props.label}{props.hint && <> <span>{props.hint}</span></>}{props.children}</label>;
 }
 
 export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function TextInput({ className = "", ...props }, ref) {

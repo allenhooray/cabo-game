@@ -12,7 +12,7 @@ interface OverlayProps {
 }
 
 export function Overlay({ children, className, role = "presentation", ariaModal, ariaLabel, ariaLabelledBy, onBackdropClose, onClick }: OverlayProps) {
-  return <div className={className} role={role} aria-modal={ariaModal} aria-label={ariaLabel} aria-labelledby={ariaLabelledBy} onMouseDown={onBackdropClose ? (event: MouseEvent<HTMLDivElement>) => {
+  return <div className={className} role={role} {...(ariaModal === undefined ? {} : { "aria-modal": ariaModal })} {...(ariaLabel === undefined ? {} : { "aria-label": ariaLabel })} {...(ariaLabelledBy === undefined ? {} : { "aria-labelledby": ariaLabelledBy })} onMouseDown={onBackdropClose ? (event: MouseEvent<HTMLDivElement>) => {
     if (event.target === event.currentTarget) onBackdropClose();
   } : undefined} onClick={onClick}>{children}</div>;
 }
@@ -38,5 +38,5 @@ export function Dialog({ children, className, as = "section", ariaLabel, ariaLab
   }, [closeOnEscape, onClose]);
 
   const Element = as;
-  return <Element className={className} role="dialog" aria-modal="true" aria-label={ariaLabel} aria-labelledby={ariaLabelledBy}>{children}</Element>;
+  return <Element className={className} role="dialog" aria-modal="true" {...(ariaLabel === undefined ? {} : { "aria-label": ariaLabel })} {...(ariaLabelledBy === undefined ? {} : { "aria-labelledby": ariaLabelledBy })}>{children}</Element>;
 }
