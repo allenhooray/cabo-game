@@ -18,14 +18,14 @@ export function DocsApp({ page }: { page: DocPage }) {
     <div className="docs-shell">
       <header className="docs-header">
         <a className="wordmark-static" href="/" aria-label="Cabo game">CABO</a>
-        <nav aria-label="Documentation">
+        <nav aria-label="Main navigation">
+          <a href="/">Play</a>
           {docPages.map((item) => (
             <a key={item} href={`/docs/${item}/`} aria-current={item === page ? "page" : undefined}>
               {titles[item]}
             </a>
           ))}
         </nav>
-        <a className="docs-play-link" href="/">Play</a>
       </header>
       <main className="docs-main">
         <aside className="docs-aside">

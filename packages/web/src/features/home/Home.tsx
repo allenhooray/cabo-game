@@ -39,7 +39,15 @@ export function Home(props: HomeProps) {
 
   return (
     <div className="home-shell">
-      <header className="home-header"><span className="wordmark-static">CABO</span><span>Memory, timing, restraint.</span></header>
+      <header className="home-header">
+        <span className="wordmark-static">CABO</span>
+        <nav aria-label="Main navigation">
+          <a href="/" aria-current="page">Play</a>
+          <a href="/docs/rules/">Rules</a>
+          <a href="/docs/cli/">CLI</a>
+          <a href="/docs/agent/">Agent</a>
+        </nav>
+      </header>
       <main className="home-main">
         <section className="intro">
           <p className="eyebrow">Online card table</p>
@@ -127,14 +135,6 @@ export function Home(props: HomeProps) {
           </form>
         </details>
       </main>
-      <footer className="home-footer">
-        <span>Server-authoritative play · Private cards stay private</span>
-        <nav aria-label="Documentation">
-          <a href="/docs/rules/">Rules</a>
-          <a href="/docs/cli/">CLI</a>
-          <a href="/docs/agent/">Agent</a>
-        </nav>
-      </footer>
     </div>
   );
 }

@@ -51,9 +51,11 @@ describe("Cabo home", () => {
     expect(screen.getByRole("heading", { name: /keep the lowest hand/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /quick start/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create room/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Play" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/docs/rules/");
     expect(screen.getByRole("link", { name: "CLI" })).toHaveAttribute("href", "/docs/cli/");
     expect(screen.getByRole("link", { name: "Agent" })).toHaveAttribute("href", "/docs/agent/");
+    expect(screen.queryByText("Server-authoritative play · Private cards stay private")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/no public rooms yet/i)).toBeInTheDocument());
   });
 

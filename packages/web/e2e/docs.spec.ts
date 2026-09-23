@@ -23,7 +23,7 @@ test("documentation pages are navigable, responsive, and accessible", async ({ p
   for (const entry of pages.slice(1)) {
     await page.goto(entry.path);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Documentation" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Play" })).toHaveAttribute("href", "/");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 

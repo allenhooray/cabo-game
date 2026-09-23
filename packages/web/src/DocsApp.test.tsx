@@ -15,7 +15,9 @@ describe("Cabo documentation", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: heading })).toBeInTheDocument();
     expect(screen.getByText(detail)).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: "Documentation" })).toBeInTheDocument();
+    const navigation = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(navigation).toBeInTheDocument();
+    expect(Array.from(navigation.querySelectorAll("a"), (link) => link.textContent)).toEqual(["Play", "Rules", "CLI", "Agent"]);
     expect(screen.getByRole("link", { name: "Play" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: page === "cli" ? "CLI" : page[0]!.toUpperCase() + page.slice(1) })).toHaveAttribute("aria-current", "page");
   });
