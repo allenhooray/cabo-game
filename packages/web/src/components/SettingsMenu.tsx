@@ -1,36 +1,22 @@
-import { useEffect, useRef, useState } from "react";
 import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from "@cabo-game/i18n";
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../i18n/I18nProvider.js";
 import type { ThemePreference } from "../i18n/preferences.js";
+import { useDisclosure } from "./useDisclosure.js";
 
 export function SettingsMenu() {
   const { t } = useTranslation();
   const preferences = usePreferences();
-  const [open, setOpen] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const outside = (event: PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
-    document.addEventListener("pointerdown", outside);
-    return () => document.removeEventListener("pointerdown", outside);
-  }, []);
+  const disclosure = useDisclosure({ hover: true, outsidePress: true, clickMode: "open", closePinnedOnLeave: true });
 
   return (
     <div
-      ref={root}
-      className={`settings-menu ${open ? "is-open" : ""}`}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") { setOpen(false); trigger.current?.focus(); }
-      }}
+      ref={disclosure.rootRef}
+      className={`settings-menu ${disclosure.open ? "is-open" : ""}`}
+      {...disclosure.rootProps}
     >
-      <button ref={trigger} className="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls="cabo-settings" onClick={() => setOpen(true)}>{t("settings.trigger")}</button>
-      <section id="cabo-settings" className="settings-panel" role="dialog" aria-label={t("settings.title")} hidden={!open}>
+      <button ref={disclosure.triggerRef} className="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded={disclosure.open} aria-controls="cabo-settings" {...disclosure.triggerProps}>{t("settings.trigger")}</button>
+      <section id="cabo-settings" className="settings-panel" role="dialog" aria-label={t("settings.title")} hidden={!disclosure.open}>
         <SettingGroup<ThemePreference>
           legend={t("settings.theme")}
           name="theme"

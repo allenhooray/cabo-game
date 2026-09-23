@@ -4,6 +4,7 @@ import { copyText, invitationLink } from "../../invitation.js";
 import { Avatar, formatCardLabel } from "../../components/TablePrimitives.js";
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../../i18n/I18nProvider.js";
+import { useDisclosure } from "../../components/useDisclosure.js";
 
 export function ShareRoom(props: { roomId: string; server: string }) {
   const { t } = useTranslation();
@@ -50,31 +51,16 @@ export function Lobby(props: { roomId: string; roomName: string; targetScore: nu
 export function RulesPopover() {
   const { t } = useTranslation();
   const { locale } = usePreferences();
-  const [open, setOpen] = useState(false);
-  const pointerFocus = useRef(false);
+  const disclosure = useDisclosure({ hover: true, clickMode: "toggle", closePinnedOnLeave: true });
 
   return (
     <div
       className="rules-popover"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onPointerDownCapture={() => { pointerFocus.current = true; }}
-      onFocus={() => {
-        if (!pointerFocus.current) setOpen(true);
-      }}
-      onBlur={(event) => {
-        pointerFocus.current = false;
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") setOpen(false);
-      }}
+      ref={disclosure.rootRef}
+      {...disclosure.rootProps}
     >
-      <button className="rules-trigger" type="button" aria-expanded={open} aria-controls="quick-rules" onClick={() => {
-        pointerFocus.current = false;
-        setOpen((current) => !current);
-      }}>{t("nav.rules")}</button>
-      <aside id="quick-rules" className="rules-panel" hidden={!open} aria-label={t("room.quickRules")}>
+      <button ref={disclosure.triggerRef} className="rules-trigger" type="button" aria-expanded={disclosure.open} aria-controls="quick-rules" {...disclosure.triggerProps}>{t("nav.rules")}</button>
+      <aside id="quick-rules" className="rules-panel" hidden={!disclosure.open} aria-label={t("room.quickRules")}>
         <p className="eyebrow">{t("room.quickRules")}</p>
         <ul>
           {[1, 2, 3, 4, 5, 6].map((number) => <li key={number}>{t(`room.rules${number}`)}</li>)}
@@ -87,15 +73,13 @@ export function RulesPopover() {
 
 export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string }) {
   const { t } = useTranslation();
-  const [preview, setPreview] = useState(false);
-  const [pinned, setPinned] = useState(false);
   const [revealedCell, setRevealedCell] = useState<string>();
   const matrix = useRef<HTMLDivElement>(null);
-  const ignoreNextFocus = useRef(false);
+  const disclosure = useDisclosure({ hover: true, clickMode: "pin", closePinnedOnLeave: true });
   const history = [...(props.state.roundHistory ?? [])].sort((a, b) => a.round - b.round);
   const players = [...props.state.players.values()].sort((a, b) => a.seat - b.seat);
   const self = props.state.players.get(props.selfId);
-  const open = preview || pinned;
+  const open = disclosure.open;
 
   useEffect(() => {
     if (!open || !matrix.current) return;
@@ -107,36 +91,9 @@ export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string 
 
   return (
     <div
-      className={`score-history ${open ? "is-open" : ""} ${pinned ? "is-pinned" : ""}`}
-      onMouseEnter={() => setPreview(true)}
-      onMouseLeave={() => {
-        setPreview(false);
-        setPinned(false);
-      }}
-      onFocus={() => {
-        if (ignoreNextFocus.current) {
-          ignoreNextFocus.current = false;
-          return;
-        }
-        setPreview(true);
-      }}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setPreview(false);
-          setPinned(false);
-        }
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          setPinned(false);
-          setPreview(false);
-          const trigger = event.currentTarget.querySelector<HTMLButtonElement>(".score-history-trigger");
-          if (trigger && document.activeElement !== trigger) {
-            ignoreNextFocus.current = true;
-            trigger.focus();
-          }
-        }
-      }}
+      ref={disclosure.rootRef}
+      className={`score-history ${open ? "is-open" : ""} ${disclosure.pinned ? "is-pinned" : ""}`}
+      {...disclosure.rootProps}
     >
       <div className="score-history-shell">
         <button
@@ -144,7 +101,8 @@ export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string 
           type="button"
           aria-expanded={open}
           aria-controls="score-history-matrix"
-          onClick={() => setPinned(true)}
+          ref={disclosure.triggerRef}
+          {...disclosure.triggerProps}
         >
           <span>{t("game.scores")}</span>
           <strong>R{props.state.round}</strong>
