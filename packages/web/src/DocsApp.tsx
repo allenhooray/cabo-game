@@ -13,7 +13,6 @@ export function isDocPage(value: string | undefined): value is DocPage {
 
 export function DocsApp({ page }: { page: DocPage }) {
   const { t } = useTranslation();
-  const { locale } = usePreferences();
   return (
     <div className="docs-shell">
       <SiteHeader activePage={page} className="docs-header" />
