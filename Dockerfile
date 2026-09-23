@@ -3,7 +3,7 @@ FROM node:22-slim
 WORKDIR /app
 
 RUN corepack enable \
-    && corepack prepare pnpm@11.5.0 --activate
+    && corepack prepare pnpm@11.17.0 --activate
 
 COPY . .
 
