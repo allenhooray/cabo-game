@@ -5,6 +5,7 @@
 .docs-header nav a { color: var(--muted); font-size: 12px; text-decoration: none; }
 .docs-header nav a:hover, .docs-header nav a[aria-current="page"] { color: var(--ink); }
 .docs-header nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 7px; }
+.docs-header > .settings-menu { justify-self: end; }
 .docs-main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: clamp(52px, 7vw, 92px) 0 100px; display: grid; grid-template-columns: 190px minmax(0, 720px); gap: clamp(48px, 8vw, 110px); justify-content: center; }
 .docs-aside { position: sticky; top: 32px; align-self: start; }
 .docs-aside nav { display: grid; gap: 12px; }
@@ -40,6 +41,7 @@
 @media (max-width: 760px) {
   .docs-header { height: auto; min-height: 68px; padding: 14px 18px; grid-template-columns: 1fr; gap: 12px; }
   .docs-header nav { grid-column: 1 / -1; grid-row: 2; justify-content: space-between; gap: 20px; padding-top: 12px; border-top: 1px solid var(--soft-line); }
+  .docs-header > .settings-menu { position: absolute; top: 14px; right: 18px; }
   .docs-main { width: min(100% - 28px, 680px); padding: 46px 0 70px; display: block; }
   .docs-aside { display: none; }
   .docs-intro { padding-bottom: 38px; }

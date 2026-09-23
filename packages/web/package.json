@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node --import tsx scripts/generate-docs.tsx",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "playwright test",
@@ -13,10 +13,13 @@
   },
   "dependencies": {
     "@cabo-game/client-core": "workspace:*",
+    "@cabo-game/i18n": "workspace:*",
     "@cabo-game/shared": "workspace:*",
     "@colyseus/sdk": "0.18.2",
+    "i18next": "^26.4.2",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "react-i18next": "^17.0.15"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",

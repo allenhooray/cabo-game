@@ -20,6 +20,7 @@ describe("Cabo documentation", () => {
     expect(Array.from(navigation.querySelectorAll("a"), (link) => link.textContent)).toEqual(["Play", "Rules", "CLI", "Agent"]);
     expect(screen.getByRole("link", { name: "Play" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: page === "cli" ? "CLI" : page[0]!.toUpperCase() + page.slice(1) })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/en-US/docs/rules/");
   });
 
   it("accepts only known documentation page identifiers", () => {

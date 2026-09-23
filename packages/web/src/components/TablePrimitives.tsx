@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import type { StatePlayer } from "@cabo-game/client-core";
+import { useTranslation } from "react-i18next";
 
 export function Modal(props: { title: string; children: ReactNode; onClose?(): void }) {
-  return <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="modal-title"><section className="modal-card"><div className="modal-heading"><p className="eyebrow">Cabo table</p>{props.onClose && <button type="button" aria-label="Close" onClick={props.onClose}>×</button>}</div><h2 id="modal-title">{props.title}</h2>{props.children}</section></div>;
+  const { t } = useTranslation();
+  return <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="modal-title"><section className="modal-card"><div className="modal-heading"><p className="eyebrow">{t("modal.table")}</p>{props.onClose && <button type="button" aria-label={t("common.close")} onClick={props.onClose}>×</button>}</div><h2 id="modal-title">{props.title}</h2>{props.children}</section></div>;
 }
 
 export function Avatar({ player }: { player: StatePlayer }) {
@@ -11,10 +13,11 @@ export function Avatar({ player }: { player: StatePlayer }) {
 }
 
 export function CardFace(props: { label: string; rank: number }) {
+  const { t } = useTranslation();
   const match = props.label.match(/^(.*?)([SHDC♣♦♥♠])$/);
   const suit = match?.[2] ? suitGlyph(match[2]) : "";
   const rank = match?.[1] ?? props.label;
-  return <><span className="card-rank">{rank}</span><span className="card-suit">{suit}</span><span className="card-points">{props.rank >= 0 ? `${props.rank} pts` : ""}</span></>;
+  return <><span className="card-rank">{rank}</span><span className="card-suit">{suit}</span><span className="card-points">{props.rank >= 0 ? t("common.points", { count: props.rank }) : ""}</span></>;
 }
 
 export function formatCardLabel(label: string): string {

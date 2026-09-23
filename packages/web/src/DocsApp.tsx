@@ -1,4 +1,8 @@
-import type { ReactNode } from "react";
+import { Children, cloneElement, isValidElement, type ReactNode } from "react";
+import { translateDocText, type SupportedLocale } from "@cabo-game/i18n";
+import { useTranslation } from "react-i18next";
+import { SettingsMenu } from "./components/SettingsMenu.js";
+import { usePreferences } from "./i18n/I18nProvider.js";
 
 export const docPages = ["rules", "cli", "agent"] as const;
 export type DocPage = (typeof docPages)[number];
@@ -7,31 +11,28 @@ export function isDocPage(value: string | undefined): value is DocPage {
   return docPages.some((page) => page === value);
 }
 
-const titles: Record<DocPage, string> = {
-  rules: "Rules",
-  cli: "CLI",
-  agent: "Agent",
-};
-
 export function DocsApp({ page }: { page: DocPage }) {
+  const { t } = useTranslation();
+  const { locale } = usePreferences();
   return (
     <div className="docs-shell">
       <header className="docs-header">
-        <a className="wordmark-static" href="/" aria-label="Cabo game">CABO</a>
-        <nav aria-label="Main navigation">
-          <a href="/">Play</a>
+        <a className="wordmark-static" href="/" aria-label="Cabo">CABO</a>
+        <nav aria-label={t("nav.main")}>
+          <a href="/">{t("nav.play")}</a>
           {docPages.map((item) => (
-            <a key={item} href={`/docs/${item}/`} aria-current={item === page ? "page" : undefined}>
-              {titles[item]}
+            <a key={item} href={`/${locale}/docs/${item}/`} aria-current={item === page ? "page" : undefined}>
+              {t(`nav.${item}`)}
             </a>
           ))}
         </nav>
+        <SettingsMenu />
       </header>
       <main className="docs-main">
         <aside className="docs-aside">
-          <p className="eyebrow">Cabo documentation</p>
-          <nav aria-label="On this page">
-            {sectionLinks[page].map((section) => <a key={section.id} href={`#${section.id}`}>{section.label}</a>)}
+          <p className="eyebrow">{t("docs.title")}</p>
+          <nav aria-label={t("docs.onPage")}>
+            {sectionLinks[page].map((section) => <a key={section.id} href={`#${section.id}`}>{t(section.key)}</a>)}
           </nav>
         </aside>
         {page === "rules" && <RulesPage />}
@@ -39,38 +40,39 @@ export function DocsApp({ page }: { page: DocPage }) {
         {page === "agent" && <AgentPage />}
       </main>
       <footer className="docs-footer">
-        <span>Cabo is a server-authoritative online card table.</span>
-        <a href="https://github.com/allenhooray/cabo-game">Source on GitHub</a>
+        <span>{t("docs.footer")}</span>
+        <a href="https://github.com/allenhooray/cabo-game">{t("docs.source")}</a>
       </footer>
     </div>
   );
 }
 
-const sectionLinks: Record<DocPage, Array<{ id: string; label: string }>> = {
+const sectionLinks: Record<DocPage, Array<{ id: string; key: string }>> = {
   rules: [
-    { id: "goal", label: "Goal and setup" },
-    { id: "turns", label: "Taking a turn" },
-    { id: "powers", label: "Card powers" },
-    { id: "cabo", label: "Calling Cabo" },
-    { id: "connections", label: "Connections" },
+    { id: "goal", key: "docs.goal" },
+    { id: "turns", key: "docs.turns" },
+    { id: "powers", key: "docs.powers" },
+    { id: "cabo", key: "docs.cabo" },
+    { id: "connections", key: "docs.connections" },
   ],
   cli: [
-    { id: "install", label: "Install and start" },
-    { id: "connection", label: "Connection commands" },
-    { id: "lobby", label: "Lobby commands" },
-    { id: "game", label: "Game commands" },
-    { id: "interaction", label: "Interaction notes" },
+    { id: "install", key: "docs.install" },
+    { id: "connection", key: "docs.connectionCommands" },
+    { id: "lobby", key: "docs.lobbyCommands" },
+    { id: "game", key: "docs.gameCommands" },
+    { id: "interaction", key: "docs.interaction" },
   ],
   agent: [
-    { id: "start-agent", label: "Start an Agent" },
-    { id: "transport", label: "Process contract" },
-    { id: "loop", label: "Supervisor loop" },
-    { id: "state", label: "State and recovery" },
-    { id: "lifecycle", label: "Sessions and shutdown" },
+    { id: "start-agent", key: "docs.startAgent" },
+    { id: "transport", key: "docs.transport" },
+    { id: "loop", key: "docs.loop" },
+    { id: "state", key: "docs.state" },
+    { id: "lifecycle", key: "docs.lifecycle" },
   ],
 };
 
 function Article(props: { eyebrow: string; title: string; lede: string; children: ReactNode }) {
+  const { locale } = usePreferences();
   return (
     <article className="docs-article">
       <header className="docs-intro">
@@ -78,7 +80,7 @@ function Article(props: { eyebrow: string; title: string; lede: string; children
         <h1>{props.title}</h1>
         <p>{props.lede}</p>
       </header>
-      {props.children}
+      {localizeNode(props.children, locale)}
     </article>
   );
 }
@@ -92,14 +94,15 @@ function CodeBlock({ children }: { children: string }) {
 }
 
 function RulesPage() {
+  const { t } = useTranslation();
   return (
-    <Article eyebrow="Rules" title="Keep the lowest hand." lede="Cabo is a memory game for two to five players. Learn just enough, remember what matters, and end the round at the right moment.">
-      <Section id="goal" title="Goal and setup">
+    <Article eyebrow={t("nav.rules")} title={t("docs.rules.title")} lede={t("docs.rules.lede")}>
+      <Section id="goal" title={t("docs.goal")}>
         <p>Finish the match with the lowest total score. Each player receives four face-down cards and privately sees positions 1 and 2 once at the start of every round. After that, cards stay hidden unless a power reveals one.</p>
         <p>A through Q score their numeric rank: A is 1, J is 11, and Q is 12. The two Kings are worth 13 each. Both Jokers are worth 0.</p>
         <div className="docs-callout"><strong>Memory is private.</strong><span>The table remembers only cards you have legitimately seen. Other players never receive that knowledge.</span></div>
       </Section>
-      <Section id="turns" title="Taking a turn">
+      <Section id="turns" title={t("docs.turns")}>
         <p>Classic mode briefly shows initial cards for 5 seconds and peeked or mismatched cards for 3.2 seconds; remember them yourself. Assisted mode keeps known cards visible and restores them after reconnecting. Unresolved drawn cards stay visible in both modes.</p>
         <p>The room can use an unlimited, 30, 60 (default), or 90-second step timer. Each valid game step resets it; the server safely completes timed-out turns. Between rounds, everyone can ready up early, or the next round starts automatically after 20 seconds.</p>
         <p>If both draw sources are empty, timeout calls Cabo; final turns with no cards available can be skipped.</p>
@@ -113,7 +116,7 @@ function RulesPage() {
         </ol>
         <p>Only a card drawn from the deck and then discarded can activate a power. A card taken from the discard pile never activates its power.</p>
       </Section>
-      <Section id="powers" title="Card powers">
+      <Section id="powers" title={t("docs.powers")}>
         <div className="docs-table-wrap"><table><thead><tr><th>Ranks</th><th>Power</th></tr></thead><tbody>
           <tr><td>7–8</td><td>Privately look at one of your own positions.</td></tr>
           <tr><td>9–10</td><td>Privately look at one position belonging to another active player.</td></tr>
@@ -121,7 +124,7 @@ function RulesPage() {
         </tbody></table></div>
         <p>You may skip a power. Swapped cards are not revealed to either player.</p>
       </Section>
-      <Section id="cabo" title="Calling Cabo and scoring">
+      <Section id="cabo" title={t("docs.cabo")}>
         <p>You may call Cabo only at the beginning of your turn. Every other active player then receives one final turn; the caller does not.</p>
         <ul>
           <li>If the caller has a strictly lower hand than every other player, the caller scores 0.</li>
@@ -131,7 +134,7 @@ function RulesPage() {
         <p>When any active player reaches the room’s target score, the match ends. The active player—or tied players—with the lowest total wins.</p>
         <p><strong>Shooting the Moon:</strong> a player ending the round with exactly two Queens and both Kings scores 0, while every other active player scores half the target score. This overrides normal Cabo scoring.</p>
       </Section>
-      <Section id="connections" title="Connections and leaving">
+      <Section id="connections" title={t("docs.connections")}>
         <p>A disconnected seat is reserved for 60 seconds so the player can reconnect. If the grace period expires, that player forfeits and the remaining players continue.</p>
         <p>Choosing to leave during an active match is an immediate forfeit. Do not use Leave when you only intend to refresh or briefly reconnect.</p>
       </Section>
@@ -140,16 +143,17 @@ function RulesPage() {
 }
 
 function CliPage() {
+  const { t } = useTranslation();
   return (
-    <Article eyebrow="Terminal client" title="Play Cabo from the CLI." lede="The interactive terminal client exposes the same rooms, private knowledge, legal actions, and reconnect behavior as the Web table.">
-      <Section id="install" title="Install and start">
+    <Article eyebrow={t("nav.cli")} title={t("docs.cli.title")} lede={t("docs.cli.lede")}>
+      <Section id="install" title={t("docs.install")}>
         <p>The CLI requires Node.js 22 or newer.</p>
         <CodeBlock>{`npm install --global @cabo-game/cli
 cabo --name Alice
 cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
         <p><code>--server</code> selects the Cabo server. <code>--name</code> sets a player name up to 20 characters; otherwise the CLI uses the current operating-system user.</p>
       </Section>
-      <Section id="connection" title="Connection commands">
+      <Section id="connection" title={t("docs.connectionCommands")}>
         <CommandTable rows={[
           ["rooms", "Browse all public rooms. Use ↑/↓ to select, ←/→ to page, and Enter to join."],
           ['create public [target] --name "room name"', "Create a public room. A blank name uses [player]'s room."],
@@ -159,14 +163,14 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
           ["quit", "Leave gracefully and exit the client."],
         ]} />
       </Section>
-      <Section id="lobby" title="Lobby commands">
+      <Section id="lobby" title={t("docs.lobbyCommands")}>
         <CommandTable rows={[
           ["players", "Show the current seats."],
           ["start", "Start once at least two players are connected; host only."],
           ["leave", "Release your seat but keep the CLI process open."],
         ]} />
       </Section>
-      <Section id="game" title="Game commands">
+      <Section id="game" title={t("docs.gameCommands")}>
         <CommandTable rows={[
           ["show", "Render the latest table and your remembered cards."],
           ["draw deck", "Draw a private card from the deck."],
@@ -182,7 +186,7 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
           ["ready", "Confirm the next round after reviewing a round result."],
         ]} />
       </Section>
-      <Section id="interaction" title="Interaction notes">
+      <Section id="interaction" title={t("docs.interaction")}>
         <p>Positions run from 1 through the current hand size. A player argument accepts an exact nickname or a session ID. Enter <code>help</code> or <code>?</code> to show the command reference.</p>
         <p>Room names may repeat and contain up to 40 Unicode characters. They are labels only: joining and reconnecting always use the room ID.</p>
         <p>In an interactive terminal, the CLI also offers numbered action menus. During a multi-step choice, enter <code>cancel</code> to return to the action menu.</p>
@@ -192,13 +196,24 @@ cabo --server https://cabo-api.human404.link --name Alice`}</CodeBlock>
 }
 
 function CommandTable({ rows }: { rows: Array<[string, string]> }) {
-  return <div className="docs-table-wrap"><table><thead><tr><th>Command</th><th>Effect</th></tr></thead><tbody>{rows.map(([command, effect]) => <tr key={command}><td><code>{command}</code></td><td>{effect}</td></tr>)}</tbody></table></div>;
+  const { locale } = usePreferences();
+  return <div className="docs-table-wrap"><table><thead><tr><th>{translateDocText(locale, "Command")}</th><th>{translateDocText(locale, "Effect")}</th></tr></thead><tbody>{rows.map(([command, effect]) => <tr key={command}><td><code>{command}</code></td><td>{translateDocText(locale, effect)}</td></tr>)}</tbody></table></div>;
+}
+
+function localizeNode(node: ReactNode, locale: SupportedLocale): ReactNode {
+  if (typeof node === "string") return translateDocText(locale, node);
+  if (Array.isArray(node)) return Children.map(node, (child) => localizeNode(child, locale));
+  if (isValidElement<{ children?: ReactNode }>(node) && node.props.children !== undefined) {
+    return cloneElement(node, {}, localizeNode(node.props.children, locale));
+  }
+  return node;
 }
 
 function AgentPage() {
+  const { t } = useTranslation();
   return (
-    <Article eyebrow="Process interface" title="Drive Cabo from any language." lede="cabo-agent runs one player as a language-neutral JSONL subprocess. A supervisor in Python, Go, Rust, Node.js, or any other runtime can control it through standard streams.">
-      <Section id="agent-skill" title="Install the Cabo Skill">
+    <Article eyebrow={t("nav.agent")} title={t("docs.agent.title")} lede={t("docs.agent.lede")}>
+      <Section id="agent-skill" title={t("docs.startAgent")}>
         <p>Agents that support the open Agent Skills format can install Cabo's complete match workflow alongside the CLI. Node.js 22 or newer is required.</p>
         <CodeBlock>{`npx skills add allenhooray/cabo-game --skill cabo -g
 npm install --global @cabo-game/cli`}</CodeBlock>
@@ -206,7 +221,7 @@ npm install --global @cabo-game/cli`}</CodeBlock>
         <p>Copy this prompt directly into an Agent:</p>
         <CodeBlock>{`请安装并使用 Cabo Skill；如果本机没有 cabo-agent，也安装 @cabo-game/cli。启动一个名为 Codex-Cabo 的持久 cabo-agent 子进程，为它创建并保留独立的 session 文件。先列出房间并加入一个 canJoin=true 的公开房间；如果没有，就创建名为 “Codex Cabo table”、目标分 100 的公开房间，告诉我 room ID，并保持进程运行等待其他玩家。始终以最新 observation 为准，只从 legalActions 选择动作；没有合法动作时等待新帧，不要猜测或轮询。自主完成每个回合，在 ROUND_RESULT 合法时确认下一回合，持续玩到 MATCH_RESULT。超时或状态不确定时先 observe，断线时按 Skill 的重连流程恢复，绝不要为了重连而 leave 或关闭进程。比赛结束后告诉我赢家和最终比分，发送 shutdown，并等待进程正常退出。`}</CodeBlock>
       </Section>
-      <Section id="start-agent" title="Start an Agent">
+      <Section id="start-agent" title={t("docs.startAgent")}>
         <CodeBlock>{`npm install --global @cabo-game/cli
 cabo-agent --name Bot-A --request-timeout-ms 15000`}</CodeBlock>
         <p>Use <code>--server URL</code> for another server and <code>--session-file PATH</code> to persist reconnect state for this Agent. Give every concurrent Agent a distinct session file.</p>
@@ -215,7 +230,7 @@ cabo-agent --version
 cabo-agent --print-schema`}</CodeBlock>
         <p>The discovery commands exit immediately and never connect to a server. The JSON Schema comes from the same definitions used by the running CLI.</p>
       </Section>
-      <Section id="transport" title="Process contract">
+      <Section id="transport" title={t("docs.transport")}>
         <ul>
           <li>stdin and stdout contain exactly one JSON object per line.</li>
           <li>stderr is diagnostics only; never parse its wording as protocol.</li>
@@ -227,7 +242,7 @@ cabo-agent --print-schema`}</CodeBlock>
 {"id":"about","type":"describe"}
 {"id":"health","type":"ping"}`}</CodeBlock>
       </Section>
-      <Section id="loop" title="The supervisor loop">
+      <Section id="loop" title={t("docs.loop")}>
         <ol>
           <li>Wait for the <code>ready</code> frame.</li>
           <li>Send <code>create</code>, <code>join</code>, or <code>reconnect</code>.</li>
@@ -241,11 +256,11 @@ cabo-agent --print-schema`}</CodeBlock>
 {"id":"move-1","type":"action","action":{"type":"draw-deck"}}
 {"type":"result","id":"move-1","ok":true,"data":{"revision":4}}`}</CodeBlock>
       </Section>
-      <Section id="state" title="State, events, and recovery">
+      <Section id="state" title={t("docs.state")}>
         <p>An observation combines public game state, the Agent’s private remembered cards, and every currently legal concrete action. Successful state-changing results are emitted only after the client has observed their acknowledged revision.</p>
         <p>Use events for incremental logs and notifications, not as the authoritative game state. A request timeout returns <code>uncertain: true</code>; state-changing requests are then rejected with <code>STATE_UNCERTAIN</code> until a successful <code>observe</code> refreshes the view. <code>ping</code>, <code>leave</code>, and <code>shutdown</code> remain available.</p>
       </Section>
-      <Section id="lifecycle" title="Sessions and shutdown">
+      <Section id="lifecycle" title={t("docs.lifecycle")}>
         <p>Without <code>--session-file</code>, the Agent writes no reconnect state. With one, a successful <code>reconnect</code> can reclaim a seat that is still inside its grace period.</p>
         <ul>
           <li><code>leave</code> releases the seat and keeps the process running.</li>

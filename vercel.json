@@ -2,5 +2,25 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "buildCommand": "pnpm run build:vercel",
-  "outputDirectory": "packages/web/dist"
+  "outputDirectory": "packages/web/dist",
+  "redirects": [
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "en-US" }], "destination": "/en-US/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "en-GB" }], "destination": "/en-GB/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "en-AU" }], "destination": "/en-AU/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "zh-CN" }], "destination": "/zh-CN/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "zh-TW" }], "destination": "/zh-TW/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "zh-HK" }], "destination": "/zh-HK/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "pt-BR" }], "destination": "/pt-BR/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "pt-PT" }], "destination": "/pt-PT/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "cookie", "key": "cabo.locale.v1", "value": "pt-AO" }], "destination": "/pt-AO/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*(zh-HK|zh-hk|zh-MO|zh-mo).*" }], "destination": "/zh-HK/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*(zh-TW|zh-tw|zh-Hant|zh-hant).*" }], "destination": "/zh-TW/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*(zh|ZH).*" }], "destination": "/zh-CN/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*pt-(AO|ao|MZ|mz|CV|cv|GW|gw|ST|st).*" }], "destination": "/pt-AO/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*pt-(PT|pt).*" }], "destination": "/pt-PT/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*(pt|PT).*" }], "destination": "/pt-BR/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*en-(AU|au|NZ|nz).*" }], "destination": "/en-AU/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "has": [{ "type": "header", "key": "accept-language", "value": ".*en-(GB|gb|UK|uk|IE|ie).*" }], "destination": "/en-GB/docs/:page/", "permanent": false },
+    { "source": "/docs/:page(rules|cli|agent)/", "destination": "/en-US/docs/:page/", "permanent": false }
+  ]
 }

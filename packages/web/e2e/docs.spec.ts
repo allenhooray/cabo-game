@@ -3,9 +3,9 @@ import { expect, test } from "@playwright/test";
 
 const pages = [
   { path: "/", title: /online memory card game/i, canonical: "https://cabo.human404.link/" },
-  { path: "/docs/rules/", title: /how to play cabo/i, canonical: "https://cabo.human404.link/docs/rules/" },
-  { path: "/docs/cli/", title: /cabo cli guide/i, canonical: "https://cabo.human404.link/docs/cli/" },
-  { path: "/docs/agent/", title: /cabo agent guide/i, canonical: "https://cabo.human404.link/docs/agent/" },
+  { path: "/en-US/docs/rules/", title: /keep the lowest hand/i, canonical: "https://cabo.human404.link/en-US/docs/rules/" },
+  { path: "/en-US/docs/cli/", title: /play cabo from the cli/i, canonical: "https://cabo.human404.link/en-US/docs/cli/" },
+  { path: "/en-US/docs/agent/", title: /drive cabo from any language/i, canonical: "https://cabo.human404.link/en-US/docs/agent/" },
 ];
 
 test("public pages expose canonical and sharing metadata", async ({ page }) => {
@@ -31,9 +31,24 @@ test("documentation pages are navigable, responsive, and accessible", async ({ p
     expect(accessibility.violations.filter((violation) => violation.impact === "critical")).toEqual([]);
   }
 
-  await page.goto("/docs/agent/");
-  await expect(page.getByRole("heading", { name: "Install the Cabo Skill" })).toBeVisible();
+  await page.goto("/en-US/docs/agent/");
+  await expect(page.getByRole("heading", { name: "Start an Agent" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Cabo Skill" })).toHaveAttribute("href", "https://github.com/allenhooray/cabo-game/blob/master/skills/cabo/SKILL.md");
+});
+
+test("localized docs are server-rendered and keep their page when language changes", async ({ page, request }) => {
+  const response = await request.get("/zh-CN/docs/rules/");
+  expect(response.ok()).toBe(true);
+  const html = await response.text();
+  expect(html).toContain('lang="zh-CN"');
+  expect(html).toContain("保持最低手牌");
+  expect(html).toContain('data-ssg="true"');
+
+  await page.goto("/zh-CN/docs/rules/");
+  await expect(page.getByRole("heading", { level: 1, name: "保持最低手牌。" })).toBeVisible();
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByRole("radio", { name: "English (United States)" }).evaluate((element: HTMLInputElement) => element.click());
+  await expect(page).toHaveURL(/\/en-US\/docs\/rules\/$/);
 });
 
 test("crawler resources and the social image are public", async ({ page, request }) => {

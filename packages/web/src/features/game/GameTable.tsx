@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { CaboClientCore, caboRisk, formatCaboRisk, legalActions, type CaboStateLike, type StatePlayer } from "@cabo-game/client-core";
+import { CaboClientCore, caboRisk, legalActions, type CaboStateLike, type StatePlayer } from "@cabo-game/client-core";
 import type { ClientCommand, KnownCard } from "@cabo-game/shared";
 import { Avatar, CardFace, formatCardLabel } from "../../components/TablePrimitives.js";
 import { MotionLayer } from "./MotionLayer.js";
-import type { CardMotion, Confirmation, Selection, TemporaryCard } from "./types.js";
+import type { CardMotion, ClientEvent, Confirmation, Selection, TemporaryCard } from "./types.js";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
+import { formatEvent } from "./events.js";
 
 export interface GameTableProps {
   temporaryCards?: TemporaryCard[];
@@ -14,7 +17,7 @@ export interface GameTableProps {
   busy: boolean;
   selection: Selection;
   targetId: string | undefined;
-  events: string[];
+  events: ClientEvent[];
   cardMotion: CardMotion | undefined;
   remainingSeconds?: number | undefined;
   onSelection(value: Selection): void;
@@ -25,6 +28,7 @@ export interface GameTableProps {
 }
 
 export function GameTable(props: GameTableProps) {
+  const { t } = useTranslation();
   const { state, selfId } = props;
   const self = state.players.get(selfId);
   const opponents = props.players.filter((player) => player.id !== selfId);
@@ -32,7 +36,7 @@ export function GameTable(props: GameTableProps) {
   const myTurn = state.currentPlayerId === selfId;
   const power = state.discardRank;
   const selectedTarget = props.targetId ? state.players.get(props.targetId) : undefined;
-  const phaseCopy = gameStatus(state, selfId);
+  const phaseCopy = gameStatus(state, selfId, t);
   const [exchangePositions, setExchangePositions] = useState<number[]>([]);
   const [replacementPosition, setReplacementPosition] = useState<number>();
   const [swapOwnPosition, setSwapOwnPosition] = useState<number>();
@@ -40,6 +44,7 @@ export function GameTable(props: GameTableProps) {
 
   const hasAction = (type: ClientCommand["type"]) => actions.some((action) => action.type === type);
   const canReplace = myTurn && hasAction("replace");
+  const name = (id: string) => state.players.get(id)?.name ?? id;
 
   useEffect(() => {
     setExchangePositions([]);
@@ -79,9 +84,9 @@ export function GameTable(props: GameTableProps) {
       if (!swapOwnPosition) return;
       props.onConfirm({
         revision: state.revision,
-        title: `Swap with ${selectedTarget.name}?`,
-        body: `Your card ${swapOwnPosition} and ${selectedTarget.name}'s card ${position} will be swapped without revealing either card.`,
-        label: "Blind swap",
+        title: t("game.swapTitle", { name: selectedTarget.name }),
+        body: t("game.swapBody", { own: swapOwnPosition, name: selectedTarget.name, position }),
+        label: t("game.blindSwap"),
         action: async () => props.onExecute({ type: "swap", targetPlayerId: selectedTarget.id, ownPosition: swapOwnPosition, targetPosition: position }),
       });
     }
@@ -89,7 +94,7 @@ export function GameTable(props: GameTableProps) {
 
   return (
     <main className="game-shell">
-      <section className="opponents" aria-label="Other players">
+      <section className="opponents" aria-label={t("game.otherPlayers")}>
         {opponents.map((player) => {
           const targetable = (props.selection === "peek-other" || (props.selection === "swap" && Boolean(swapOwnPosition))) && !player.forfeited;
           const selected = props.targetId === player.id;
@@ -100,16 +105,16 @@ export function GameTable(props: GameTableProps) {
               {state.currentPlayerId === player.id && props.remainingSeconds !== undefined && <TurnTimer seconds={props.remainingSeconds} />}
               <button className="player-main" type="button" disabled={!targetable || props.busy} onClick={() => props.onTarget(player.id)}>
                 <Avatar player={player} />
-                <span className="player-copy"><strong>{player.name}</strong><small>{player.forfeited ? "DNF" : !player.connected ? "Offline · 60s grace" : `${player.score} pts`}</small></span>
-                <span className="opponent-hand" aria-label={`${player.cardCount} cards`}>
+                <span className="player-copy"><strong>{player.name}</strong><small>{player.forfeited ? t("game.dnf") : !player.connected ? t("game.offlineGrace") : t("common.points", { count: player.score })}</small></span>
+                <span className="opponent-hand" aria-label={t("game.cards", { count: player.cardCount })}>
                   {Array.from({ length: player.cardCount }, (_, index) => {
                     const card = displayedCard(player.id, index + 1, known[index]);
                     return <span className={`opponent-slot ${card ? "known" : ""}`} data-card-anchor={`slot-${player.id}-${index + 1}`} key={index}>{card ? formatCardLabel(card.label) : ""}</span>;
                   })}
-                  <span className={`opponent-decision ${state.phase === "DRAWN" && state.currentPlayerId === player.id ? "occupied" : ""}`} data-card-anchor={`decision-${player.id}`} aria-label="Drawn card" />
+                  <span className={`opponent-decision ${state.phase === "DRAWN" && state.currentPlayerId === player.id ? "occupied" : ""}`} data-card-anchor={`decision-${player.id}`} aria-label={t("game.drawnCard")} />
                 </span>
               </button>
-              {selected && <PositionPicker count={player.cardCount} onChoose={chooseOpponentPosition} disabled={props.busy} label={`Choose ${player.name}'s card`} />}
+              {selected && <PositionPicker count={player.cardCount} onChoose={chooseOpponentPosition} disabled={props.busy} label={t("game.chooseCard", { name: player.name })} />}
             </article>
           );
         })}
@@ -119,24 +124,24 @@ export function GameTable(props: GameTableProps) {
         <div className="turn-label"><span>{phaseCopy.eyebrow}</span><strong>{phaseCopy.title}</strong></div>
         <div className="piles">
           <div className="pile-wrap">
-            <button className="playing-card card-back" data-card-anchor="deck" type="button" disabled={!hasAction("draw-deck") || props.busy} onClick={() => props.onExecute({ type: "draw-deck" })} aria-label={`Draw pile, ${state.deckCount} cards`}><span>{state.deckCount}</span></button>
-            <small>Deck</small>
+            <button className="playing-card card-back" data-card-anchor="deck" type="button" disabled={!hasAction("draw-deck") || props.busy} onClick={() => props.onExecute({ type: "draw-deck" })} aria-label={t("game.drawPile", { count: state.deckCount })}><span>{state.deckCount}</span></button>
+            <small>{t("game.deck")}</small>
           </div>
           <div className="pile-wrap">
-            <button className="playing-card" data-card-anchor="discard" type="button" disabled={!hasAction("draw-discard") || props.busy} onClick={() => props.onExecute({ type: "draw-discard" })} aria-label={`Discard pile, ${state.discardLabel || "empty"}`}><CardFace label={state.discardLabel || "—"} rank={state.discardRank} /></button>
-            <small>Discard</small>
+            <button className="playing-card" data-card-anchor="discard" type="button" disabled={!hasAction("draw-discard") || props.busy} onClick={() => props.onExecute({ type: "draw-discard" })} aria-label={t("game.discardPile", { card: state.discardLabel || t("game.empty") })}><CardFace label={state.discardLabel || "—"} rank={state.discardRank} /></button>
+            <small>{t("game.discard")}</small>
           </div>
         </div>
-        {hasAction("cabo") && <button className="cabo-button" type="button" disabled={props.busy} onClick={() => { const risk = caboRisk(state, selfId, props.core.knowledge); if (risk) props.onConfirm({ revision: state.revision, title: "Call Cabo?", body: formatCaboRisk(risk), label: "Call Cabo", action: async () => props.onExecute({ type: "cabo" }) }); }}>Call Cabo</button>}
-        <button className="leave-button" type="button" onClick={props.onLeave}>Leave</button>
+        {hasAction("cabo") && <button className="cabo-button" type="button" disabled={props.busy} onClick={() => { const risk = caboRisk(state, selfId, props.core.knowledge); if (risk) { const summary = risk.knownScore === null ? t("game.risk.cards", { count: risk.unknownCount }) : risk.unknownCount === 0 ? t("game.risk.exact", { score: risk.knownScore }) : t("game.risk.subtotal", { score: risk.knownScore, count: risk.unknownCount }); props.onConfirm({ revision: state.revision, title: `${t("game.callCabo")}?`, body: `${summary} ${t("game.risk.rules", { penalty: risk.failurePenalty })}`, label: t("game.callCabo"), action: async () => props.onExecute({ type: "cabo" }) }); } }}>{t("game.callCabo")}</button>}
+        <button className="leave-button" type="button" onClick={props.onLeave}>{t("common.leave")}</button>
       </section>
 
-      <section className="player-dock" aria-label="Your hand and actions">
+      <section className="player-dock" aria-label={t("game.yourHandActions")}>
         {myTurn && props.remainingSeconds !== undefined && <TurnTimer seconds={props.remainingSeconds} />}
         <div className="hand-block">
-          <div className="hand-heading"><strong>{self?.name ?? "Your hand"} · {self?.score ?? 0} pts</strong><span>{props.core.knowledge.slots.filter(Boolean).length} known · {Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length)} hidden</span></div>
+          <div className="hand-heading"><strong>{self?.name ?? t("game.yourHand")} · {t("common.points", { count: self?.score ?? 0 })}</strong><span>{t("game.knownHidden", { known: props.core.knowledge.slots.filter(Boolean).length, hidden: Math.max(0, (self?.cardCount ?? 0) - props.core.knowledge.slots.filter(Boolean).length) })}</span></div>
           <div className={`exchange-controls ${canReplace && exchangePositions.length > 0 ? "" : "is-empty"}`} aria-hidden={canReplace && exchangePositions.length > 0 ? undefined : true}>
-            {canReplace && exchangePositions.length > 0 && <><span>Discard positions: {exchangePositions.join(", ")} · Drawn card → {replacementPosition ?? "choose"}</span><div>{exchangePositions.length > 1 && <label>Drawn card destination<select aria-label="Drawn card destination" value={replacementPosition ?? ""} onChange={(event) => setReplacementPosition(Number(event.target.value))}><option value="" disabled>Choose position</option>{exchangePositions.map((position) => <option key={position} value={position}>{position}</option>)}</select></label>}<button className="button primary" type="button" disabled={props.busy || !replacementPosition} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: replacementPosition! })}>Confirm exchange</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>Clear</button></div></>}
+            {canReplace && exchangePositions.length > 0 && <><span>{t("game.discardPositions", { positions: exchangePositions.join(", "), destination: replacementPosition ?? t("game.choose") })}</span><div>{exchangePositions.length > 1 && <label>{t("game.drawDestination")}<select aria-label={t("game.drawDestination")} value={replacementPosition ?? ""} onChange={(event) => setReplacementPosition(Number(event.target.value))}><option value="" disabled>{t("game.choosePosition")}</option>{exchangePositions.map((position) => <option key={position} value={position}>{position}</option>)}</select></label>}<button className="button primary" type="button" disabled={props.busy || !replacementPosition} onClick={() => props.onExecute({ type: "replace", positions: exchangePositions, replacementPosition: replacementPosition! })}>{t("game.confirmExchange")}</button><button className="text-button" type="button" onClick={() => setExchangePositions([])}>{t("game.clear")}</button></div></>}
           </div>
           <div className="own-hand">
             {Array.from({ length: self?.cardCount ?? props.core.knowledge.slots.length }, (_, index) => displayedCard(selfId, index + 1, props.core.knowledge.slots[index]) ?? null).map((card, index) => {
@@ -148,8 +153,8 @@ export function GameTable(props: GameTableProps) {
               const selected = props.selection === "swap" ? swapOwnPosition === position : exchangePositions.includes(position);
               return <button aria-pressed={selectable ? selected : undefined} className={`hand-slot ${card ? "known" : ""} ${selectable ? "selectable" : ""} ${selected ? "selected" : ""} ${slotMotion ? `motion-${slotMotion.action}` : ""}`} data-card-anchor={`slot-${selfId}-${position}`} type="button" disabled={!selectable || props.busy} key={`${position}-${card?.label ?? "hidden"}`} onClick={() => chooseOwnPosition(position)}><small>{String(position).padStart(2, "0")}</small><span className="card-memory">{card ? formatCardLabel(card.label) : "?"}</span></button>;
             })}
-            <div className={`decision-card ${props.core.knowledge.held ? "occupied" : ""}`} data-card-anchor={`decision-${selfId}`} aria-label="Drawn card">
-              {props.core.knowledge.held ? <CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /> : <span>Draw</span>}
+            <div className={`decision-card ${props.core.knowledge.held ? "occupied" : ""}`} data-card-anchor={`decision-${selfId}`} aria-label={t("game.drawnCard")}>
+              {props.core.knowledge.held ? <CardFace label={props.core.knowledge.held.label} rank={props.core.knowledge.held.rank} /> : <span>{t("game.deck")}</span>}
             </div>
           </div>
         </div>
@@ -165,7 +170,7 @@ export function GameTable(props: GameTableProps) {
         </div>
       </section>
 
-      <aside className="event-strip" aria-label="Recent activity"><span>Recent</span><p>{props.events.length ? props.events.slice(-2).join(" · ") : "The table is quiet."}</p></aside>
+      <aside className="event-strip" aria-label={t("game.recent")}><span>{t("game.recent")}</span><p>{props.events.length ? props.events.slice(-2).map((event) => formatEvent(event, name, t)).filter(Boolean).join(" · ") : t("game.quiet")}</p></aside>
       {props.cardMotion && <MotionLayer motion={props.cardMotion} />}
     </main>
   );
@@ -178,24 +183,25 @@ function ActionPanel(props: GameTableProps & {
   mismatchDrawnPlacement: "left" | "right" | undefined;
   onMismatchDrawnPlacement(placement: "left" | "right" | undefined): void;
 }) {
-  if (props.state.phase === "FINAL_TURNS" && props.actions.some((action) => action.type === "skip")) return <><h3>No cards left to draw.</h3><button className="button primary" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Finish final turn</button></>;
+  const { t } = useTranslation();
+  if (props.state.phase === "FINAL_TURNS" && props.actions.some((action) => action.type === "skip")) return <><h3>{t("game.noCards")}</h3><button className="button primary" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.finishFinal")}</button></>;
   const { state, selfId } = props;
-  if (state.currentPlayerId !== selfId) return <><p className="action-kicker">Waiting</p><h3>{props.phaseCopy.title}</h3><p>{props.phaseCopy.detail}</p></>;
-  if (props.selection === "swap" && !props.swapOwnPosition) return <><h3>Choose your card to swap.</h3><p>Then choose another player and any of their cards.</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>Cancel</button></>;
-  if (props.selection === "peek-other" || props.selection === "swap") return <><p className="action-kicker">{props.selection === "swap" ? "Blind swap" : "Private peek"}</p><h3>{props.targetId ? "Choose one of their cards." : "Choose another player."}</h3><p>{props.selection === "swap" ? "Neither card will be revealed." : "Only you will see the selected card."}</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>Cancel</button></>;
-  if (state.phase === "DRAWN") return <><p className="action-kicker">Card drawn</p><h3>Choose what it replaces.</h3><p>Select up to four cards directly from your hand. Multiple cards must share the same rank.</p>{state.drawSource === "deck" && <button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "discard" })}>Discard drawn card</button>}</>;
+  if (state.currentPlayerId !== selfId) return <><p className="action-kicker">{t("game.waiting")}</p><h3>{props.phaseCopy.title}</h3><p>{props.phaseCopy.detail}</p></>;
+  if (props.selection === "swap" && !props.swapOwnPosition) return <><h3>{t("game.chooseOwnSwap")}</h3><p>{t("game.thenChoose")}</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>{t("common.cancel")}</button></>;
+  if (props.selection === "peek-other" || props.selection === "swap") return <><p className="action-kicker">{props.selection === "swap" ? t("game.blindSwap") : t("game.privatePeek")}</p><h3>{props.targetId ? t("game.chooseTheirCard") : t("game.choosePlayer")}</h3><p>{props.selection === "swap" ? t("game.neitherRevealed") : t("game.onlyYouSee")}</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>{t("common.cancel")}</button></>;
+  if (state.phase === "DRAWN") return <><p className="action-kicker">{t("game.cardDrawn")}</p><h3>{t("game.chooseReplace")}</h3><p>{t("game.selectUpTo")}</p>{state.drawSource === "deck" && <button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "discard" })}>{t("game.discardDrawn")}</button>}</>;
   if (state.phase === "MISMATCH_PENDING") {
-    if (!props.mismatchDrawnPlacement) return <><p className="action-kicker">Cards did not match</p><h3>Place the drawn card.</h3><p>The selected cards are now public.</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => state.mismatchPenaltyCardPending ? props.onMismatchDrawnPlacement(placement) : props.onExecute({ type: "resolve-mismatch", drawnPlacement: placement })}>{placement === "left" ? "Left end" : "Right end"}</button>)}</div></>;
-    return <><p className="action-kicker">Penalty card</p><h3>Place the facedown penalty.</h3><p>The drawn card will go to the {props.mismatchDrawnPlacement} end.</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => props.onExecute({ type: "resolve-mismatch", drawnPlacement: props.mismatchDrawnPlacement as "left" | "right", penaltyPlacement: placement })}>{placement === "left" ? "Left end" : "Right end"}</button>)}</div><button className="text-button" type="button" onClick={() => props.onMismatchDrawnPlacement(undefined)}>Back</button></>;
+    if (!props.mismatchDrawnPlacement) return <><p className="action-kicker">{t("game.mismatch")}</p><h3>{t("game.placeDrawn")}</h3><p>{t("game.selectedPublic")}</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => state.mismatchPenaltyCardPending ? props.onMismatchDrawnPlacement(placement) : props.onExecute({ type: "resolve-mismatch", drawnPlacement: placement })}>{t(placement === "left" ? "game.leftEnd" : "game.rightEnd")}</button>)}</div></>;
+    return <><p className="action-kicker">{t("game.penaltyCard")}</p><h3>{t("game.placePenalty")}</h3><p>{t("game.drawnGoes", { side: t(props.mismatchDrawnPlacement === "left" ? "game.leftEnd" : "game.rightEnd") })}</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => props.onExecute({ type: "resolve-mismatch", drawnPlacement: props.mismatchDrawnPlacement as "left" | "right", penaltyPlacement: placement })}>{t(placement === "left" ? "game.leftEnd" : "game.rightEnd")}</button>)}</div><button className="text-button" type="button" onClick={() => props.onMismatchDrawnPlacement(undefined)}>{t("game.back")}</button></>;
   }
   if (state.phase === "POWER_PENDING") {
     const rank = state.discardRank;
-    if (rank === 7 || rank === 8) return <><p className="action-kicker">Memory power</p><h3>Peek at one of your cards.</h3><p>Choose a position, or skip the power.</p><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Skip power</button></>;
-    if (rank === 9 || rank === 10) return <><p className="action-kicker">Insight power</p><h3>Peek at another player's card.</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("peek-other")}>Choose player</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Skip</button></div></>;
-    if (rank === 11 || rank === 12) return <><p className="action-kicker">Exchange power</p><h3>Blind-swap any two positions.</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("swap")}>Choose your card</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Skip</button></div></>;
-    return <><p className="action-kicker">No power</p><h3>Continue the table.</h3><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>Continue</button></>;
+    if (rank === 7 || rank === 8) return <><p className="action-kicker">{t("game.memoryPower")}</p><h3>{t("game.peekOwn")}</h3><p>{t("game.chooseOrSkip")}</p><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.skipPower")}</button></>;
+    if (rank === 9 || rank === 10) return <><p className="action-kicker">{t("game.insightPower")}</p><h3>{t("game.peekOther")}</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("peek-other")}>{t("game.choosePlayer")}</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.skip")}</button></div></>;
+    if (rank === 11 || rank === 12) return <><p className="action-kicker">{t("game.exchangePower")}</p><h3>{t("game.blindSwapAny")}</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("swap")}>{t("game.chooseYourCard")}</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.skip")}</button></div></>;
+    return <><p className="action-kicker">{t("game.noPower")}</p><h3>{t("game.continueTable")}</h3><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.continue")}</button></>;
   }
-  return <><p className="action-kicker">Your turn</p><h3>Draw with intention.</h3><p>Take a hidden card from the deck, choose the discard, or call Cabo.</p></>;
+  return <><p className="action-kicker">{t("game.yourTurn")}</p><h3>{t("game.drawIntention")}</h3><p>{t("game.takeHidden")}</p></>;
 }
 
 function PositionPicker(props: { count: number; onChoose(position: number): void; disabled: boolean; label: string }) {
@@ -203,16 +209,17 @@ function PositionPicker(props: { count: number; onChoose(position: number): void
 }
 
 function TurnTimer(props: { seconds: number }) {
-  return <span className="turn-timer" role="timer" aria-label={`${props.seconds} seconds remaining`}>{props.seconds}s</span>;
+  const { t } = useTranslation();
+  return <span className="turn-timer" role="timer" aria-label={t("common.secondsRemaining", { count: props.seconds })}>{props.seconds}s</span>;
 }
 
-function gameStatus(state: CaboStateLike, selfId: string) {
-  const current = state.players.get(state.currentPlayerId)?.name ?? "The table";
-  if (state.phase === "ROUND_RESULT") return { eyebrow: "Round complete", title: "Count the cards.", detail: "The next round begins when every active player is ready." };
-  if (state.phase === "MATCH_RESULT") return { eyebrow: "Match complete", title: "The table has spoken.", detail: "Review the final scores." };
-  if (state.currentPlayerId !== selfId) return { eyebrow: state.phase === "FINAL_TURNS" ? "Final turns" : "In play", title: `${current}'s turn`, detail: "Watch the table and remember what changes." };
-  if (state.phase === "DRAWN") return { eyebrow: "Your turn · card drawn", title: "Make the exchange.", detail: `Replace 1–4 cards${state.drawSource === "deck" ? " or discard the draw" : ""}.` };
-  if (state.phase === "MISMATCH_PENDING") return { eyebrow: "Your turn · mismatch", title: "Place the penalty.", detail: "The selected cards are public; choose where the new cards go." };
-  if (state.phase === "POWER_PENDING") return { eyebrow: "Your turn · power", title: "Use what you revealed.", detail: "Resolve the card power or skip it." };
-  return { eyebrow: state.phase === "FINAL_TURNS" ? "Your final turn" : "Your turn", title: "Choose where to draw.", detail: "The deck hides possibility; the discard offers certainty." };
+function gameStatus(state: CaboStateLike, selfId: string, t: TFunction) {
+  const current = state.players.get(state.currentPlayerId)?.name ?? t("game.table");
+  if (state.phase === "ROUND_RESULT") return { eyebrow: t("game.status.roundComplete"), title: t("game.status.countCards"), detail: t("game.status.nextReady") };
+  if (state.phase === "MATCH_RESULT") return { eyebrow: t("game.status.matchComplete"), title: t("game.status.tableSpoken"), detail: t("game.status.reviewScores") };
+  if (state.currentPlayerId !== selfId) return { eyebrow: t(state.phase === "FINAL_TURNS" ? "game.status.finalTurns" : "game.status.inPlay"), title: t("game.status.playerTurn", { name: current }), detail: t("game.status.watch") };
+  if (state.phase === "DRAWN") return { eyebrow: t("game.status.drawn"), title: t("game.status.exchange"), detail: t("game.status.replace", { discard: state.drawSource === "deck" ? t("game.status.orDiscard") : "" }) };
+  if (state.phase === "MISMATCH_PENDING") return { eyebrow: t("game.status.mismatch"), title: t("game.status.placePenalty"), detail: t("game.status.cardsPublic") };
+  if (state.phase === "POWER_PENDING") return { eyebrow: t("game.status.power"), title: t("game.status.useRevealed"), detail: t("game.status.resolvePower") };
+  return { eyebrow: t(state.phase === "FINAL_TURNS" ? "game.status.finalTurn" : "game.yourTurn"), title: t("game.status.chooseDraw"), detail: t("game.status.drawDetail") };
 }

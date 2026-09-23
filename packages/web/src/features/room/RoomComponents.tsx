@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { CaboStateLike, StatePlayer } from "@cabo-game/client-core";
 import { copyText, invitationLink } from "../../invitation.js";
 import { Avatar, formatCardLabel } from "../../components/TablePrimitives.js";
+import { useTranslation } from "react-i18next";
+import { usePreferences } from "../../i18n/I18nProvider.js";
 
 export function ShareRoom(props: { roomId: string; server: string }) {
+  const { t } = useTranslation();
   const [fallback, setFallback] = useState<string>();
   const [copied, setCopied] = useState(false);
   const copy = async (value: string) => {
@@ -11,39 +14,42 @@ export function ShareRoom(props: { roomId: string; server: string }) {
     setCopied(ok); setFallback(ok ? undefined : value);
   };
   return <div className="share-room">
-    <button className="share-room-trigger" type="button" aria-haspopup="true">Share</button>
+    <button className="share-room-trigger" type="button" aria-haspopup="true">{t("room.share")}</button>
     <div className="share-room-panel">
       <div className="share-room-context">
-        <span>Room code</span>
+        <span>{t("home.roomCode")}</span>
         <strong className="room-id">{props.roomId}</strong>
       </div>
-      <button className="button" type="button" onClick={() => void copy(props.roomId)}>Copy room code</button>
-      <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>Copy invite link</button>
-      {copied && <span role="status">Copied</span>}
-      {fallback && <label>Copy manually<input aria-label="Copy manually" readOnly value={fallback} onFocus={(event) => event.target.select()} /></label>}
+      <button className="button" type="button" onClick={() => void copy(props.roomId)}>{t("room.copyCode")}</button>
+      <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>{t("room.copyLink")}</button>
+      {copied && <span role="status">{t("room.copied")}</span>}
+      {fallback && <label>{t("room.copyManually")}<input aria-label={t("room.copyManually")} readOnly value={fallback} onFocus={(event) => event.target.select()} /></label>}
     </div>
   </div>;
 }
 
 export function Lobby(props: { roomId: string; roomName: string; targetScore: number; players: StatePlayer[]; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void }) {
+  const { t } = useTranslation();
   return (
     <main className="lobby-shell">
-      <section className="lobby-copy"><p className="eyebrow room-name">{props.roomName}</p><p className="room-code">Room <span className="room-id">{props.roomId}</span></p><h1>The table is almost ready.</h1><p>Share the case-sensitive room code. The host can begin once at least two players are connected.</p></section>
+      <section className="lobby-copy"><p className="eyebrow room-name">{props.roomName}</p><p className="room-code">{t("home.roomCode")} <span className="room-id">{props.roomId}</span></p><h1>{t("room.lobbyTitle")}</h1><p>{t("room.lobbyDetail")}</p></section>
       <section className="lobby-panel">
-        <div className="lobby-score"><span>Target score</span><strong>{props.targetScore}</strong></div>
+        <div className="lobby-score"><span>{t("home.targetScore")}</span><strong>{props.targetScore}</strong></div>
         <div className="seat-list">
           {[0, 1, 2, 3, 4].map((seat) => {
             const player = props.players.find((candidate) => candidate.seat === seat);
-            return <div className={`seat ${player ? "seat-filled" : ""}`} key={seat}>{player ? <><Avatar player={player} /><div><strong>{player.name}{player.id === props.selfId ? " · You" : ""}</strong><span>{player.isHost ? "Host" : player.connected ? "Ready" : "Offline"}</span></div></> : <span className="open-seat">Open seat</span>}</div>;
+            return <div className={`seat ${player ? "seat-filled" : ""}`} key={seat}>{player ? <><Avatar player={player} /><div><strong>{player.name}{player.id === props.selfId ? ` · ${t("room.you")}` : ""}</strong><span>{player.isHost ? t("room.host") : player.connected ? t("room.ready") : t("room.offline")}</span></div></> : <span className="open-seat">{t("room.openSeat")}</span>}</div>;
           })}
         </div>
-        <div className="lobby-actions"><button className="button ghost" type="button" onClick={props.onLeave}>Leave</button>{props.canStart ? <button className="button primary" type="button" disabled={props.busy} onClick={props.onStart}>Start game</button> : <span>Waiting for {props.players[0]?.isHost ? "players" : "the host"}…</span>}</div>
+        <div className="lobby-actions"><button className="button ghost" type="button" onClick={props.onLeave}>{t("common.leave")}</button>{props.canStart ? <button className="button primary" type="button" disabled={props.busy} onClick={props.onStart}>{t("room.start")}</button> : <span>{props.players[0]?.isHost ? t("room.waitPlayers") : t("room.waitHost")}</span>}</div>
       </section>
     </main>
   );
 }
 
 export function RulesPopover() {
+  const { t } = useTranslation();
+  const { locale } = usePreferences();
   const [open, setOpen] = useState(false);
   const pointerFocus = useRef(false);
 
@@ -67,24 +73,20 @@ export function RulesPopover() {
       <button className="rules-trigger" type="button" aria-expanded={open} aria-controls="quick-rules" onClick={() => {
         pointerFocus.current = false;
         setOpen((current) => !current);
-      }}>Rules</button>
-      <aside id="quick-rules" className="rules-panel" hidden={!open} aria-label="Quick rules">
-        <p className="eyebrow">Quick rules</p>
+      }}>{t("nav.rules")}</button>
+      <aside id="quick-rules" className="rules-panel" hidden={!open} aria-label={t("room.quickRules")}>
+        <p className="eyebrow">{t("room.quickRules")}</p>
         <ul>
-          <li>Keep the lowest total. Draw from the deck, take the discard, or call Cabo.</li>
-          <li>One drawn card may replace 1–4 cards; selections of 2–4 must match. A failed match reveals them and can add a penalty card.</li>
-          <li><strong>7–8</strong> peek at your card; <strong>9–10</strong> peek at another player's card.</li>
-          <li><strong>J–Q</strong> blindly swap any own card with any card of another player.</li>
-          <li>After Cabo, everyone else gets one final turn. A successful caller scores zero.</li>
-          <li>Exactly two Queens and both Kings shoots the moon: 0 for you, half the target for everyone else.</li>
+          {[1, 2, 3, 4, 5, 6].map((number) => <li key={number}>{t(`room.rules${number}`)}</li>)}
         </ul>
-        <a href="/docs/rules/" target="_blank" rel="noreferrer">Read the full rules <span aria-hidden="true">↗</span></a>
+        <a href={`/${locale}/docs/rules/`} target="_blank" rel="noreferrer">{t("room.fullRules")} <span aria-hidden="true">↗</span></a>
       </aside>
     </div>
   );
 }
 
 export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string }) {
+  const { t } = useTranslation();
   const [preview, setPreview] = useState(false);
   const [pinned, setPinned] = useState(false);
   const [revealedCell, setRevealedCell] = useState<string>();
@@ -144,22 +146,22 @@ export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string 
           aria-controls="score-history-matrix"
           onClick={() => setPinned(true)}
         >
-          <span>Scores</span>
+          <span>{t("game.scores")}</span>
           <strong>R{props.state.round}</strong>
           <small>{self ? `${self.score} / ${props.state.targetScore}` : `— / ${props.state.targetScore}`}</small>
         </button>
         <div className="score-history-content" aria-hidden={!open}>
           <div className="score-history-heading">
-            <div><p className="eyebrow">Round archive</p><h2>Every hand. Every point.</h2></div>
-            <span>{history.length} completed {history.length === 1 ? "round" : "rounds"}</span>
+            <div><p className="eyebrow">{t("game.roundArchive")}</p><h2>{t("game.everyPoint")}</h2></div>
+            <span>{t("game.completedRounds", { count: history.length })}</span>
           </div>
           {history.length ? (
             <div className="score-matrix-scroll" id="score-history-matrix" ref={matrix}>
               <table className="score-matrix">
                 <colgroup><col className="score-matrix-player-column" /><col span={history.length} /></colgroup>
-                <thead><tr><th scope="col">Player</th>{history.map((entry) => (
+                <thead><tr><th scope="col">{t("game.player")}</th>{history.map((entry) => (
                   <th scope="col" className={entry === history.at(-1) ? "latest" : ""} key={entry.round}>
-                    <strong>Round {entry.round}</strong>
+                    <strong>{t("game.round", { count: entry.round })}</strong>
                     <span>{roundOutcome(entry, props.state)}</span>
                   </th>
                 ))}</tr></thead>
@@ -190,7 +192,7 @@ export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string 
                 ))}</tbody>
               </table>
             </div>
-          ) : <p className="score-history-empty" id="score-history-matrix">Completed rounds will appear here for everyone at the table.</p>}
+          ) : <p className="score-history-empty" id="score-history-matrix">{t("game.noHistory")}</p>}
         </div>
       </div>
     </div>

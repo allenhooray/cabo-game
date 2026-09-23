@@ -1,33 +1,34 @@
 import type { PublicActionEvent } from "@cabo-game/shared";
+import type { TFunction } from "i18next";
 import type { ClientEvent } from "./types.js";
 
-export function formatEvent(event: ClientEvent, name: (id: string) => string): string | undefined {
+export function formatEvent(event: ClientEvent, name: (id: string) => string, t: TFunction): string | undefined {
   switch (event.type) {
-    case "joined": return `${event.name} joined the table.`;
-    case "disconnected": return `${name(event.playerId)} went offline.`;
-    case "reconnected": return `${name(event.playerId)} reconnected.`;
-    case "turn": return `${name(event.playerId)} is playing${event.finalTurn ? " their final turn" : ""}.`;
-    case "turn-timeout": return `${name(event.playerId)} timed out; the server completed their turn.`;
-    case "action": return formatActionEvent(event, name);
+    case "joined": return t("event.joined", { name: event.name });
+    case "disconnected": return t("event.disconnected", { name: name(event.playerId) });
+    case "reconnected": return t("event.reconnected", { name: name(event.playerId) });
+    case "turn": return t(event.finalTurn ? "event.finalTurn" : "event.turn", { name: name(event.playerId) });
+    case "turn-timeout": return t("event.timeout", { name: name(event.playerId) });
+    case "action": return formatActionEvent(event, name, t);
     case "discard": case "swap": case "cabo": return undefined;
-    case "forfeit": return `${name(event.playerId)} forfeited.`;
+    case "forfeit": return t("event.forfeit", { name: name(event.playerId) });
     default: return undefined;
   }
 }
 
-function formatActionEvent(event: PublicActionEvent, name: (id: string) => string): string | undefined {
+function formatActionEvent(event: PublicActionEvent, name: (id: string) => string, t: TFunction): string | undefined {
   const actor = name(event.playerId);
   switch (event.action) {
-    case "draw-deck": return `${actor} drew a hidden card from the deck.`;
-    case "draw-discard": return `${actor} took ${event.takenCard.label} from the discard pile.`;
-    case "replace": return `${actor} replaced positions ${event.positions.join(", ")}; drawn card placed at ${event.replacementPosition}.`;
-    case "exchange-mismatch": return `${actor}'s selected cards did not match and were revealed.`;
-    case "resolve-mismatch": return `${actor} placed the mismatch cards at the chosen ends.`;
-    case "discard": return `${actor} discarded the drawn ${event.discardedCard.label}.`;
-    case "peek-self": return `${actor} looked at their card ${event.position}.`;
-    case "peek-other": return `${actor} looked at ${name(event.targetPlayerId)}'s card ${event.position}.`;
-    case "swap": return `${actor} swapped card ${event.ownPosition} with ${name(event.targetPlayerId)}'s card ${event.targetPosition}.`;
-    case "skip": return `${actor} skipped the card power.`;
-    case "cabo": return `${actor} called Cabo.`;
+    case "draw-deck": return t("event.drawDeck", { name: actor });
+    case "draw-discard": return t("event.drawDiscard", { name: actor, card: event.takenCard.label });
+    case "replace": return t("event.replace", { name: actor, positions: event.positions.join(", "), position: event.replacementPosition });
+    case "exchange-mismatch": return t("event.exchangeMismatch", { name: actor });
+    case "resolve-mismatch": return t("event.resolveMismatch", { name: actor });
+    case "discard": return t("event.discard", { name: actor, card: event.discardedCard.label });
+    case "peek-self": return t("event.peekSelf", { name: actor, position: event.position });
+    case "peek-other": return t("event.peekOther", { name: actor, target: name(event.targetPlayerId), position: event.position });
+    case "swap": return t("event.swap", { name: actor, own: event.ownPosition, target: name(event.targetPlayerId), position: event.targetPosition });
+    case "skip": return t("event.skip", { name: actor });
+    case "cabo": return t("event.cabo", { name: actor });
   }
 }

@@ -11,6 +11,8 @@ import {
 } from "../../browser-session.js";
 import { readInvitation } from "../../invitation.js";
 import { clientEvent, type ClientEvent, type ConnectionState } from "../game/types.js";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 interface SessionCallbacks {
   onState(state: CaboStateLike): void;
@@ -25,6 +27,7 @@ interface SessionCallbacks {
 const sessionStore = new BrowserSessionStore();
 
 export function useCaboSession(callbacks: SessionCallbacks) {
+  const { t } = useTranslation();
   const [invitation, setInvitation] = useState(readInvitation);
   const [serverUrl, setServerUrl] = useState(savedServerUrl);
   const [serverDraft, setServerDraft] = useState(savedServerUrl);
@@ -68,26 +71,26 @@ export function useCaboSession(callbacks: SessionCallbacks) {
           if (event) callbacks.onEvent(event, instance.state);
           setRevisionTick((revision) => revision + 1);
         },
-        error: (error) => setNotice(error.message),
+        error: (error) => setNotice(localizedError(t, error)),
         chat: callbacks.onChat,
         dropped: () => {
           setConnection("offline");
-          setNotice("Connection lost. Your seat is reserved for 60 seconds.");
+          setNotice(t("session.connectionLost"));
         },
         reconnected: () => {
           setConnection("live");
-          setNotice("Connection restored.");
+          setNotice(t("session.connectionRestored"));
         },
         left: () => {
           setConnection("idle");
           setCore(undefined);
           callbacks.onLeft();
         },
-        persistenceError: () => setNotice("This browser could not save the reconnect session."),
+        persistenceError: () => setNotice(t("session.saveFailed")),
       },
     });
     return instance;
-  }, [callbacks]);
+  }, [callbacks, t]);
 
   const refreshRooms = useCallback(async () => {
     setRoomsBusy(true);
@@ -123,7 +126,7 @@ export function useCaboSession(callbacks: SessionCallbacks) {
         await sessionStore.clear();
         setCore(undefined);
         setConnection("idle");
-        setNotice("The saved seat has expired. Join a room to keep playing.");
+        setNotice(t("session.expired"));
       }
     });
   }, [invitation, makeCore, serverUrl]);
@@ -147,7 +150,7 @@ export function useCaboSession(callbacks: SessionCallbacks) {
 
   const beginConnection = useCallback((targetServer = serverUrl) => {
     const normalizedName = savePlayerName(name);
-    if (!normalizedName) throw new Error("Enter a player name.");
+    if (!normalizedName) throw new Error(t("session.enterName"));
     const next = makeCore(normalizedName, targetServer);
     callbacks.onBegin();
     setName(normalizedName);
@@ -187,7 +190,7 @@ export function useCaboSession(callbacks: SessionCallbacks) {
     try {
       const response = await core.execute(command);
       if (!response.ok) {
-        setNotice(response.error.message);
+        setNotice(localizedError(t, response.error));
         return false;
       }
       return true;
@@ -221,7 +224,7 @@ export function useCaboSession(callbacks: SessionCallbacks) {
       setServerUrl(next);
       setServerDraft(next);
       reconnectAttempted.current = true;
-      setNotice("Server updated.");
+      setNotice(t("session.serverUpdated"));
     } catch (error) {
       setNotice(errorMessage(error));
     }
@@ -232,7 +235,7 @@ export function useCaboSession(callbacks: SessionCallbacks) {
     setServerUrl(next);
     setServerDraft(next);
     reconnectAttempted.current = true;
-    setNotice(`Server reset to ${next}.`);
+    setNotice(t("session.serverReset", { url: next }));
   }, []);
 
   const create = useCallback((visibility: "public" | "private", targetScore: number, roomName: string, memoryMode: MemoryMode, turnDurationSeconds: TurnDurationSeconds, password?: string) => {
@@ -278,4 +281,17 @@ export function useCaboSession(callbacks: SessionCallbacks) {
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);
+}
+
+function localizedError(t: TFunction, error: { code?: string; message?: string }): string {
+  const code = error.code?.trim();
+  const known: Record<string, string> = {
+    ROOM_FULL: "home.full", ROOM_STARTED: "home.started", NICKNAME_TAKEN: "session.nicknameTaken",
+    INVALID_PASSWORD: "session.invalidPassword", NOT_HOST: "session.notHost", NOT_ENOUGH_PLAYERS: "session.notEnoughPlayers",
+    NOT_YOUR_TURN: "session.notYourTurn", INVALID_PHASE: "session.invalidPhase", CHAT_RATE_LIMITED: "session.chatRateLimited",
+  };
+  const key = code ? known[code] : undefined;
+  if (key) return t(key);
+  if (import.meta.env.DEV && error.message) console.warn("Untranslated Cabo error", error);
+  return t("common.unknownError", { code: code ? ` (${code})` : "" });
 }

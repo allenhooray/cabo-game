@@ -101,7 +101,7 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await expect(alice.getByRole("region", { name: "Your hand and actions" })).toContainText("Alice · 0 pts");
   await alice.getByRole("button", { name: "Rules" }).hover();
   await expect(alice.getByRole("complementary", { name: "Quick rules" })).toBeVisible();
-  await expect(alice.getByRole("link", { name: /Read the full rules/i })).toHaveAttribute("href", "/docs/rules/");
+  await expect(alice.getByRole("link", { name: /Read the full rules/i })).toHaveAttribute("href", "/en-US/docs/rules/");
   const mobileLayout = (alice.viewportSize()?.width ?? 0) <= 760;
   const aliceStarts = await alice.getByRole("heading", { name: "Draw with intention." }).isVisible();
   if (aliceStarts === mobileLayout) {

@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CaboStateLike } from "@cabo-game/client-core";
 import type { PrivateRevealMessage } from "@cabo-game/shared";
-import { formatEvent } from "./events.js";
 import { motionDuration } from "./MotionLayer.js";
 import type { CardMotion, ClientEvent, ResultEvent, TemporaryCard } from "./types.js";
 
 export function useGameEffects() {
   const [temporaryCards, setTemporaryCards] = useState<TemporaryCard[]>([]);
   const [clockNow, setClockNow] = useState(Date.now);
-  const [events, setEvents] = useState<string[]>([]);
+  const [events, setEvents] = useState<ClientEvent[]>([]);
   const [result, setResult] = useState<ResultEvent>();
   const [privateReveal, setPrivateReveal] = useState<PrivateRevealMessage>();
   const [cardMotion, setCardMotion] = useState<CardMotion>();
@@ -75,8 +74,9 @@ export function useGameEffects() {
     }
     if (event.type === "round-result" || event.type === "match-result") setResult(event);
     if (event.type === "action") setMotionQueue((current) => [...current, { ...event, id: ++motionId.current }]);
-    const label = formatEvent(event, (id) => state?.players.get(id)?.name ?? id);
-    if (label) setEvents((current) => [...current.slice(-5), label]);
+    if (!["discard", "swap", "cabo", "round-result", "match-result"].includes(event.type)) {
+      setEvents((current) => [...current.slice(-5), event]);
+    }
   }, []);
 
   const reset = useCallback(() => {

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { CaboStateLike } from "@cabo-game/client-core";
 import type { ClientCommand } from "@cabo-game/shared";
 import { Modal } from "./components/TablePrimitives.js";
@@ -6,14 +7,16 @@ import { RoomChat } from "./features/chat/RoomChat.js";
 import { useRoomChat } from "./features/chat/useRoomChat.js";
 import { GameTable } from "./features/game/GameTable.js";
 import { PrivateReveal } from "./features/game/PrivateReveal.js";
-import type { Confirmation, ConnectionState, Selection } from "./features/game/types.js";
+import type { Confirmation, Selection } from "./features/game/types.js";
 import { useGameEffects } from "./features/game/useGameEffects.js";
 import { Home } from "./features/home/Home.js";
 import { Results, ScoreFallback } from "./features/results/Results.js";
 import { Lobby, RulesPopover, ScoreHistoryPanel, ShareRoom } from "./features/room/RoomComponents.js";
 import { useCaboSession } from "./features/session/useCaboSession.js";
+import { SettingsMenu } from "./components/SettingsMenu.js";
 
 export function App() {
+  const { t } = useTranslation();
   const chat = useRoomChat();
   const effects = useGameEffects();
   const [selection, setSelection] = useState<Selection>("idle");
@@ -87,10 +90,10 @@ export function App() {
   const activePlayers = players.filter((player) => player.connected && !player.forfeited);
   const chatEnabled = session.connection === "live" && !session.readOnly;
   const chatStatus = session.readOnly
-    ? "Chat paused in this tab"
+    ? t("chat.paused")
     : session.connection === "offline" || session.connection === "reconnecting"
-      ? "Chat unavailable while reconnecting"
-      : "Chat unavailable";
+      ? t("chat.reconnecting")
+      : t("chat.unavailable");
   const chatProps = {
     messages: chat.messages,
     selfId,
@@ -108,9 +111,9 @@ export function App() {
         <div className="room-meta">
           <strong className="room-title">{state.roomName}</strong>
           <span aria-hidden="true" />
-          <span className="room-setting">{state.memoryMode === "classic" ? "Classic memory" : "Assisted memory"}</span>
+          <span className="room-setting">{state.memoryMode === "classic" ? t("home.classic") : t("home.assisted")}</span>
           <span aria-hidden="true" />
-          <span className="room-setting">{state.turnDurationSeconds ? `${state.turnDurationSeconds}s turns` : "Untimed turns"}</span>
+          <span className="room-setting">{state.turnDurationSeconds ? t("common.seconds", { count: state.turnDurationSeconds }) : t("home.unlimited")}</span>
           <span aria-hidden="true" />
           <ShareRoom roomId={room.roomId} server={session.serverUrl} />
         </div>
@@ -119,25 +122,26 @@ export function App() {
             ref={chat.triggerRef}
             className="chat-trigger"
             type="button"
-            aria-label={chat.unread > 0 ? `Chat, ${chat.unread} unread ${chat.unread === 1 ? "message" : "messages"}` : "Chat"}
+            aria-label={chat.unread > 0 ? t("chat.unread", { count: chat.unread }) : t("chat.trigger")}
             aria-haspopup="dialog"
             aria-expanded={chat.open}
             onClick={chat.openDrawer}
           >
-            Chat
+            {t("chat.trigger")}
             {chat.unread > 0 && <span className="chat-unread-dot" aria-hidden="true" />}
           </button>
           {state.phase !== "LOBBY" && <ScoreHistoryPanel state={state} selfId={selfId} />}
           <RulesPopover />
-          <div className={`connection connection-${session.connection}`}><i />{connectionLabel(session.connection)}</div>
+          <div className={`connection connection-${session.connection}`}><i />{t(`connection.${session.connection === "idle" ? "ready" : session.connection}`)}</div>
+          <SettingsMenu />
         </div>
       </header>
 
-      {session.notice && <div className="notice" role="status"><span>{session.notice}</span><button type="button" aria-label="Dismiss message" onClick={() => session.setNotice(undefined)}>×</button></div>}
+      {session.notice && <div className="notice" role="status"><span>{session.notice}</span><button type="button" aria-label={t("common.close")} onClick={() => session.setNotice(undefined)}>×</button></div>}
       {session.readOnly && (
         <div className="readonly-banner" role="alert">
-          This seat is open in another tab. Actions are paused here.
-          <button type="button" onClick={session.takeOver}>Take over here</button>
+          {t("session.readOnly")}
+          <button type="button" onClick={session.takeOver}>{t("session.takeOver")}</button>
         </div>
       )}
 
@@ -153,7 +157,7 @@ export function App() {
           canStart={Boolean(self?.isHost && activePlayers.length >= 2)}
           busy={session.busy || session.readOnly}
           onStart={() => execute({ type: "start" })}
-          onLeave={() => setConfirmation({ title: "Leave this room?", body: "Your seat will be released.", label: "Leave room", action: session.leave })}
+          onLeave={() => setConfirmation({ title: t("modal.leaveRoomTitle"), body: t("modal.leaveRoomBody"), label: t("modal.leaveRoomAction"), action: session.leave })}
           />
         ) : (
           <GameTable
@@ -172,19 +176,19 @@ export function App() {
           onTarget={setTargetId}
           onExecute={execute}
           onConfirm={setConfirmation}
-          onLeave={() => setConfirmation({ title: "Leave the match?", body: "Leaving an active match counts as a forfeit.", label: "Forfeit and leave", action: session.leave })}
+          onLeave={() => setConfirmation({ title: t("modal.leaveMatchTitle"), body: t("modal.leaveMatchBody"), label: t("modal.leaveMatchAction"), action: session.leave })}
           />
         )}
         </main>
-        <aside className="chat-sidebar" aria-label="Room chat">
+        <aside className="chat-sidebar" aria-label={t("chat.room")}>
           <RoomChat {...chatProps} />
         </aside>
       </div>
 
       {chat.open && (
         <div className="chat-drawer-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) chat.closeDrawer(); }}>
-          <section className="chat-drawer" role="dialog" aria-modal="true" aria-label="Room chat">
-            <button className="chat-close" type="button" aria-label="Close chat" onClick={chat.closeDrawer}>×</button>
+          <section className="chat-drawer" role="dialog" aria-modal="true" aria-label={t("chat.room")}>
+            <button className="chat-close" type="button" aria-label={t("chat.close")} onClick={chat.closeDrawer}>×</button>
             <RoomChat {...chatProps} autoFocus onClose={chat.closeDrawer} />
           </section>
         </div>
@@ -206,7 +210,7 @@ export function App() {
         <Modal title={confirmation.title} onClose={() => setConfirmation(undefined)}>
           <p>{confirmation.body}</p>
           <div className="modal-actions">
-            <button className="button ghost" type="button" onClick={() => setConfirmation(undefined)}>Cancel</button>
+            <button className="button ghost" type="button" onClick={() => setConfirmation(undefined)}>{t("common.cancel")}</button>
             <button className="button primary" type="button" onClick={() => {
               if (confirmation.revision !== undefined && confirmation.revision !== core.state?.revision) { setConfirmation(undefined); return; }
               const action = confirmation.action;
@@ -218,12 +222,4 @@ export function App() {
       )}
     </div>
   );
-}
-
-function connectionLabel(state: ConnectionState): string {
-  if (state === "live") return "Live";
-  if (state === "connecting") return "Connecting";
-  if (state === "reconnecting") return "Reconnecting";
-  if (state === "offline") return "Offline";
-  return "Ready";
 }

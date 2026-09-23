@@ -52,9 +52,9 @@ describe("Cabo home", () => {
     expect(screen.getByRole("heading", { name: /quick start/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /create room/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Play" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/docs/rules/");
-    expect(screen.getByRole("link", { name: "CLI" })).toHaveAttribute("href", "/docs/cli/");
-    expect(screen.getByRole("link", { name: "Agent" })).toHaveAttribute("href", "/docs/agent/");
+    expect(screen.getByRole("link", { name: "Rules" })).toHaveAttribute("href", "/en-US/docs/rules/");
+    expect(screen.getByRole("link", { name: "CLI" })).toHaveAttribute("href", "/en-US/docs/cli/");
+    expect(screen.getByRole("link", { name: "Agent" })).toHaveAttribute("href", "/en-US/docs/agent/");
     expect(screen.queryByText("Server-authoritative play · Private cards stay private")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/no public rooms yet/i)).toBeInTheDocument());
   });
@@ -218,7 +218,7 @@ describe("Cabo game table additions", () => {
     fireEvent.mouseEnter(trigger.parentElement as HTMLElement);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("complementary", { name: "Quick rules" })).toBeVisible();
-    expect(screen.getByRole("link", { name: /read the full rules/i })).toHaveAttribute("href", "/docs/rules/");
+    expect(screen.getByRole("link", { name: /read the full rules/i })).toHaveAttribute("href", "/en-US/docs/rules/");
     expect(screen.getByRole("link", { name: /read the full rules/i })).toHaveAttribute("target", "_blank");
     fireEvent.keyDown(trigger.parentElement as HTMLElement, { key: "Escape" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");

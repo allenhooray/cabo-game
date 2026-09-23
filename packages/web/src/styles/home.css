@@ -3,6 +3,7 @@
 .home-header nav a { color: var(--muted); font-size: 12px; text-decoration: none; }
 .home-header nav a:hover, .home-header nav a[aria-current="page"] { color: var(--ink); }
 .home-header nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 7px; }
+.home-header > .settings-menu { justify-self: end; }
 .wordmark-static, .wordmark { color: var(--ink); font-size: 15px; font-weight: 500; letter-spacing: .26em; }
 .wordmark { width: fit-content; justify-self: start; }
 .home-main { width: min(1120px, calc(100% - 40px)); margin: 0 auto; padding: clamp(40px, 5vw, 64px) 0 60px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .75fr); column-gap: clamp(48px, 9vw, 120px); row-gap: 48px; }
@@ -41,4 +42,5 @@
 @media (max-width: 760px) {
   .home-header { padding: 14px 18px; grid-template-columns: 1fr; gap: 12px; }
   .home-header nav { justify-content: space-between; gap: 20px; padding-top: 12px; border-top: 1px solid var(--soft-line); }
+  .home-header > .settings-menu { position: absolute; top: 14px; right: 18px; }
 }

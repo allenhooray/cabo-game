@@ -21,7 +21,7 @@ export default defineConfig({
       env: { WEB_ORIGINS: "http://127.0.0.1:5173" },
     },
     {
-      command: "pnpm --filter @cabo-game/web dev --host 127.0.0.1 --port 5173",
+      command: "pnpm --filter @cabo-game/web preview --host 127.0.0.1 --port 5173",
       url: "http://127.0.0.1:5173",
       reuseExistingServer: true,
       timeout: 20_000,
