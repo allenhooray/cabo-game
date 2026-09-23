@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CaboClientCore, caboRisk, legalActions, type CaboStateLike, type StatePlayer } from "@cabo-game/client-core";
 import type { ClientCommand, KnownCard } from "@cabo-game/shared";
 import { Avatar, CardFace, formatCardLabel } from "../../components/TablePrimitives.js";
+import { ActionPrompt } from "../../components/ActionPrompt.js";
 import { MotionLayer } from "./MotionLayer.js";
 import type { CardMotion, ClientEvent, Confirmation, Selection, TemporaryCard } from "./types.js";
 import { useTranslation } from "react-i18next";
@@ -184,14 +185,14 @@ function ActionPanel(props: GameTableProps & {
   onMismatchDrawnPlacement(placement: "left" | "right" | undefined): void;
 }) {
   const { t } = useTranslation();
-  if (props.state.phase === "FINAL_TURNS" && props.actions.some((action) => action.type === "skip")) return <><h3>{t("game.noCards")}</h3><button className="button primary" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.finishFinal")}</button></>;
+  if (props.state.phase === "FINAL_TURNS" && props.actions.some((action) => action.type === "skip")) return <ActionPrompt title={t("game.noCards")} actions={<button className="button primary" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.finishFinal")}</button>} />;
   const { state, selfId } = props;
-  if (state.currentPlayerId !== selfId) return <><p className="action-kicker">{t("game.waiting")}</p><h3>{props.phaseCopy.title}</h3><p>{props.phaseCopy.detail}</p></>;
-  if (props.selection === "swap" && !props.swapOwnPosition) return <><h3>{t("game.chooseOwnSwap")}</h3><p>{t("game.thenChoose")}</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>{t("common.cancel")}</button></>;
-  if (props.selection === "peek-other" || props.selection === "swap") return <><p className="action-kicker">{props.selection === "swap" ? t("game.blindSwap") : t("game.privatePeek")}</p><h3>{props.targetId ? t("game.chooseTheirCard") : t("game.choosePlayer")}</h3><p>{props.selection === "swap" ? t("game.neitherRevealed") : t("game.onlyYouSee")}</p><button className="text-button" type="button" onClick={() => props.onSelection("idle")}>{t("common.cancel")}</button></>;
-  if (state.phase === "DRAWN") return <><p className="action-kicker">{t("game.cardDrawn")}</p><h3>{t("game.chooseReplace")}</h3><p>{t("game.selectUpTo")}</p>{state.drawSource === "deck" && <button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "discard" })}>{t("game.discardDrawn")}</button>}</>;
+  if (state.currentPlayerId !== selfId) return <ActionPrompt eyebrow={t("game.waiting")} title={props.phaseCopy.title} detail={props.phaseCopy.detail} />;
+  if (props.selection === "swap" && !props.swapOwnPosition) return <ActionPrompt title={t("game.chooseOwnSwap")} detail={t("game.thenChoose")} actions={<button className="text-button" type="button" onClick={() => props.onSelection("idle")}>{t("common.cancel")}</button>} />;
+  if (props.selection === "peek-other" || props.selection === "swap") return <ActionPrompt eyebrow={props.selection === "swap" ? t("game.blindSwap") : t("game.privatePeek")} title={props.targetId ? t("game.chooseTheirCard") : t("game.choosePlayer")} detail={props.selection === "swap" ? t("game.neitherRevealed") : t("game.onlyYouSee")} actions={<button className="text-button" type="button" onClick={() => props.onSelection("idle")}>{t("common.cancel")}</button>} />;
+  if (state.phase === "DRAWN") return <ActionPrompt eyebrow={t("game.cardDrawn")} title={t("game.chooseReplace")} detail={t("game.selectUpTo")} actions={state.drawSource === "deck" ? <button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "discard" })}>{t("game.discardDrawn")}</button> : undefined} />;
   if (state.phase === "MISMATCH_PENDING") {
-    if (!props.mismatchDrawnPlacement) return <><p className="action-kicker">{t("game.mismatch")}</p><h3>{t("game.placeDrawn")}</h3><p>{t("game.selectedPublic")}</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => state.mismatchPenaltyCardPending ? props.onMismatchDrawnPlacement(placement) : props.onExecute({ type: "resolve-mismatch", drawnPlacement: placement })}>{t(placement === "left" ? "game.leftEnd" : "game.rightEnd")}</button>)}</div></>;
+    if (!props.mismatchDrawnPlacement) return <ActionPrompt eyebrow={t("game.mismatch")} title={t("game.placeDrawn")} detail={t("game.selectedPublic")} actions={<div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => state.mismatchPenaltyCardPending ? props.onMismatchDrawnPlacement(placement) : props.onExecute({ type: "resolve-mismatch", drawnPlacement: placement })}>{t(placement === "left" ? "game.leftEnd" : "game.rightEnd")}</button>)}</div>} />;
     return <><p className="action-kicker">{t("game.penaltyCard")}</p><h3>{t("game.placePenalty")}</h3><p>{t("game.drawnGoes", { side: t(props.mismatchDrawnPlacement === "left" ? "game.leftEnd" : "game.rightEnd") })}</p><div className="action-buttons">{(["left", "right"] as const).map((placement) => <button className="button primary" type="button" key={placement} onClick={() => props.onExecute({ type: "resolve-mismatch", drawnPlacement: props.mismatchDrawnPlacement as "left" | "right", penaltyPlacement: placement })}>{t(placement === "left" ? "game.leftEnd" : "game.rightEnd")}</button>)}</div><button className="text-button" type="button" onClick={() => props.onMismatchDrawnPlacement(undefined)}>{t("game.back")}</button></>;
   }
   if (state.phase === "POWER_PENDING") {
@@ -201,7 +202,7 @@ function ActionPanel(props: GameTableProps & {
     if (rank === 11 || rank === 12) return <><p className="action-kicker">{t("game.exchangePower")}</p><h3>{t("game.blindSwapAny")}</h3><div className="action-buttons"><button className="button primary" type="button" disabled={props.busy} onClick={() => props.onSelection("swap")}>{t("game.chooseYourCard")}</button><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.skip")}</button></div></>;
     return <><p className="action-kicker">{t("game.noPower")}</p><h3>{t("game.continueTable")}</h3><button className="button" type="button" disabled={props.busy} onClick={() => props.onExecute({ type: "skip" })}>{t("game.continue")}</button></>;
   }
-  return <><p className="action-kicker">{t("game.yourTurn")}</p><h3>{t("game.drawIntention")}</h3><p>{t("game.takeHidden")}</p></>;
+  return <ActionPrompt eyebrow={t("game.yourTurn")} title={t("game.drawIntention")} detail={t("game.takeHidden")} />;
 }
 
 function PositionPicker(props: { count: number; onChoose(position: number): void; disabled: boolean; label: string }) {
