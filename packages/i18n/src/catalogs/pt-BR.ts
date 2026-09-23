@@ -2,6 +2,7 @@ import { enUS, type Catalog } from "./en-US.js";
 
 export const ptBR: Catalog = {
   ...enUS,
+  "home.defaultRoomName": "Sala de {{name}}", "home.defaultPlayerName": "Jogador",
   "chat.close": "Fechar chat",
   "game.swapTitle": "Trocar com {{name}}?", "game.swapBody": "Sua carta {{own}} e a carta {{position}} de {{name}} serão trocadas sem revelar nenhuma delas.", "game.table": "A mesa",
   "game.yourHandActions": "Sua mão e ações",

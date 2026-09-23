@@ -34,6 +34,8 @@ export const enUS = {
   "home.private": "Private",
   "home.roomVisibility": "Room visibility",
   "home.roomName": "Room name",
+  "home.defaultRoomName": "{{name}}'s room",
+  "home.defaultPlayerName": "Player",
   "home.roomNameHint": "up to 40 characters",
   "home.targetScore": "Target score",
   "home.memoryMode": "Memory mode",

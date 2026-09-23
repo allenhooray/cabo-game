@@ -2,6 +2,7 @@ import { enUS, type Catalog } from "./en-US.js";
 
 export const zhCN: Catalog = {
   ...enUS,
+  "home.defaultRoomName": "{{name}} 的房间", "home.defaultPlayerName": "玩家",
   "chat.close": "关闭聊天",
   "game.swapTitle": "与 {{name}} 交换？", "game.swapBody": "你的第 {{own}} 张牌将与 {{name}} 的第 {{position}} 张牌盲换，两张牌都不会公开。", "game.table": "牌桌",
   "game.yourHandActions": "你的手牌和操作",

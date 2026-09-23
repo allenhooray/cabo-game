@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CaboStateLike, KnowledgeState } from "@cabo-game/client-core";
+import { createTranslator } from "@cabo-game/i18n";
+import { I18nextProvider } from "react-i18next";
 import { App } from "./App.js";
 import { RoomChat } from "./features/chat/RoomChat.js";
 import { GameTable } from "./features/game/GameTable.js";
@@ -97,15 +99,36 @@ describe("Cabo home", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("prefills the create form with a room name based on the current player", () => {
+  it("keeps the default room name in sync with the player but preserves a custom name", () => {
     const { container } = render(<App />);
     const nameInput = container.querySelector<HTMLInputElement>("#player-name")!;
     fireEvent.change(nameInput, { target: { value: "Alice" } });
     fireEvent.click(container.querySelector<HTMLButtonElement>(".entry-actions .primary")!);
     const roomName = container.querySelector<HTMLInputElement>("#create-room-name")!;
     expect(roomName).toHaveValue("Alice's room");
-    fireEvent.change(roomName, { target: { value: "" } });
-    expect(roomName).toHaveValue("");
+    fireEvent.change(nameInput, { target: { value: "Bob" } });
+    expect(roomName).toHaveValue("Bob's room");
+    fireEvent.change(roomName, { target: { value: "Friday night" } });
+    fireEvent.change(nameInput, { target: { value: "Chloe" } });
+    expect(roomName).toHaveValue("Friday night");
+  });
+
+  it("updates a default room name when the language changes but preserves a custom name", async () => {
+    const english = await createTranslator("en-US");
+    const chinese = await createTranslator("zh-CN");
+    const { container, rerender } = render(<I18nextProvider i18n={english.i18n}><App /></I18nextProvider>);
+    const nameInput = container.querySelector<HTMLInputElement>("#player-name")!;
+    fireEvent.change(nameInput, { target: { value: "小明" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create room" }));
+    const roomName = container.querySelector<HTMLInputElement>("#create-room-name")!;
+    expect(roomName).toHaveValue("小明's room");
+
+    rerender(<I18nextProvider i18n={chinese.i18n}><App /></I18nextProvider>);
+    expect(roomName).toHaveValue("小明 的房间");
+
+    fireEvent.change(roomName, { target: { value: "周五牌局" } });
+    rerender(<I18nextProvider i18n={english.i18n}><App /></I18nextProvider>);
+    expect(roomName).toHaveValue("周五牌局");
   });
 
   it("shows room names and statuses and disables rooms that cannot be joined", async () => {
@@ -257,6 +280,11 @@ describe("Cabo game table additions", () => {
     expect(settings).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("dialog", { name: "Settings" })).toHaveClass("popover-panel");
     expect(screen.getByRole("dialog", { name: "Settings" }).firstElementChild).toHaveClass("settings-panel-content");
+    expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("auto");
+    expect(screen.getByRole("combobox", { name: "Language" })).toHaveValue("auto");
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Theme" }), { target: { value: "dark" } });
+    expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("dark");
     fireEvent.keyDown(settings.parentElement as HTMLElement, { key: "Escape" });
     expect(settings).toHaveAttribute("aria-expanded", "false");
   });

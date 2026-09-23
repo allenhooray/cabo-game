@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { ListedRoom } from "@cabo-game/client-core";
 import type { MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
@@ -42,6 +42,14 @@ export function Home(props: HomeProps) {
   const [createPassword, setCreatePassword] = useState("");
   const [roomCode, setRoomCode] = useState(props.invitation?.roomId ?? "");
   const [joinPassword, setJoinPassword] = useState("");
+  const defaultRoomName = t("home.defaultRoomName", { name: props.name.trim() || t("home.defaultPlayerName") });
+  const previousDefaultRoomName = useRef(defaultRoomName);
+
+  useEffect(() => {
+    const previousDefault = previousDefaultRoomName.current;
+    if (createOpen) setRoomName((current) => current === previousDefault ? defaultRoomName : current);
+    previousDefaultRoomName.current = defaultRoomName;
+  }, [createOpen, defaultRoomName]);
 
   return (
     <div className="home-shell">
@@ -69,7 +77,7 @@ export function Home(props: HomeProps) {
               onBlur={props.onSaveName}
             />
             <div className="entry-actions">
-              <Button variant={joinOpen ? "default" : "primary"} aria-expanded={createOpen} aria-controls="create-room-form" onClick={() => { setRoomName(`${props.name.trim() || "Player"}'s room`); setCreateOpen(true); setJoinOpen(false); }}>{t("home.createRoom")}</Button>
+              <Button variant={joinOpen ? "default" : "primary"} aria-expanded={createOpen} aria-controls="create-room-form" onClick={() => { if (!createOpen) setRoomName(defaultRoomName); setCreateOpen(true); setJoinOpen(false); }}>{t("home.createRoom")}</Button>
               <Button variant={joinOpen ? "primary" : "default"} aria-expanded={joinOpen} aria-controls="join-room-form" onClick={() => { setJoinOpen(true); setCreateOpen(false); }}>{t("home.joinByCode")}</Button>
             </div>
             {props.notice && <InlineNotice className="form-notice" role="alert">{props.notice}</InlineNotice>}
