@@ -46,6 +46,50 @@ function waitUntil(predicate: () => boolean, timeoutMs: number, label: string): 
 }
 
 describe("M6 · 协议语义", () => {
+  it("最快人设的抽牌也等待人类反应窗口", async () => {
+    process.env.FAKE_SCENARIO = "happy";
+    let observedAt = 0;
+    let actedAt = 0;
+    const driver = new BotDriver({
+      command: process.execPath, args: [FIXTURE], cwd: ROOT,
+      create: { memoryMode: "assisted", turnDurationSeconds: 60 },
+      persona: PERSONAS.mnemo, samples: 40, seed: 3,
+      onObservation: (obs) => { if (obs.legalActions.length > 0) observedAt = Date.now(); },
+      onAction: () => { actedAt = Date.now(); },
+    });
+    try {
+      await driver.start();
+      await waitUntil(() => actedAt > 0, 10_000, "延迟后抽牌");
+      expect(actedAt - observedAt).toBeGreaterThanOrEqual(1320);
+      expect(driver.summary.errors).toEqual([]);
+    } finally { await driver.stop(); }
+  }, 15_000);
+
+  it.each(["stale", "stop"])("等待期间 %s 不再提交旧动作", async (scenario) => {
+    process.env.FAKE_SCENARIO = scenario === "stale" ? "stale" : "happy";
+    const logs: string[] = [];
+    const driver = new BotDriver({
+      command: process.execPath, args: [FIXTURE], cwd: ROOT,
+      create: { memoryMode: "assisted", turnDurationSeconds: 60 },
+      persona: PERSONAS.mnemo, samples: 40, seed: 3,
+      log: (line) => logs.push(line),
+    });
+    try {
+      await driver.start();
+      await waitUntil(() => driver.observation?.legalActions.length === 1, 5000, "开始等待");
+      if (scenario === "stop") {
+        await driver.stop();
+        // 停止立即唤醒决策循环，不留下长计时器维持进程。
+        await waitUntil(() => !(driver as unknown as { acting: boolean }).acting, 250, "取消等待");
+      } else {
+        // 超过 mnemo 抽牌区间上限，旧动作也不能发出。
+        await new Promise((resolve) => setTimeout(resolve, 2600));
+      }
+      expect(logs.some((line) => line.includes("REQ action"))).toBe(false);
+      expect(driver.summary.errors).toEqual([]);
+    } finally { await driver.stop(); }
+  }, 10_000);
+
   it("事件先于观察：事件帧被缓存并按序喂给信念层", async () => {
     process.env.FAKE_SCENARIO = "happy";
     const logs: string[] = [];
@@ -54,7 +98,8 @@ describe("M6 · 协议语义", () => {
       args: [FIXTURE],
       cwd: ROOT,
       create: { memoryMode: "assisted", turnDurationSeconds: 60, targetScore: 100 },
-      persona: { ...PERSONAS.mnemo, decisionLatencyMs: 0 },
+      persona: PERSONAS.mnemo,
+      skipDelays: true,
       samples: 40,
       seed: 3,
       jitter: false,
@@ -81,7 +126,8 @@ describe("M6 · 协议语义", () => {
       args: [FIXTURE],
       cwd: ROOT,
       create: { memoryMode: "assisted", turnDurationSeconds: 60, targetScore: 100 },
-      persona: { ...PERSONAS.mnemo, decisionLatencyMs: 0 },
+      persona: PERSONAS.mnemo,
+      skipDelays: true,
       samples: 40,
       seed: 3,
       jitter: false,
@@ -106,7 +152,7 @@ describe("M6 · 协议语义", () => {
       args: [FIXTURE],
       cwd: ROOT,
       create: { memoryMode: "assisted", turnDurationSeconds: 60, targetScore: 100 },
-      // 佛系老王的拟人延迟是 2200ms，而替身只给 300ms 预算。
+      // 佛系老王的抽牌延迟至少 2520ms，而替身只给 300ms 预算。
       persona: PERSONAS.chill,
       samples: 40,
       seed: 3,
@@ -128,7 +174,8 @@ describe("M6 · 协议语义", () => {
       args: [FIXTURE],
       cwd: ROOT,
       create: { memoryMode: "assisted", turnDurationSeconds: 60, targetScore: 100 },
-      persona: { ...PERSONAS.mnemo, decisionLatencyMs: 0 },
+      persona: PERSONAS.mnemo,
+      skipDelays: true,
       samples: 40,
       seed: 3,
       jitter: false,
@@ -166,8 +213,9 @@ describe("M6 · 端到端（真实服务端）", () => {
       command: tsx,
       args: [agentMain, "--server", `http://localhost:${port}`, "--name", name],
       cwd: ROOT,
-      // 拟人延迟置零：这一条验的是协议正确性，不是节奏。
-      persona: { ...PERSONAS.mnemo, decisionLatencyMs: 0 },
+      // 显式跳过拟人延迟：这一条验的是协议正确性，不是节奏。
+      persona: PERSONAS.mnemo,
+      skipDelays: true,
       samples: 60,
       seed: 11,
       jitter: false,

@@ -42,7 +42,7 @@ export interface BotPersona {
   readonly moonAmbition: number;
   /** 连续失分后的情绪漂移强度。 */
   readonly tiltGain: number;
-  /** L — 决策延迟（毫秒），拟人化节奏。 */
+  /** L — 叠加在动作基础窗口上的思考时间（毫秒）。 */
   readonly decisionLatencyMs: number;
   /** 聊天频率。本期仅保留参数位。 */
   readonly chattiness: number;

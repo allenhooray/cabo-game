@@ -251,12 +251,12 @@ describe("decide · 失误与情绪", () => {
     expect(moodFromHistory(observation("TURN_START", []), "me")).toBe(0);
   });
 
-  it("decisionDelay 落在基准的 0.6–1.4 倍之间", () => {
+  it("decisionDelay 默认抽牌窗口叠加人设思考时间", () => {
     const persona: BotPersona = { ...neutral, decisionLatencyMs: 1000 };
     for (let seed = 0; seed < 20; seed += 1) {
       const delay = decisionDelay(persona, lcg(seed));
-      expect(delay).toBeGreaterThanOrEqual(600);
-      expect(delay).toBeLessThanOrEqual(1400);
+      expect(delay).toBeGreaterThanOrEqual(1800);
+      expect(delay).toBeLessThanOrEqual(3400);
     }
   });
 });

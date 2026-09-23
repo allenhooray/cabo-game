@@ -130,6 +130,12 @@ function handle(request) {
         ? { deadlineAt: 1_000_000 + 300, serverTime: 1_000_000 }
         : {},
     }));
+    if (scenario === "stale") {
+      setTimeout(() => out(observation({
+        revision: ++revision,
+        state: { currentPlayerId: "rival" }, legalActions: [],
+      })), 50);
+    }
     return;
   }
 

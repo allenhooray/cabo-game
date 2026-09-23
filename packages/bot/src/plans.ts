@@ -8,7 +8,7 @@
  * 其余直接移出并进入弃牌堆。所以塌缩的收益必须包含 `λ·(k−1)` 的减张项，
  * 其中 λ 是一张未知牌的期望分。只算分差的评估函数学不会塌缩。
  */
-import type { AgentObservation, KnownCard, LegalAction } from "@cabo-game/shared";
+import type { AgentAction, AgentObservation, KnownCard, LegalAction } from "@cabo-game/shared";
 import { unknownCardValue, type EvaluationContext } from "./evaluate.js";
 import { type BotPersona } from "./persona.js";
 
@@ -269,9 +269,30 @@ export function bestLegalSwap(context: EvaluationContext): SwapPlan | null {
   return best;
 }
 
-/** 决策延迟：人设节奏，含 ±40% 抖动，避免固定间隔暴露 bot 身份。 */
-export function decisionDelay(persona: BotPersona, rng: () => number): number {
-  const base = persona.decisionLatencyMs;
-  if (base <= 0) return 0;
-  return Math.max(0, base * (0.6 + rng() * 0.8));
+/** 每种动作的基础反应窗口（毫秒）；Record 保证新增协议动作时必须配置节奏。 */
+export const ACTION_DELAY_RANGES: Record<AgentAction["type"], readonly [number, number]> = {
+  start: [1500, 2500],
+  "draw-deck": [1200, 2000],
+  "draw-discard": [1500, 2500],
+  replace: [1800, 3000],
+  "resolve-mismatch": [1800, 2800],
+  discard: [1500, 2400],
+  "peek-self": [1500, 2500],
+  "peek-other": [1800, 3000],
+  swap: [2200, 3500],
+  skip: [1200, 2000],
+  cabo: [2000, 3200],
+  "ready-next-round": [3000, 4500],
+};
+
+/** 人设的思考时间同时调整上下限；即便最快的人设也保留基础反应窗口。 */
+export function decisionDelayRange(persona: BotPersona, action: AgentAction["type"]): readonly [number, number] {
+  const [min, max] = ACTION_DELAY_RANGES[action];
+  return [min + persona.decisionLatencyMs * 0.6, max + persona.decisionLatencyMs * 1.4];
+}
+
+/** 每次动作独立抽样；省略动作时保留抽牌作为默认节奏。 */
+export function decisionDelay(persona: BotPersona, rng: () => number, action: AgentAction["type"] = "draw-deck"): number {
+  const [min, max] = decisionDelayRange(persona, action);
+  return Math.round(min + rng() * (max - min));
 }

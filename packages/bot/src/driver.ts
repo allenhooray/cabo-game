@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 /**
  * 线上驱动（方案 M6）：把决策核心接到 `cabo-agent` 的 JSONL 协议上。
  *
@@ -58,6 +59,8 @@ export interface BotDriverOptions {
 
   persona: PersonaId | BotPersona;
   samples?: number;
+  /** 仅供协议测试/模拟跳过等待；实际对局默认保留动作延迟。 */
+  skipDelays?: boolean;
   /** 开局抖动，避免固定参数被玩家摸清。 */
   jitter?: boolean;
   seed?: number;
@@ -125,6 +128,7 @@ const DEFAULT_SAFETY_RATIO = 0.3;
 const DEFAULT_DELAY_BUDGET_RATIO = 0.5;
 
 export class BotDriver {
+  private readonly delayAbort = new AbortController();
   readonly persona: BotPersona;
   readonly summary: DriverSummary = {
     matches: 0,
@@ -201,6 +205,7 @@ export class BotDriver {
    */
   async stop(options: { leave?: boolean } = {}): Promise<void> {
     this.stopping = true;
+    this.delayAbort.abort();
     if (this.child === null) return;
     if (options.leave ?? !this.inMatch) {
       try {
@@ -436,7 +441,8 @@ export class BotDriver {
         });
         if (!action) return;
 
-        await this.respectBudget(current);
+        await this.respectBudget(current, action);
+        if (this.stopping) return;
         if (this.latest !== current) {
           // 延迟期间局面变了：重来一轮。
           this.wake = true;
@@ -476,25 +482,26 @@ export class BotDriver {
    * 拟人延迟，但必须在预算内。
    *
    * 协议要求"用服务端时间差安排动作，不要自行判定回合结束"。所以这里只做
-   * 一件事：把 `decisionLatencyMs` 夹进剩余预算，超了就砍掉延迟立即出手。
+   * 一件事：把动作和人设决定的随机延迟夹进剩余预算，为提交保留时间。
    * 真到了截止时间还没出手，由服务端的 `turn-timeout` 兜底代打——驱动不越权。
    */
-  private async respectBudget(observation: AgentObservation): Promise<void> {
-    const delay = decisionDelay(this.personaFor(), this.rng);
+  private async respectBudget(observation: AgentObservation, action: AgentAction): Promise<void> {
+    if (this.options.skipDelays) return;
+    const delay = decisionDelay(this.personaFor(), this.rng, action.type);
     if (delay <= 0) return;
     const budget = this.budgetMs(observation);
     if (!Number.isFinite(budget)) {
-      await sleep(delay);
+      await sleep(delay, this.delayAbort.signal);
       return;
     }
     const cap = budget * (this.options.delayBudgetRatio ?? DEFAULT_DELAY_BUDGET_RATIO);
     if (delay > cap) {
       this.summary.trimmedDelays += 1;
       if (cap <= 0) return;
-      await sleep(cap);
+      await sleep(cap, this.delayAbort.signal);
       return;
     }
-    await sleep(delay);
+    await sleep(delay, this.delayAbort.signal);
   }
 
   /** 服务端视角的剩余毫秒数，再扣掉安全边际。 */
@@ -584,8 +591,9 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+async function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  try { await delay(ms, undefined, { signal }); }
+  catch (error) { if (!signal.aborted) throw error; }
 }
 
 /** 可复现的伪随机源（与自对弈 harness 同款）。 */
