@@ -8,6 +8,7 @@ import type { ConnectionState } from "../game/types.js";
 import { SiteHeader } from "../../components/SiteHeader.js";
 import { Button, TextButton, TextInput } from "../../components/FormControls.js";
 import { CreateRoomForm, JoinRoomForm } from "./HomeForms.js";
+import { InlineNotice } from "../../components/InlineNotice.js";
 
 interface HomeProps {
   invitation: ReturnType<typeof readInvitation>;
@@ -50,7 +51,7 @@ export function Home(props: HomeProps) {
           <p className="eyebrow">{t("home.kicker")}</p>
           <h1>{t("home.title").split("\n").map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</h1>
           <p className="lede">{t("home.lede")}</p>
-          {props.connection === "reconnecting" && <p className="reconnecting" role="status">{t("home.reconnecting")}</p>}
+          {props.connection === "reconnecting" && <InlineNotice className="reconnecting" role="status">{t("home.reconnecting")}</InlineNotice>}
         </section>
 
         <div className="entry-stack">
@@ -71,7 +72,7 @@ export function Home(props: HomeProps) {
               <Button variant={joinOpen ? "default" : "primary"} aria-expanded={createOpen} aria-controls="create-room-form" onClick={() => { setRoomName(`${props.name.trim() || "Player"}'s room`); setCreateOpen(true); setJoinOpen(false); }}>{t("home.createRoom")}</Button>
               <Button variant={joinOpen ? "primary" : "default"} aria-expanded={joinOpen} aria-controls="join-room-form" onClick={() => { setJoinOpen(true); setCreateOpen(false); }}>{t("home.joinByCode")}</Button>
             </div>
-            {props.notice && <p className="form-notice" role="alert">{props.notice}</p>}
+            {props.notice && <InlineNotice className="form-notice" role="alert">{props.notice}</InlineNotice>}
 
             {createOpen && (
               <CreateRoomForm busy={props.busy} visibility={visibility} targetScore={targetScore} roomName={roomName} memoryMode={memoryMode} turnDurationSeconds={turnDurationSeconds} password={createPassword} onVisibility={setVisibility} onTargetScore={setTargetScore} onRoomName={setRoomName} onMemoryMode={setMemoryMode} onTurnDuration={setTurnDurationSeconds} onPassword={setCreatePassword} onSubmit={() => props.onCreate(visibility, targetScore, roomName, memoryMode, turnDurationSeconds, visibility === "private" ? createPassword : undefined)} />

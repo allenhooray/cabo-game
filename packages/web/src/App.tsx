@@ -15,6 +15,7 @@ import { Lobby, RulesPopover, ScoreHistoryPanel, ShareRoom } from "./features/ro
 import { useCaboSession } from "./features/session/useCaboSession.js";
 import { SettingsMenu } from "./components/SettingsMenu.js";
 import { Dialog, Overlay } from "./components/Overlays.js";
+import { InlineNotice } from "./components/InlineNotice.js";
 
 export function App() {
   const { t } = useTranslation();
@@ -138,12 +139,12 @@ export function App() {
         </div>
       </header>
 
-      {session.notice && <div className="notice" role="status"><span>{session.notice}</span><button type="button" aria-label={t("common.close")} onClick={() => session.setNotice(undefined)}>×</button></div>}
+      {session.notice && <InlineNotice className="notice" role="status" closeLabel={t("common.close")} onClose={() => session.setNotice(undefined)}>{session.notice}</InlineNotice>}
       {session.readOnly && (
-        <div className="readonly-banner" role="alert">
+        <InlineNotice className="readonly-banner" role="alert">
           {t("session.readOnly")}
           <button type="button" onClick={session.takeOver}>{t("session.takeOver")}</button>
-        </div>
+        </InlineNotice>
       )}
 
       <div className="room-layout">

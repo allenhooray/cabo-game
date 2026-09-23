@@ -5,6 +5,7 @@ import { Avatar, CardToken } from "../../components/TablePrimitives.js";
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../../i18n/I18nProvider.js";
 import { useDisclosure } from "../../components/useDisclosure.js";
+import { InlineNotice } from "../../components/InlineNotice.js";
 
 export function ShareRoom(props: { roomId: string; server: string }) {
   const { t } = useTranslation();
@@ -23,7 +24,7 @@ export function ShareRoom(props: { roomId: string; server: string }) {
       </div>
       <button className="button" type="button" onClick={() => void copy(props.roomId)}>{t("room.copyCode")}</button>
       <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>{t("room.copyLink")}</button>
-      {copied && <span role="status">{t("room.copied")}</span>}
+      {copied && <InlineNotice role="status">{t("room.copied")}</InlineNotice>}
       {fallback && <label>{t("room.copyManually")}<input aria-label={t("room.copyManually")} readOnly value={fallback} onFocus={(event) => event.target.select()} /></label>}
     </div>
   </div>;
