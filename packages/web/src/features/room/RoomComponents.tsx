@@ -76,7 +76,7 @@ export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string 
   const { t } = useTranslation();
   const [revealedCell, setRevealedCell] = useState<string>();
   const matrix = useRef<HTMLDivElement>(null);
-  const disclosure = useDisclosure({ hover: true, clickMode: "pin", closePinnedOnLeave: true });
+  const disclosure = useDisclosure({ hover: true, clickMode: "pin", closePinnedOnLeave: true, restoreFocusOnEscape: true });
   const history = [...(props.state.roundHistory ?? [])].sort((a, b) => a.round - b.round);
   const players = [...props.state.players.values()].sort((a, b) => a.seat - b.seat);
   const self = props.state.players.get(props.selfId);

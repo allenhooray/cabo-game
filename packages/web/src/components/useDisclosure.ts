@@ -5,6 +5,7 @@ interface DisclosureOptions {
   outsidePress?: boolean;
   clickMode?: "open" | "toggle" | "pin";
   closePinnedOnLeave?: boolean;
+  restoreFocusOnEscape?: boolean;
 }
 
 export function useDisclosure(options: DisclosureOptions = {}) {
@@ -61,7 +62,7 @@ export function useDisclosure(options: DisclosureOptions = {}) {
         if (!event.currentTarget.contains(event.relatedTarget)) close();
       },
       onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === "Escape") close(true);
+        if (event.key === "Escape") close(options.restoreFocusOnEscape);
       },
     },
     triggerProps: {

@@ -7,7 +7,7 @@ import { useDisclosure } from "./useDisclosure.js";
 export function SettingsMenu() {
   const { t } = useTranslation();
   const preferences = usePreferences();
-  const disclosure = useDisclosure({ hover: true, outsidePress: true, clickMode: "open", closePinnedOnLeave: true });
+  const disclosure = useDisclosure({ hover: true, outsidePress: true, clickMode: "open", closePinnedOnLeave: true, restoreFocusOnEscape: true });
 
   return (
     <div
