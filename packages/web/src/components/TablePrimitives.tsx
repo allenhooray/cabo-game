@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import type { StatePlayer } from "@cabo-game/client-core";
 import { useTranslation } from "react-i18next";
+import { Dialog, Overlay } from "./Overlays.js";
 
 export function Modal(props: { title: string; children: ReactNode; onClose?(): void }) {
   const { t } = useTranslation();
-  return <div className="modal-layer" role="dialog" aria-modal="true" aria-labelledby="modal-title"><section className="modal-card"><div className="modal-heading"><p className="eyebrow">{t("modal.table")}</p>{props.onClose && <button type="button" aria-label={t("common.close")} onClick={props.onClose}>×</button>}</div><h2 id="modal-title">{props.title}</h2>{props.children}</section></div>;
+  return <Overlay className="modal-layer" role="dialog" ariaModal ariaLabelledBy="modal-title"><section className="modal-card"><div className="modal-heading"><p className="eyebrow">{t("modal.table")}</p>{props.onClose && <button type="button" aria-label={t("common.close")} onClick={props.onClose}>×</button>}</div><h2 id="modal-title">{props.title}</h2>{props.children}</section></Overlay>;
 }
 
 export function Avatar({ player }: { player: StatePlayer }) {

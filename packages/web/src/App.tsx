@@ -14,6 +14,7 @@ import { Results, ScoreFallback } from "./features/results/Results.js";
 import { Lobby, RulesPopover, ScoreHistoryPanel, ShareRoom } from "./features/room/RoomComponents.js";
 import { useCaboSession } from "./features/session/useCaboSession.js";
 import { SettingsMenu } from "./components/SettingsMenu.js";
+import { Dialog, Overlay } from "./components/Overlays.js";
 
 export function App() {
   const { t } = useTranslation();
@@ -186,12 +187,12 @@ export function App() {
       </div>
 
       {chat.open && (
-        <div className="chat-drawer-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) chat.closeDrawer(); }}>
-          <section className="chat-drawer" role="dialog" aria-modal="true" aria-label={t("chat.room")}>
+        <Overlay className="chat-drawer-layer" onBackdropClose={chat.closeDrawer}>
+          <Dialog className="chat-drawer" ariaLabel={t("chat.room")} onClose={chat.closeDrawer} closeOnEscape>
             <button className="chat-close" type="button" aria-label={t("chat.close")} onClick={chat.closeDrawer}>×</button>
             <RoomChat {...chatProps} autoFocus onClose={chat.closeDrawer} />
-          </section>
-        </div>
+          </Dialog>
+        </Overlay>
       )}
 
       {effects.privateReveal && <PrivateReveal message={effects.privateReveal} onClose={effects.clearPrivateReveal} />}
