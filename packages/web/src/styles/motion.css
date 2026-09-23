@@ -1,5 +1,5 @@
 @keyframes panel-in { from { opacity: 0; transform: translateY(-6px); } }
-@keyframes rules-in { from { opacity: 0; transform: translateY(-5px) scale(.985); } }
+@keyframes popover-in { from { opacity: 0; transform: translateY(-5px) scale(.985); } }
 @keyframes card-arrive { from { opacity: 0; transform: translateY(-40px) rotate(-5deg) scale(.94); } to { opacity: 1; transform: translateY(-10px) rotate(2deg) scale(1); } }
 @keyframes card-face-flip { from { rotate: y 88deg; } to { rotate: y 0deg; } }
 @keyframes deck-draw { 0%, 100% { transform: translate(0) rotate(0); } 45% { transform: translate(10px, -7px) rotate(4deg); } }

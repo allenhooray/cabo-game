@@ -69,7 +69,7 @@ export function useDisclosure(options: DisclosureOptions = {}) {
       onClick: () => {
         pointerFocus.current = false;
         if (options.clickMode === "toggle") {
-          if (open) close();
+          if (pinned) close();
           else setPinned(true);
         }
         else setPinned(true);

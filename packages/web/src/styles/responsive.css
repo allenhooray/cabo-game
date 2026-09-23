@@ -33,8 +33,10 @@
   .score-mini-cards i { min-width: 18px; height: 23px; }
   .room-meta { justify-content: center; }
   .room-meta > .room-title, .room-meta > .room-setting, .room-meta > span { display: none; }
-  .rules-panel { position: fixed; top: 60px; right: 9px; }
-  .rules-panel::before { right: 91px; }
+  .popover-panel { position: fixed; top: 60px; right: 9px; }
+  .share-room .popover-panel::before { right: calc(50vw - 14px); }
+  .rules-popover .popover-panel::before { right: 91px; }
+  .settings-menu .popover-panel::before { right: 18px; }
   .lobby-shell { width: min(100% - 28px, 560px); min-height: auto; padding: 58px 0; grid-template-columns: 1fr; gap: 36px; }
   .lobby-copy h1 { font-size: 48px; }
   .lobby-panel { padding: 18px; }

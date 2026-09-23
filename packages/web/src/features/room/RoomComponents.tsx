@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { usePreferences } from "../../i18n/I18nProvider.js";
 import { useDisclosure } from "../../components/useDisclosure.js";
 import { InlineNotice } from "../../components/InlineNotice.js";
+import { Popover } from "../../components/Popover.js";
 
 export function ShareRoom(props: { roomId: string; server: string }) {
   const { t } = useTranslation();
@@ -15,9 +16,8 @@ export function ShareRoom(props: { roomId: string; server: string }) {
     const ok = await copyText(value);
     setCopied(ok); setFallback(ok ? undefined : value);
   };
-  return <div className="share-room">
-    <button className="share-room-trigger" type="button" aria-haspopup="true">{t("room.share")}</button>
-    <div className="share-room-panel">
+  return (
+    <Popover id="share-room-menu" className="share-room" triggerClassName="share-room-trigger" panelClassName="share-room-panel" trigger={t("room.share")}>
       <div className="share-room-context">
         <span>{t("home.roomCode")}</span>
         <strong className="room-id">{props.roomId}</strong>
@@ -26,8 +26,8 @@ export function ShareRoom(props: { roomId: string; server: string }) {
       <button className="button" type="button" onClick={() => void copy(invitationLink(props.roomId, props.server))}>{t("room.copyLink")}</button>
       {copied && <InlineNotice role="status">{t("room.copied")}</InlineNotice>}
       {fallback && <label>{t("room.copyManually")}<input aria-label={t("room.copyManually")} readOnly value={fallback} onFocus={(event) => event.target.select()} /></label>}
-    </div>
-  </div>;
+    </Popover>
+  );
 }
 
 export function Lobby(props: { roomId: string; roomName: string; targetScore: number; players: StatePlayer[]; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void }) {
@@ -52,23 +52,22 @@ export function Lobby(props: { roomId: string; roomName: string; targetScore: nu
 export function RulesPopover() {
   const { t } = useTranslation();
   const { locale } = usePreferences();
-  const disclosure = useDisclosure({ hover: true, clickMode: "toggle", closePinnedOnLeave: true });
-
   return (
-    <div
+    <Popover
+      id="quick-rules"
       className="rules-popover"
-      ref={disclosure.rootRef}
-      {...disclosure.rootProps}
+      triggerClassName="rules-trigger"
+      panelClassName="rules-panel"
+      trigger={t("nav.rules")}
+      panelAs="aside"
+      ariaLabel={t("room.quickRules")}
     >
-      <button ref={disclosure.triggerRef} className="rules-trigger" type="button" aria-expanded={disclosure.open} aria-controls="quick-rules" {...disclosure.triggerProps}>{t("nav.rules")}</button>
-      <aside id="quick-rules" className="rules-panel" hidden={!disclosure.open} aria-label={t("room.quickRules")}>
-        <p className="eyebrow">{t("room.quickRules")}</p>
-        <ul>
-          {[1, 2, 3, 4, 5, 6].map((number) => <li key={number}>{t(`room.rules${number}`)}</li>)}
-        </ul>
-        <a href={`/${locale}/docs/rules/`} target="_blank" rel="noreferrer">{t("room.fullRules")} <span aria-hidden="true">↗</span></a>
-      </aside>
-    </div>
+      <p className="eyebrow">{t("room.quickRules")}</p>
+      <ul>
+        {[1, 2, 3, 4, 5, 6].map((number) => <li key={number}>{t(`room.rules${number}`)}</li>)}
+      </ul>
+      <a href={`/${locale}/docs/rules/`} target="_blank" rel="noreferrer">{t("room.fullRules")} <span aria-hidden="true">↗</span></a>
+    </Popover>
   );
 }
 

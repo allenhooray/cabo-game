@@ -7,7 +7,8 @@ import { RoomChat } from "./features/chat/RoomChat.js";
 import { GameTable } from "./features/game/GameTable.js";
 import { buildFlights } from "./features/game/MotionLayer.js";
 import { Results, ScoreFallback } from "./features/results/Results.js";
-import { Lobby, RulesPopover, ScoreHistoryPanel } from "./features/room/RoomComponents.js";
+import { Lobby, RulesPopover, ScoreHistoryPanel, ShareRoom } from "./features/room/RoomComponents.js";
+import { SettingsMenu } from "./components/SettingsMenu.js";
 
 const makeState = (overrides: Partial<CaboStateLike> = {}): CaboStateLike => ({
   memoryMode: "classic",
@@ -217,6 +218,9 @@ describe("Cabo game table additions", () => {
     const trigger = screen.getByRole("button", { name: "Rules" });
     fireEvent.mouseEnter(trigger.parentElement as HTMLElement);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("complementary", { name: "Quick rules" })).toBeVisible();
     expect(screen.getByRole("link", { name: /read the full rules/i })).toHaveAttribute("href", "/en-US/docs/rules/");
     expect(screen.getByRole("link", { name: /read the full rules/i })).toHaveAttribute("target", "_blank");
@@ -229,6 +233,32 @@ describe("Cabo game table additions", () => {
     fireEvent.pointerDown(trigger);
     fireEvent.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("uses the shared popover interaction for share and settings", () => {
+    const { rerender } = render(<ShareRoom roomId="abc123" server="ws://localhost:2567" />);
+    const share = screen.getByRole("button", { name: "Share" });
+    const sharePanel = document.querySelector(".share-room-panel") as HTMLElement;
+    expect(share).toHaveClass("popover-trigger");
+    expect(share).toHaveAttribute("aria-expanded", "false");
+    expect(sharePanel).not.toBeVisible();
+    fireEvent.click(share);
+    expect(share).toHaveAttribute("aria-expanded", "true");
+    expect(sharePanel).toHaveClass("popover-panel");
+    expect(sharePanel).toBeVisible();
+    fireEvent.pointerDown(document.body);
+    expect(share).toHaveAttribute("aria-expanded", "false");
+    expect(sharePanel).not.toBeVisible();
+
+    rerender(<SettingsMenu />);
+    const settings = screen.getByRole("button", { name: "Settings" });
+    expect(settings).toHaveClass("popover-trigger");
+    fireEvent.click(settings);
+    expect(settings).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("dialog", { name: "Settings" })).toHaveClass("popover-panel");
+    expect(screen.getByRole("dialog", { name: "Settings" }).firstElementChild).toHaveClass("settings-panel-content");
+    fireEvent.keyDown(settings.parentElement as HTMLElement, { key: "Escape" });
+    expect(settings).toHaveAttribute("aria-expanded", "false");
   });
 
   it("offers a route back to rooms after a match", () => {

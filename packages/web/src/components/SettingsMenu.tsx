@@ -2,21 +2,23 @@ import { LOCALE_LABELS, SUPPORTED_LOCALES, type LocalePreference } from "@cabo-g
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../i18n/I18nProvider.js";
 import type { ThemePreference } from "../i18n/preferences.js";
-import { useDisclosure } from "./useDisclosure.js";
+import { Popover } from "./Popover.js";
 
 export function SettingsMenu() {
   const { t } = useTranslation();
   const preferences = usePreferences();
-  const disclosure = useDisclosure({ hover: true, outsidePress: true, clickMode: "open", closePinnedOnLeave: true, restoreFocusOnEscape: true });
-
   return (
-    <div
-      ref={disclosure.rootRef}
-      className={`settings-menu ${disclosure.open ? "is-open" : ""}`}
-      {...disclosure.rootProps}
+    <Popover
+      id="cabo-settings"
+      className="settings-menu"
+      triggerClassName="settings-trigger"
+      panelClassName="settings-panel"
+      trigger={t("settings.trigger")}
+      panelAs="section"
+      role="dialog"
+      ariaLabel={t("settings.title")}
     >
-      <button ref={disclosure.triggerRef} className="settings-trigger" type="button" aria-haspopup="dialog" aria-expanded={disclosure.open} aria-controls="cabo-settings" {...disclosure.triggerProps}>{t("settings.trigger")}</button>
-      <section id="cabo-settings" className="settings-panel" role="dialog" aria-label={t("settings.title")} hidden={!disclosure.open}>
+      <div className="settings-panel-content">
         <SettingGroup<ThemePreference>
           legend={t("settings.theme")}
           name="theme"
@@ -33,8 +35,8 @@ export function SettingsMenu() {
           options={[["auto", t("settings.auto")], ...SUPPORTED_LOCALES.map((locale) => [locale, LOCALE_LABELS[locale]] as const)]}
           onChange={preferences.setLocalePreference}
         />
-      </section>
-    </div>
+      </div>
+    </Popover>
   );
 }
 
