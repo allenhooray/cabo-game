@@ -1,7 +1,44 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App, __test } from "./App.js";
+import type { CaboStateLike, KnowledgeState } from "@cabo-game/client-core";
+import { App } from "./App.js";
+import { RoomChat } from "./features/chat/RoomChat.js";
+import { GameTable } from "./features/game/GameTable.js";
+import { buildFlights } from "./features/game/MotionLayer.js";
+import { Results, ScoreFallback } from "./features/results/Results.js";
+import { Lobby, RulesPopover, ScoreHistoryPanel } from "./features/room/RoomComponents.js";
+
+const makeState = (overrides: Partial<CaboStateLike> = {}): CaboStateLike => ({
+  memoryMode: "classic",
+  turnDurationSeconds: 60,
+  deadlineAt: 0,
+  serverTime: 0,
+  revision: 1,
+  roomName: "Room",
+  phase: "TURN_START",
+  round: 1,
+  targetScore: 100,
+  currentPlayerId: "alice",
+  caboCallerId: "",
+  drawSource: "",
+  mismatchPenaltyCardPending: false,
+  discardLabel: "4H",
+  discardRank: 4,
+  deckCount: 40,
+  players: new Map(),
+  winners: [],
+  ...overrides,
+});
+
+const makeKnowledge = (overrides: Partial<KnowledgeState> = {}): KnowledgeState => ({
+  memoryMode: "classic",
+  round: 1,
+  slots: [null, null, null, null],
+  opponents: [],
+  held: null,
+  ...overrides,
+});
 
 describe("Cabo home", () => {
   beforeEach(() => {
@@ -101,9 +138,9 @@ describe("Cabo game table additions", () => {
     const onConfirm = vi.fn(); const onExecute = vi.fn();
     function Harness() {
       const [targetId, onTarget] = useState<string>();
-      return <__test.GameTable
+      return <GameTable
         state={{ memoryMode: "classic", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 12, roomName: "Room", phase: "POWER_PENDING", round: 1, targetScore: 100, currentPlayerId: "alice", caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "JS", discardRank: 11, deckCount: 40, players: new Map(players.map((p) => [p.id, p])), winners: [] }}
-        selfId="alice" players={players} core={{ knowledge: { slots: [null, null, null, null], opponents: [], held: null } } as any}
+        selfId="alice" players={players} core={{ knowledge: makeKnowledge() }}
         busy={false} selection="swap" targetId={targetId} events={[]} cardMotion={undefined}
         onSelection={vi.fn()} onTarget={onTarget} onExecute={onExecute} onConfirm={onConfirm}
         onLeave={vi.fn()}
@@ -123,7 +160,7 @@ describe("Cabo game table additions", () => {
     const onSend = vi.fn();
     function Harness() {
       const [draft, setDraft] = useState("");
-      return <__test.RoomChat messages={[]} selfId="alice" enabled status="" draft={draft} onDraft={setDraft} onSend={onSend} />;
+      return <RoomChat messages={[]} selfId="alice" enabled status="" draft={draft} onDraft={setDraft} onSend={onSend} />;
     }
     render(<Harness />);
     const input = screen.getByRole("textbox", { name: "Message" });
@@ -144,7 +181,7 @@ describe("Cabo game table additions", () => {
       { sequence: 1, playerId: "alice", playerName: "Alice", text: "<b>safe</b>", sentAt: 0 },
       { sequence: 2, playerId: "bob", playerName: "Bob", text: "hello", sentAt: 1 },
     ];
-    const { container } = render(<__test.RoomChat messages={messages} selfId="alice" enabled status="" draft="" onDraft={vi.fn()} autoFocus onClose={onClose} onSend={vi.fn()} />);
+    const { container } = render(<RoomChat messages={messages} selfId="alice" enabled status="" draft="" onDraft={vi.fn()} autoFocus onClose={onClose} onSend={vi.fn()} />);
     expect(screen.getByText("You")).toBeVisible();
     expect(screen.getByText("Bob")).toBeVisible();
     expect(screen.getByText("<b>safe</b>")).toBeVisible();
@@ -156,7 +193,7 @@ describe("Cabo game table additions", () => {
 
   it("shows the room name and a separate room id in the lobby", () => {
     const { container } = render(
-      <__test.Lobby
+      <Lobby
         roomId="abc123"
         roomName="Friday night"
         targetScore={100}
@@ -174,7 +211,7 @@ describe("Cabo game table additions", () => {
   });
 
   it("opens quick rules on hover and links to the full rules", () => {
-    render(<__test.RulesPopover />);
+    render(<RulesPopover />);
     const trigger = screen.getByRole("button", { name: "Rules" });
     fireEvent.mouseEnter(trigger.parentElement as HTMLElement);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
@@ -195,9 +232,9 @@ describe("Cabo game table additions", () => {
   it("offers a route back to rooms after a match", () => {
     const onLeave = vi.fn(async () => undefined);
     const { container } = render(
-      <__test.Results
+      <Results
         result={{ type: "match-result", winners: ["alice"], totals: { alice: 8, bob: 24 } }}
-        state={{ round: 3 } as any}
+        state={makeState({ round: 3 })}
         playerName={(id) => id === "alice" ? "Alice" : "Bob"}
         busy={false}
         onLeave={onLeave}
@@ -214,9 +251,9 @@ describe("Cabo game table additions", () => {
       ["bob", { id: "bob", name: "Bob", seat: 1, score: 8, connected: false, forfeited: false, nextRoundReady: true, cardCount: 4, isHost: false }],
     ]);
     render(
-      <__test.Results
+      <Results
         result={{ type: "round-result", hands: [], roundScores: {}, totals: {}, outcome: { type: "cabo", callerId: "alice", succeeded: true } }}
-        state={{ round: 1, players } as any}
+        state={makeState({ round: 1, players })}
         selfId="alice"
         playerName={(id) => id}
         busy={false}
@@ -238,7 +275,7 @@ describe("Cabo game table additions", () => {
     ]);
     const common = {
       players: [...players.values()],
-      core: { knowledge: { slots: [null, null, null, null], opponents: [{ playerId: "bob", slots: [null, null, null, null] }], held: null } } as any,
+      core: { knowledge: makeKnowledge({ memoryMode: "assisted", opponents: [{ playerId: "bob", slots: [null, null, null, null] }] }) },
       busy: false,
       selection: "idle" as const,
       targetId: undefined,
@@ -251,15 +288,15 @@ describe("Cabo game table additions", () => {
       onConfirm: vi.fn(),
       onLeave: vi.fn(),
     };
-    const state = (currentPlayerId: string) => ({ memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 1, serverTime: 0, revision: 2, roomName: "Room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId, caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] } as any);
-    const { container, rerender } = render(<__test.GameTable {...common} state={state("bob")} selfId="alice" />);
+    const state = (currentPlayerId: string) => makeState({ memoryMode: "assisted", deadlineAt: 1, revision: 2, currentPlayerId, players });
+    const { container, rerender } = render(<GameTable {...common} state={state("bob")} selfId="alice" />);
 
     const opponent = container.querySelector(".player-card.active")!;
     expect(within(opponent as HTMLElement).getByRole("timer", { name: "23 seconds remaining" })).toHaveTextContent("23s");
     expect(container.querySelector(".player-dock .turn-timer")).not.toBeInTheDocument();
     expect(container).not.toHaveTextContent("Auto action");
 
-    rerender(<__test.GameTable {...common} state={state("alice")} selfId="alice" />);
+    rerender(<GameTable {...common} state={state("alice")} selfId="alice" />);
     expect(container.querySelector(".player-card .turn-timer")).not.toBeInTheDocument();
     expect(within(container.querySelector(".player-dock") as HTMLElement).getByRole("timer", { name: "23 seconds remaining" })).toHaveTextContent("23s");
   });
@@ -268,7 +305,7 @@ describe("Cabo game table additions", () => {
     const players = new Map([
       ["alice", { id: "alice", name: "Alice", seat: 0, score: 4, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
     ]);
-    render(<__test.ScoreFallback state={{ round: 1, players } as any} selfId="alice" busy={false} remainingSeconds={9} onReady={vi.fn()} />);
+    render(<ScoreFallback state={makeState({ round: 1, players })} selfId="alice" busy={false} remainingSeconds={9} onReady={vi.fn()} />);
     expect(within(screen.getByRole("dialog")).getByRole("timer")).toHaveTextContent("Next round in 9s");
   });
 
@@ -278,11 +315,11 @@ describe("Cabo game table additions", () => {
       ["bob", { id: "bob", name: "Bob", seat: 1, score: 7, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: false }],
     ]);
     const { container } = render(
-      <__test.GameTable
+      <GameTable
         state={{ memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 2, roomName: "Alice's room", phase: "TURN_START", round: 1, targetScore: 100, currentPlayerId: "bob", caboCallerId: "", drawSource: "", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
         selfId="alice"
         players={[...players.values()]}
-        core={{ knowledge: { slots: [null, null, null, null], opponents: [{ playerId: "bob", slots: [{ label: "9H", rank: 9 }, null, null, null] }], held: null } } as any}
+        core={{ knowledge: makeKnowledge({ memoryMode: "assisted", opponents: [{ playerId: "bob", slots: [{ label: "9H", rank: 9 }, null, null, null] }] }) }}
         busy={false}
         selection="idle"
         targetId={undefined}
@@ -298,7 +335,7 @@ describe("Cabo game table additions", () => {
     expect(screen.getByText("Alice · 12 pts")).toBeVisible();
     expect(screen.getByText("9♥")).toBeVisible();
     expect(container.querySelector('[data-card-anchor="decision-alice"]')).toBeInTheDocument();
-    expect(__test.buildFlights({
+    expect(buildFlights({
       id: 1,
       type: "action",
       action: "draw-discard",
@@ -312,7 +349,7 @@ describe("Cabo game table additions", () => {
       ["alice", { id: "alice", name: "Alice", seat: 0, score: 4, connected: true, forfeited: false, nextRoundReady: false, cardCount: 4, isHost: true }],
       ["bob", { id: "bob", name: "Bob", seat: 1, score: 12, connected: true, forfeited: true, nextRoundReady: false, cardCount: 0, isHost: false }],
     ]);
-    render(<__test.ScoreHistoryPanel selfId="alice" state={{
+    render(<ScoreHistoryPanel selfId="alice" state={makeState({
       players,
       round: 3,
       targetScore: 100,
@@ -332,7 +369,7 @@ describe("Cabo game table additions", () => {
         caboSucceeded: false,
         players: [{ playerId: "alice", roundScore: 0, totalScore: 4, handScore: 50, cards: [{ label: "QH", rank: 12 }, { label: "QS", rank: 12 }, { label: "KH", rank: 13 }, { label: "KS", rank: 13 }] }],
       }],
-    } as any} />);
+    })} />);
 
     const trigger = screen.getByRole("button", { name: /scores/i });
     expect(trigger).toHaveTextContent("ScoresR34 / 100");
@@ -356,11 +393,11 @@ describe("Cabo game table additions", () => {
     ]);
     const onExecute = vi.fn();
     const { container } = render(
-      <__test.GameTable
+      <GameTable
         state={{ memoryMode: "assisted", turnDurationSeconds: 60, deadlineAt: 0, serverTime: 0, revision: 2, roomName: "Room", phase: "DRAWN", round: 1, targetScore: 100, currentPlayerId: "alice", caboCallerId: "", drawSource: "deck", mismatchPenaltyCardPending: false, discardLabel: "4H", discardRank: 4, deckCount: 40, players, winners: [] }}
         selfId="alice"
         players={[...players.values()]}
-        core={{ knowledge: { slots: [null, null, null, null], opponents: [], held: { label: "2S", rank: 2 } } } as any}
+        core={{ knowledge: makeKnowledge({ memoryMode: "assisted", held: { label: "2S", rank: 2 } }) }}
         busy={false}
         selection="idle"
         targetId={undefined}

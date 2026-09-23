@@ -1,0 +1,33 @@
+@keyframes panel-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes rules-in { from { opacity: 0; transform: translateY(-5px) scale(.985); } }
+@keyframes card-arrive { from { opacity: 0; transform: translateY(-40px) rotate(-5deg) scale(.94); } to { opacity: 1; transform: translateY(-10px) rotate(2deg) scale(1); } }
+@keyframes card-face-flip { from { rotate: y 88deg; } to { rotate: y 0deg; } }
+@keyframes deck-draw { 0%, 100% { transform: translate(0) rotate(0); } 45% { transform: translate(10px, -7px) rotate(4deg); } }
+@keyframes discard-land { from { opacity: .3; transform: translate(-26px, -18px) rotate(-8deg) scale(.92); } to { opacity: 1; transform: translate(0) rotate(0) scale(1); } }
+@keyframes slot-reveal { from { transform: rotateY(88deg) scale(.96); } to { transform: rotateY(0) scale(1); } }
+@keyframes decision-reveal { from { opacity: .3; transform: translateY(-5px) rotateY(88deg) scale(.96); } to { opacity: 1; transform: translateY(-5px) rotateY(0) rotate(2deg) scale(1); } }
+@keyframes hand-replace { 0% { transform: translateY(0) rotate(0); } 45% { transform: translateY(-16px) rotate(-3deg); box-shadow: 0 15px 28px var(--shadow); } 100% { transform: translateY(0) rotate(0); } }
+@keyframes hand-swap { 0%, 100% { transform: translateX(0) rotate(0); } 45% { transform: translateX(18px) rotate(4deg); box-shadow: 0 13px 30px var(--shadow); } }
+@keyframes player-discard { 0%, 100% { transform: translateY(0); } 45% { transform: translateY(-6px); } }
+@keyframes player-swap { 0%, 100% { transform: translateX(0); } 45% { transform: translateX(-8px); border-color: var(--ink); } }
+@keyframes private-card-flip { from { transform: rotateY(0); } to { transform: rotateY(180deg); } }
+@keyframes player-breathe { 0%, 100% { box-shadow: 0 10px 26px var(--shadow); } 50% { box-shadow: 0 15px 38px var(--shadow), 0 0 0 1px var(--soft-line); } }
+@keyframes veil-in { from { opacity: 0; } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+@keyframes reveal-in { from { opacity: 0; transform: translateY(26px) rotate(-2deg) scale(.94); } }
+@keyframes card-flight {
+  0% { opacity: .78; transform: translate3d(0, 0, 0) rotate(-2deg) scale(.96); }
+  18% { opacity: 1; transform: translate3d(0, -10px, 0) rotate(-4deg) scale(1.04); }
+  100% { opacity: 1; width: var(--motion-width); height: var(--motion-height); transform: translate3d(var(--motion-x), var(--motion-y), 0) rotate(2deg) scale(1); }
+}
+@keyframes card-swap-flight {
+  0% { opacity: .78; transform: translate3d(0, 0, 0) rotate(-2deg) scale(.96); }
+  16% { opacity: 1; transform: translate3d(0, -10px, 0) rotate(-4deg) scale(1.04); }
+  88% { opacity: 1; width: var(--motion-width); height: var(--motion-height); transform: translate3d(var(--motion-x), var(--motion-y), 0) rotate(2deg) scale(1); }
+  100% { opacity: 0; width: var(--motion-width); height: var(--motion-height); transform: translate3d(var(--motion-x), var(--motion-y), 0) rotate(2deg) scale(1); }
+}
+@keyframes card-peek {
+  0%, 100% { opacity: .9; transform: translate3d(0, 0, 0) rotateY(0); }
+  48% { opacity: 1; transform: translate3d(var(--motion-x), calc(var(--motion-y) - 18px), 0) rotateY(82deg) scale(1.12); box-shadow: 0 24px 54px var(--shadow); }
+  58% { transform: translate3d(var(--motion-x), calc(var(--motion-y) - 18px), 0) rotateY(0) scale(1.12); }
+}

@@ -28,6 +28,15 @@ async function waitForRevisionToSettle(page: Page): Promise<void> {
   }, { timeout: 5_000, intervals: [100] }).toBeGreaterThanOrEqual(400);
 }
 
+async function finishSimpleTurn(page: Page): Promise<void> {
+  await page.getByRole("region", { name: "Your hand and actions" }).hover();
+  await page.getByRole("button", { name: /Draw pile/ }).click();
+  await page.getByRole("button", { name: "Discard drawn card" }).click();
+  const skipPower = page.getByRole("button", { name: /^(Skip power|Skip)$/ });
+  if (await skipPower.waitFor({ state: "visible", timeout: 1_000 }).then(() => true, () => false)) await skipPower.click();
+  await expect(page.locator(".motion-layer")).toHaveCount(0);
+}
+
 test("two isolated players create, join, start, and reconnect", async ({ browser }) => {
   const aliceContext = await browser.newContext();
   const bobContext = await browser.newContext();
@@ -35,13 +44,19 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   const bob = await bobContext.newPage();
 
   await alice.goto("/");
-  await alice.getByRole("textbox", { name: "Player name" }).fill("Alice");
+  const aliceName = alice.getByRole("textbox", { name: "Player name" });
+  await aliceName.fill("Alice");
+  await expect(aliceName).toHaveValue("Alice");
+  await aliceName.press("Tab");
   await alice.getByRole("button", { name: "Create room" }).click();
   await alice.getByRole("button", { name: "Create table" }).click();
   const roomId = await alice.locator(".lobby-copy .room-id").innerText();
 
   await bob.goto("/");
-  await bob.getByRole("textbox", { name: "Player name" }).fill("Bob");
+  const bobName = bob.getByRole("textbox", { name: "Player name" });
+  await bobName.fill("Bob");
+  await expect(bobName).toHaveValue("Bob");
+  await bobName.press("Tab");
   await bob.getByRole("button", { name: "Join by code" }).click();
   await bob.getByLabel("Room code").fill(roomId);
   await bob.getByRole("button", { name: "Join table" }).click();
@@ -72,6 +87,12 @@ test("two isolated players create, join, start, and reconnect", async ({ browser
   await alice.getByRole("button", { name: "Rules" }).hover();
   await expect(alice.getByRole("complementary", { name: "Quick rules" })).toBeVisible();
   await expect(alice.getByRole("link", { name: /Read the full rules/i })).toHaveAttribute("href", "/docs/rules/");
+  const mobileLayout = (alice.viewportSize()?.width ?? 0) <= 760;
+  const aliceStarts = await alice.getByRole("heading", { name: "Draw with intention." }).isVisible();
+  if (aliceStarts === mobileLayout) {
+    await finishSimpleTurn(aliceStarts ? alice : bob);
+  }
+  await expect(alice.getByRole("heading", { name: mobileLayout ? "Bob's turn" : "Draw with intention." })).toBeVisible();
   await alice.getByRole("region", { name: "Your hand and actions" }).hover();
   await expect(alice).toHaveScreenshot("game-table.png", {
     animations: "disabled",
@@ -122,13 +143,13 @@ for (const mode of ["classic", "assisted"] as const) {
     await host.getByLabel("Step timer").selectOption("0");
     await host.getByRole("button", { name: "Create table" }).click();
     const roomId = await host.locator(".lobby-copy .room-id").innerText();
-    await host.locator(".share-room summary").click();
+    await host.locator(".share-room-trigger").click();
     await host.getByRole("button", { name: "Copy room code" }).click();
     await expect(host.getByLabel("Copy manually")).toHaveValue(roomId);
     await host.getByRole("button", { name: "Copy invite link" }).click();
     await expect(host.getByLabel("Copy manually")).toHaveValue(/server=/);
     const link = await host.getByLabel("Copy manually").inputValue();
-    await host.locator(".share-room summary").click();
+    await host.locator(".share-room-trigger").click();
     await guest.goto(link);
     await expect(guest.getByLabel("Room code")).toHaveValue(roomId);
     await expect(guest.getByText(/Invitation server:/)).toContainText("http://127.0.0.1:2567");
