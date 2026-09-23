@@ -111,6 +111,9 @@ describe("Cabo home", () => {
     fireEvent.change(roomName, { target: { value: "Friday night" } });
     fireEvent.change(nameInput, { target: { value: "Chloe" } });
     expect(roomName).toHaveValue("Friday night");
+    fireEvent.change(roomName, { target: { value: "" } });
+    fireEvent.change(nameInput, { target: { value: "Dara" } });
+    expect(roomName).toHaveValue("Dara's room");
   });
 
   it("updates a default room name when the language changes but preserves a custom name", async () => {

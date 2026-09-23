@@ -47,7 +47,7 @@ export function Home(props: HomeProps) {
 
   useEffect(() => {
     const previousDefault = previousDefaultRoomName.current;
-    if (createOpen) setRoomName((current) => current === previousDefault ? defaultRoomName : current);
+    if (createOpen) setRoomName((current) => !current || current === previousDefault ? defaultRoomName : current);
     previousDefaultRoomName.current = defaultRoomName;
   }, [createOpen, defaultRoomName]);
 
