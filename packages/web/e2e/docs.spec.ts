@@ -45,7 +45,7 @@ test("localized docs are server-rendered and keep their page when language chang
   expect(html).toContain('data-ssg="true"');
 
   await page.goto("/zh-CN/docs/rules/");
-  await expect(page.getByRole("heading", { level: 1, name: "保持最低手牌。" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "保持最低手牌" })).toBeVisible();
   await page.getByRole("button", { name: "设置" }).click();
   await page.getByRole("radio", { name: "English (United States)" }).evaluate((element: HTMLInputElement) => element.click());
   await expect(page).toHaveURL(/\/en-US\/docs\/rules\/$/);

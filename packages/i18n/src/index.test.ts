@@ -25,6 +25,21 @@ describe("catalogs", () => {
     for (const locale of SUPPORTED_LOCALES) expect(Object.keys(await loadMessages(locale)).sort()).toEqual(expected);
   });
 
+  it("omits sentence-ending punctuation from Chinese display titles", async () => {
+    const titleKeys = [
+      "home.title", "room.lobbyTitle", "game.everyPoint", "game.noCards", "game.chooseOwnSwap",
+      "game.chooseTheirCard", "game.choosePlayer", "game.chooseReplace", "game.placeDrawn", "game.placePenalty",
+      "game.peekOwn", "game.peekOther", "game.blindSwapAny", "game.continueTable", "game.drawIntention",
+      "game.status.countCards", "game.status.tableSpoken", "game.status.exchange", "game.status.useRevealed",
+      "game.status.chooseDraw", "docs.rules.title", "docs.cli.title", "docs.agent.title",
+    ] as const;
+
+    for (const locale of ["zh-CN", "zh-TW", "zh-HK"] as const) {
+      const messages = await loadMessages(locale);
+      for (const key of titleKeys) expect(messages[key]).not.toMatch(/[。！？](?:\n|$)/);
+    }
+  });
+
   it("creates a framework-neutral translator", async () => {
     const translator = await createTranslator("zh-CN");
     expect(translator.t("settings.trigger")).toBe("设置");
