@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { KnownCard, PublicActionEvent } from "@cabo-game/shared";
-import { formatCardLabel } from "../../components/TablePrimitives.js";
+import { CardToken } from "../../components/TablePrimitives.js";
 import type { CardMotion } from "./types.js";
 
 interface CardFlight {
@@ -33,7 +33,7 @@ export function MotionLayer(props: { motion: CardMotion }) {
           "--motion-height": `${flight.to.height}px`,
           animationDelay: `${flight.delay ?? 0}ms`,
         } as CSSProperties;
-        return <div className={`motion-card motion-${props.motion.action} ${flight.card ? "face" : "back"} ${flight.peek ? "peek" : ""}`} style={style} key={flight.key}>{flight.card ? formatCardLabel(flight.card.label) : <span>C</span>}</div>;
+        return <div className={`motion-card motion-${props.motion.action} ${flight.card ? "face" : "back"} ${flight.peek ? "peek" : ""}`} style={style} key={flight.key}>{flight.card ? <CardToken variant="motion" label={flight.card.label} /> : <span>C</span>}</div>;
       })}
     </div>
   );

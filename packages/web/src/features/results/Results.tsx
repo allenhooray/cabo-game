@@ -1,6 +1,6 @@
 import type { CaboStateLike } from "@cabo-game/client-core";
 import { useTranslation } from "react-i18next";
-import { formatCardLabel, Modal } from "../../components/TablePrimitives.js";
+import { CardToken, Modal } from "../../components/TablePrimitives.js";
 import type { ResultEvent } from "../game/types.js";
 import { PlayerScoreRow, ScoreList } from "../../components/ScoreList.js";
 
@@ -15,7 +15,7 @@ export function Results(props: { result: ResultEvent; state: CaboStateLike; self
   const headline = round.outcome.type === "shooting-the-moon"
     ? t("result.moon", { name: props.playerName(round.outcome.playerId) })
     : t(round.outcome.succeeded ? "result.caboSucceeded" : "result.caboChallenged");
-  return <Modal title={t("result.roundComplete", { count: props.state.round })}><p className="result-lede">{headline} {t("result.confirm")}</p><div className="result-hands">{round.hands.map((hand) => <div key={hand.playerId}><div><strong>{props.playerName(hand.playerId)}</strong><span>+{round.roundScores[hand.playerId] ?? 0} · {round.totals[hand.playerId] ?? 0}</span></div><div className="result-cards">{hand.cards.map((card, index) => <span key={`${card.label}-${index}`}>{formatCardLabel(card.label)}</span>)}</div></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} remainingSeconds={props.remainingSeconds} onReady={props.onReady} /></Modal>;
+  return <Modal title={t("result.roundComplete", { count: props.state.round })}><p className="result-lede">{headline} {t("result.confirm")}</p><div className="result-hands">{round.hands.map((hand) => <div key={hand.playerId}><div><strong>{props.playerName(hand.playerId)}</strong><span>+{round.roundScores[hand.playerId] ?? 0} · {round.totals[hand.playerId] ?? 0}</span></div><div className="result-cards">{hand.cards.map((card, index) => <CardToken variant="result" label={card.label} key={`${card.label}-${index}`} />)}</div></div>)}</div><NextRoundReady state={props.state} selfId={props.selfId} busy={props.busy} remainingSeconds={props.remainingSeconds} onReady={props.onReady} /></Modal>;
 }
 
 export function ScoreFallback(props: { state: CaboStateLike; selfId: string; busy: boolean; remainingSeconds?: number | undefined; onReady(): void }) {

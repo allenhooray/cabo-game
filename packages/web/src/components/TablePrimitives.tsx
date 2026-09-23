@@ -26,6 +26,13 @@ export function formatCardLabel(label: string): string {
   return match?.[1] && match[2] ? `${match[1]}${suitGlyph(match[2])}` : label;
 }
 
+export function CardToken(props: { label: string; variant: "result" | "mini" | "motion" }) {
+  const content = formatCardLabel(props.label);
+  if (props.variant === "mini") return <i>{content}</i>;
+  if (props.variant === "result") return <span>{content}</span>;
+  return <>{content}</>;
+}
+
 function suitGlyph(suit: string): string {
   return ({ S: "♠", H: "♥", D: "♦", C: "♣" } as Record<string, string>)[suit] ?? suit;
 }

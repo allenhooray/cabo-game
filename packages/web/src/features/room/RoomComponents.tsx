@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CaboStateLike, StatePlayer } from "@cabo-game/client-core";
 import { copyText, invitationLink } from "../../invitation.js";
-import { Avatar, formatCardLabel } from "../../components/TablePrimitives.js";
+import { Avatar, CardToken } from "../../components/TablePrimitives.js";
 import { useTranslation } from "react-i18next";
 import { usePreferences } from "../../i18n/I18nProvider.js";
 import { useDisclosure } from "../../components/useDisclosure.js";
@@ -140,7 +140,7 @@ export function ScoreHistoryPanel(props: { state: CaboStateLike; selfId: string 
                             onClick={() => setRevealedCell((current) => current === key ? undefined : key)}
                           >
                             <span className="score-numbers"><strong>+{result.roundScore}</strong><small>→ {result.totalScore} total</small></span>
-                            <span className="score-mini-cards" aria-hidden="true">{[...result.cards].map((card, index) => <i key={`${card.label}-${index}`}>{formatCardLabel(card.label)}</i>)}</span>
+                            <span className="score-mini-cards" aria-hidden="true">{[...result.cards].map((card, index) => <CardToken variant="mini" label={card.label} key={`${card.label}-${index}`} />)}</span>
                             <span className="score-hand-total">Hand {result.handScore}</span>
                           </button>
                         </td>
