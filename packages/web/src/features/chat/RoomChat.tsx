@@ -28,6 +28,14 @@ export function RoomChat({ messages, selfId, enabled, status, draft, onDraft, au
   }, [autoFocus]);
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && onClose) onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     if (stickToBottom.current && listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
   }, [messages]);
 

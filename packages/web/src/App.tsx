@@ -189,7 +189,7 @@ export function App() {
 
       {chat.open && (
         <Overlay className="chat-drawer-layer" onBackdropClose={chat.closeDrawer}>
-          <Dialog className="chat-drawer" ariaLabel={t("chat.room")} onClose={chat.closeDrawer} closeOnEscape>
+          <Dialog className="chat-drawer" ariaLabel={t("chat.room")}>
             <button className="chat-close" type="button" aria-label={t("chat.close")} onClick={chat.closeDrawer}>×</button>
             <RoomChat {...chatProps} autoFocus onClose={chat.closeDrawer} />
           </Dialog>

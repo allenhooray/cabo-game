@@ -1,7 +1,7 @@
 import type { PrivateRevealMessage } from "@cabo-game/shared";
 import { formatCardLabel } from "../../components/TablePrimitives.js";
 import { useTranslation } from "react-i18next";
-import { Dialog, Overlay } from "../../components/Overlays.js";
+import { Overlay } from "../../components/Overlays.js";
 
 export function PrivateReveal(props: { message: PrivateRevealMessage; onClose(): void }) {
   const { t } = useTranslation();

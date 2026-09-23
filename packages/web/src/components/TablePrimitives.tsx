@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { StatePlayer } from "@cabo-game/client-core";
 import { useTranslation } from "react-i18next";
-import { Dialog, Overlay } from "./Overlays.js";
+import { Overlay } from "./Overlays.js";
 
 export function Modal(props: { title: string; children: ReactNode; onClose?(): void }) {
   const { t } = useTranslation();
