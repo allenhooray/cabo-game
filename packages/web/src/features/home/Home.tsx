@@ -5,8 +5,7 @@ import type { MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
 import { defaultServerUrl } from "../../browser-session.js";
 import type { readInvitation } from "../../invitation.js";
 import type { ConnectionState } from "../game/types.js";
-import { SettingsMenu } from "../../components/SettingsMenu.js";
-import { usePreferences } from "../../i18n/I18nProvider.js";
+import { SiteHeader } from "../../components/SiteHeader.js";
 
 interface HomeProps {
   invitation: ReturnType<typeof readInvitation>;
@@ -30,7 +29,6 @@ interface HomeProps {
 
 export function Home(props: HomeProps) {
   const { t } = useTranslation();
-  const { locale } = usePreferences();
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(Boolean(props.invitation));
   const [memoryMode, setMemoryMode] = useState<MemoryMode>("classic");
@@ -44,16 +42,7 @@ export function Home(props: HomeProps) {
 
   return (
     <div className="home-shell">
-      <header className="home-header">
-        <span className="wordmark-static">CABO</span>
-        <nav aria-label={t("nav.main")}>
-          <a href="/" aria-current="page">{t("nav.play")}</a>
-          <a href={`/${locale}/docs/rules/`}>{t("nav.rules")}</a>
-          <a href={`/${locale}/docs/cli/`}>{t("nav.cli")}</a>
-          <a href={`/${locale}/docs/agent/`}>{t("nav.agent")}</a>
-        </nav>
-        <SettingsMenu />
-      </header>
+      <SiteHeader activePage="play" className="home-header" />
       <main className="home-main">
         <section className="intro">
           <p className="eyebrow">{t("home.kicker")}</p>

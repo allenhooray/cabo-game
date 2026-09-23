@@ -1,7 +1,7 @@
 import { Children, cloneElement, isValidElement, type ReactNode } from "react";
 import { translateDocText, type SupportedLocale } from "@cabo-game/i18n";
 import { useTranslation } from "react-i18next";
-import { SettingsMenu } from "./components/SettingsMenu.js";
+import { SiteHeader } from "./components/SiteHeader.js";
 import { usePreferences } from "./i18n/I18nProvider.js";
 
 export const docPages = ["rules", "cli", "agent"] as const;
@@ -16,18 +16,7 @@ export function DocsApp({ page }: { page: DocPage }) {
   const { locale } = usePreferences();
   return (
     <div className="docs-shell">
-      <header className="docs-header">
-        <a className="wordmark-static" href="/" aria-label="Cabo">CABO</a>
-        <nav aria-label={t("nav.main")}>
-          <a href="/">{t("nav.play")}</a>
-          {docPages.map((item) => (
-            <a key={item} href={`/${locale}/docs/${item}/`} aria-current={item === page ? "page" : undefined}>
-              {t(`nav.${item}`)}
-            </a>
-          ))}
-        </nav>
-        <SettingsMenu />
-      </header>
+      <SiteHeader activePage={page} className="docs-header" />
       <main className="docs-main">
         <aside className="docs-aside">
           <p className="eyebrow">{t("docs.title")}</p>
