@@ -11,6 +11,8 @@ export const PlayerState = schema(
     nextRoundReady: t.boolean().default(false),
     cardCount: t.number().default(0),
     isHost: t.boolean().default(false),
+    isBot: t.boolean().default(false),
+    botPersona: t.string().default(""),
   },
   "PlayerState",
 );
@@ -56,6 +58,7 @@ export const CaboState = schema(
     deadlineAt: t.number().default(0),
     serverTime: t.number().default(0),
     revision: t.number().default(0),
+    pendingBotCount: t.number().default(0),
     roomName: t.string().default(""),
     phase: t.string().default("LOBBY"),
     round: t.number().default(0),

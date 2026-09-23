@@ -145,6 +145,11 @@ export const ERROR_CODES = [
   "NOT_ENOUGH_PLAYERS",
   "NICKNAME_TAKEN",
   "INVALID_PASSWORD",
+  "BOT_NOT_FOUND",
+  "BOT_REMOVE_FAILED",
+  "BOT_DISABLED",
+  "BOT_PENDING",
+  "BOT_LIMIT",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

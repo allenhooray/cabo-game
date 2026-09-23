@@ -9,6 +9,9 @@ COPY . .
 
 RUN pnpm install --frozen-lockfile \
     && pnpm --filter @cabo-game/shared build \
+    && pnpm --filter @cabo-game/client-core build \
+    && pnpm --filter @cabo-game/bot build \
+    && pnpm --filter @cabo-game/cli build \
     && pnpm --filter @cabo-game/server build
 
 ENV NODE_ENV=production

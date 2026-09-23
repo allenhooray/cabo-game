@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { CaboClientCore, type CaboStateLike, type ListedRoom } from "@cabo-game/client-core";
-import type { ClientCommand, MemoryMode, PrivateRevealMessage, RoomChatMessage, TurnDurationSeconds } from "@cabo-game/shared";
+import type { BotCommand, ClientCommand, MemoryMode, PrivateRevealMessage, RoomChatMessage, TurnDurationSeconds } from "@cabo-game/shared";
 import {
   BrowserSessionStore,
   resetServerUrl,
@@ -202,6 +202,17 @@ export function useCaboSession(callbacks: SessionCallbacks) {
     }
   }, [core, readOnly]);
 
+  const manageBot = useCallback(async (command: BotCommand) => {
+    if (!core || readOnly) return;
+    setBusy(true);
+    setNotice(undefined);
+    try {
+      const result = await core.manageBot(command);
+      if (!result.ok) setNotice(result.error.message);
+    } catch (error) { setNotice(errorMessage(error)); }
+    finally { setBusy(false); }
+  }, [core, readOnly]);
+
   const leave = useCallback(async () => {
     if (!core) return;
     setBusy(true);
@@ -270,6 +281,7 @@ export function useCaboSession(callbacks: SessionCallbacks) {
     create,
     join,
     execute,
+    manageBot,
     leave,
     takeOver: () => {
       roomChannel.current?.postMessage({ type: "takeover" });

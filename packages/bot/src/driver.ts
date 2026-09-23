@@ -50,6 +50,10 @@ export interface BotDriverOptions {
   name?: string;
   /** 会话文件。提供后进程意外退出可以 `reconnect` 拿回座位。 */
   sessionFile?: string;
+  maxReconnects?: number;
+  onFailure?: (error: Error) => void;
+  onChildSpawn?: (pid: number) => void;
+  onChildExit?: (pid: number) => void;
   requestTimeoutMs?: number;
 
   persona: PersonaId | BotPersona;
@@ -68,7 +72,9 @@ export interface BotDriverOptions {
     password?: string;
   };
   /** 加入已有房间（与 `create` 二选一）。 */
-  join?: { roomId: string; password?: string };
+  join?: { roomId: string; password?: string; botToken?: string };
+  /** Managed bots wait for a human host to start the lobby. */
+  managed?: boolean;
 
   /** 安全边际：固定扣掉的毫秒数。默认 400。 */
   safetyMarginMs?: number;
@@ -224,12 +230,14 @@ export class BotDriver {
       cwd: this.options.cwd ?? process.cwd(),
       stdio: ["pipe", "pipe", "pipe"],
     });
+    if (child.pid) this.options.onChildSpawn?.(child.pid);
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => this.consume(chunk));
     // stderr 只用于诊断，不是协议帧。
     child.stderr.on("data", (chunk: string) => this.options.log?.(`[stderr] ${String(chunk).trimEnd()}`));
     child.on("exit", () => {
+      if (child.pid) this.options.onChildExit?.(child.pid);
       this.exited?.();
       this.exited = null;
       if (!this.stopping) void this.handleUnexpectedExit();
@@ -263,8 +271,10 @@ export class BotDriver {
   /** 子进程意外退出：有会话文件就重连，否则记录错误。 */
   private async handleUnexpectedExit(): Promise<void> {
     if (this.stopping) return;
-    if (!this.options.sessionFile) {
-      this.summary.errors.push("cabo-agent 意外退出且没有 --session-file，无法重连");
+    if (!this.options.sessionFile || this.summary.reconnects >= (this.options.maxReconnects ?? Number.POSITIVE_INFINITY)) {
+      const error = new Error("cabo-agent exited and cannot reconnect");
+      this.summary.errors.push(error.message);
+      this.options.onFailure?.(error);
       return;
     }
     try {
@@ -276,6 +286,7 @@ export class BotDriver {
       this.options.log?.("已重连并恢复座位");
     } catch (error) {
       this.summary.errors.push(`重连失败：${messageOf(error)}`);
+      this.options.onFailure?.(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -449,6 +460,7 @@ export class BotDriver {
   private shouldAct(observation: AgentObservation): boolean {
     if (observation.legalActions.length === 0) return false;
     const phase = observation.state.phase;
+    if (phase === "LOBBY" && this.options.managed) return false;
     if (phase === "LOBBY" || phase === "ROUND_RESULT") return true;
     return observation.state.currentPlayerId === observation.selfId;
   }

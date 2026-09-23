@@ -21,7 +21,7 @@ export function caboHelpLines(): string[] {
     `Options: --server URL (default: ${DEFAULT_SERVER_URL}) | --name NAME (default: current OS user)`,
     'Connection: rooms | create public|private [target] --name "room name" | join ROOM [password] | reconnect | quit',
     "Create options: --mode classic|assisted (default classic) | --timer 0|30|60|90 (default 60)",
-    "Lobby:      players | start | leave",
+    "Lobby:      players | start | leave | bot add [abacus|gambler|mnemo|gremlin|chill|moonchild] | bot remove PLAYER_ID (max 4 bots)",
     "Chat:       chat MESSAGE | chat (guided input) | press t at an empty prompt",
     "Game:       show | draw deck | draw discard | replace POS [POS ...] [at POS] | resolve LEFT [PENALTY] | discard",
     "            peek self POS | peek PLAYER POS | swap PLAYER OWN_POS TARGET_POS | skip | cabo | ready",

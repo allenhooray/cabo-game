@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CaboStateLike, StatePlayer } from "@cabo-game/client-core";
+import { BOT_PERSONAS, type BotPersonaId } from "@cabo-game/shared";
 import { copyText, invitationLink } from "../../invitation.js";
 import { Avatar, CardToken } from "../../components/TablePrimitives.js";
 import { useTranslation } from "react-i18next";
@@ -30,8 +31,12 @@ export function ShareRoom(props: { roomId: string; server: string }) {
   );
 }
 
-export function Lobby(props: { roomId: string; roomName: string; targetScore: number; players: StatePlayer[]; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void }) {
+export function Lobby(props: { roomId: string; roomName: string; targetScore: number; players: StatePlayer[]; pendingBotCount: number; selfId: string; canStart: boolean; busy: boolean; onStart(): void; onLeave(): void; onAddBot(persona: BotPersonaId): void; onRemoveBot(playerId: string): void }) {
   const { t } = useTranslation();
+  const [persona, setPersona] = useState<BotPersonaId>("abacus");
+  const isHost = Boolean(props.players.find((player) => player.id === props.selfId)?.isHost);
+  const botCount = props.players.filter((player) => player.isBot).length + props.pendingBotCount;
+  const canInvite = isHost && !props.busy && botCount < 4 && props.players.length + props.pendingBotCount < 5;
   return (
     <main className="lobby-shell">
       <section className="lobby-copy"><p className="eyebrow room-name">{props.roomName}</p><p className="room-code">{t("home.roomCode")} <span className="room-id">{props.roomId}</span></p><h1>{t("room.lobbyTitle")}</h1><p>{t("room.lobbyDetail")}</p></section>
@@ -40,9 +45,10 @@ export function Lobby(props: { roomId: string; roomName: string; targetScore: nu
         <div className="seat-list">
           {[0, 1, 2, 3, 4].map((seat) => {
             const player = props.players.find((candidate) => candidate.seat === seat);
-            return <div className={`seat ${player ? "seat-filled" : ""}`} key={seat}>{player ? <><Avatar player={player} /><div><strong>{player.name}{player.id === props.selfId ? ` · ${t("room.you")}` : ""}</strong><span>{player.isHost ? t("room.host") : player.connected ? t("room.ready") : t("room.offline")}</span></div></> : <span className="open-seat">{t("room.openSeat")}</span>}</div>;
+            return <div className={`seat ${player ? "seat-filled" : ""}`} key={seat}>{player ? <><Avatar player={player} /><div><strong>{player.name}{player.id === props.selfId ? ` · ${t("room.you")}` : ""}</strong><span>{player.isBot ? `${t("room.bot")} · ${t(`room.botPersona.${player.botPersona}`)}` : player.isHost ? t("room.host") : player.connected ? t("room.ready") : t("room.offline")}</span></div>{isHost && player.isBot && <button type="button" disabled={props.busy} onClick={() => props.onRemoveBot(player.id)}>{t("room.removeBot")}</button>}</> : <span className="open-seat">{t("room.openSeat")}</span>}</div>;
           })}
         </div>
+        {isHost && <div className="bot-controls"><label>{t("room.addBot")} <select value={persona} disabled={!canInvite} onChange={(event) => setPersona(event.target.value as BotPersonaId)}>{BOT_PERSONAS.map((id) => <option key={id} value={id}>{t(`room.botPersona.${id}`)}</option>)}</select></label><button className="button" type="button" disabled={!canInvite} onClick={() => props.onAddBot(persona)}>{t("room.addBot")}</button>{props.pendingBotCount > 0 && <span role="status">{t("room.botJoining")}</span>}{botCount >= 4 && <span>{t("room.botLimit")}</span>}</div>}
         <div className="lobby-actions"><button className="button ghost" type="button" onClick={props.onLeave}>{t("common.leave")}</button>{props.canStart ? <button className="button primary" type="button" disabled={props.busy} onClick={props.onStart}>{t("room.start")}</button> : <span>{props.players[0]?.isHost ? t("room.waitPlayers") : t("room.waitHost")}</span>}</div>
       </section>
     </main>

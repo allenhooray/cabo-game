@@ -57,6 +57,10 @@ pnpm dev:cli -- --server http://localhost:2567 --name Alice
 pnpm dev:cli -- --server http://localhost:2567 --name Bob
 ```
 
+房主可以在 Web 等待大厅的空座位选择性格并点击「添加机器人」，或在 CLI 输入 `bot add [persona]`。移除时使用座位上的按钮或 CLI 的 `bot remove PLAYER_ID`（可通过 `players` 查看 ID）。默认性格为 `abacus`；还支持 `gambler`、`mnemo`、`gremlin`、`chill`、`moonchild`。每房间最多 4 个机器人，总人数最多 5 人，只能在开局前管理。服务端自动运行机器人，无需为每个机器人打开终端。
+
+服务端默认启用 Bot，可设置 `BOTS_ENABLED=false` 关闭，`BOT_MAX_TOTAL` 调整全服务的并发上限（默认 20），`BOT_SERVER_URL` 指定 Bot 连接的服务端地址（默认 `http://127.0.0.1:$PORT`）。容器镜像会构建 Bot 与 CLI 运行产物；生产启动使用编译后的 Node 入口。
+
 需要从外部程序驱动对局时，使用独立的 JSONL Agent 入口：
 
 ```bash

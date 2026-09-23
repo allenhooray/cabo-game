@@ -3,6 +3,36 @@ import type { Client } from "colyseus";
 import { CaboRoom } from "./CaboRoom.js";
 import { PlayerState } from "./state.js";
 
+describe("managed Bot admission", () => {
+  function roomWithHost() {
+    const room = new CaboRoom();
+    room.state.players.set("host", new PlayerState().assign({ id: "host", name: "Host", seat: 0, isHost: true }));
+    const internal = room as unknown as { hostId: string; handleBotCommand(client: Client, payload: unknown): Promise<void>; validateJoin(payload: unknown): unknown };
+    internal.hostId = "host";
+    return { room, internal, host: { sessionId: "host", send: vi.fn() } as unknown as Client };
+  }
+
+  it("rejects forged credentials and reserves capacity for a pending Bot", () => {
+    const { room, internal } = roomWithHost();
+    expect(() => internal.validateJoin({ name: "Fake", botToken: "forged" })).toThrow("INVALID_BOT_TOKEN");
+    const pending = room as unknown as { pendingBots: Map<string, unknown> };
+    pending.pendingBots.set("token", { persona: "abacus", name: "Bot" });
+    for (let seat = 1; seat < 4; seat++) room.state.players.set(`human-${seat}`, new PlayerState().assign({ id: `human-${seat}`, name: `Human-${seat}`, seat }));
+    expect(() => internal.validateJoin({ name: "Late" })).toThrow("ROOM_FULL");
+    expect(() => internal.validateJoin({ name: "Bot", botToken: "token" })).not.toThrow();
+  });
+
+  it("allows only the host and enforces four Bots before launching a worker", async () => {
+    const { room, internal, host } = roomWithHost();
+    const guest = { sessionId: "guest", send: vi.fn() } as unknown as Client;
+    await internal.handleBotCommand(guest, { id: "guest-1", command: { type: "invite-bot", persona: "abacus" } });
+    expect(guest.send).toHaveBeenCalledWith("bot-result", expect.objectContaining({ ok: false, error: expect.objectContaining({ code: "NOT_HOST" }) }));
+    for (let seat = 1; seat <= 4; seat++) room.state.players.set(`bot-${seat}`, new PlayerState().assign({ id: `bot-${seat}`, name: `Bot-${seat}`, seat, isBot: true }));
+    await internal.handleBotCommand(host, { id: "host-1", command: { type: "invite-bot", persona: "abacus" } });
+    expect(host.send).toHaveBeenCalledWith("bot-result", expect.objectContaining({ ok: false, error: expect.objectContaining({ code: "BOT_LIMIT" }) }));
+  });
+});
+
 describe("agent command acknowledgements", () => {
   it("keeps the legacy command channel and returns the committed revision", () => {
     const room = new CaboRoom();

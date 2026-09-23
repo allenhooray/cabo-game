@@ -155,10 +155,13 @@ export function App() {
           roomName={state.roomName}
           targetScore={state.targetScore}
           players={players}
+          pendingBotCount={state.pendingBotCount ?? 0}
           selfId={selfId}
           canStart={Boolean(self?.isHost && activePlayers.length >= 2)}
           busy={session.busy || session.readOnly}
           onStart={() => execute({ type: "start" })}
+          onAddBot={(persona) => void session.manageBot({ type: "invite-bot", persona })}
+          onRemoveBot={(playerId) => void session.manageBot({ type: "remove-bot", playerId })}
           onLeave={() => setConfirmation({ title: t("modal.leaveRoomTitle"), body: t("modal.leaveRoomBody"), label: t("modal.leaveRoomAction"), action: session.leave })}
           />
         ) : (

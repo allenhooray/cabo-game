@@ -17,6 +17,8 @@ export interface StatePlayer {
   nextRoundReady: boolean;
   cardCount: number;
   isHost: boolean;
+  isBot?: boolean;
+  botPersona?: string;
 }
 
 export interface RoundHistoryPlayer {
@@ -37,6 +39,7 @@ export interface RoundHistoryEntry {
 
 export interface CaboStateLike extends RoomSettings {
   revision: number;
+  pendingBotCount?: number;
   roomName: string;
   phase: GamePhase;
   round: number;

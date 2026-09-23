@@ -1,5 +1,7 @@
 # Cabo Agent CLI
 
+In the interactive `cabo` CLI, the room host can run `bot add [abacus|gambler|mnemo|gremlin|chill|moonchild]` in the lobby. `bot add` defaults to `abacus`. Run `players` to see IDs and `bot remove PLAYER_ID` to remove a Bot before the game starts. A room permits at most four Bots and five total players.
+
 Protocol v7 requires `memoryMode: "classic" | "assisted"` and `turnDurationSeconds: 0 | 30 | 60 | 90` on create requests. The interactive CLI defaults to classic/60 and accepts `create public --mode assisted --timer 90`. Classic reveals are temporary, assisted knowledge is restored by the server. Round results advance after everyone is ready or 20 seconds. Use `swap PLAYER OWN_POS TARGET_POS` for different-position swaps; Cabo confirmation explains ties and the +5 penalty.
 
 `cabo-agent` exposes one Cabo player as a language-neutral JSONL subprocess. It is designed for supervisors and bots written in Python, Go, Rust, Node.js, or any runtime that can manage a child process.

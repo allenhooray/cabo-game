@@ -2,6 +2,16 @@ import { z } from "zod";
 import { GAME_PHASES } from "./types.js";
 
 export const AGENT_PROTOCOL_VERSION = 7 as const;
+export const BOT_PERSONAS = ["abacus", "gambler", "mnemo", "gremlin", "chill", "moonchild"] as const;
+export const botPersonaSchema = z.enum(BOT_PERSONAS);
+export type BotPersonaId = z.infer<typeof botPersonaSchema>;
+export const botCommandSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("invite-bot"), persona: botPersonaSchema }).strict(),
+  z.object({ type: z.literal("remove-bot"), playerId: z.string().min(1) }).strict(),
+]);
+export const botCommandRequestSchema = z.object({ id: z.string().min(1).max(100), command: botCommandSchema }).strict();
+export type BotCommand = z.infer<typeof botCommandSchema>;
+export type BotCommandResult = { id: string; ok: true; playerId?: string } | { id: string; ok: false; error: { code: string; message: string } };
 export const AGENT_REQUEST_TYPES = ["rooms", "create", "join", "reconnect", "observe", "describe", "ping", "action", "leave", "shutdown"] as const;
 export const AGENT_FRAME_TYPES = ["ready", "result", "observation", "event", "fatal"] as const;
 export const AGENT_ACTION_TYPES = ["start", "draw-deck", "draw-discard", "replace", "resolve-mismatch", "discard", "peek-self", "peek-other", "swap", "skip", "cabo", "ready-next-round"] as const;
@@ -35,6 +45,7 @@ export const roomOptionsSchema = z.object({
 export const joinOptionsSchema = z.object({
   name: z.string().trim().min(1).max(20),
   password: z.string().regex(/^\d{6}$/).optional(),
+  botToken: z.string().optional(),
 });
 
 const agentActionVariants = [
@@ -100,7 +111,7 @@ const requestId = z.string().trim().min(1);
 export const agentRequestSchema = z.discriminatedUnion("type", [
   z.object({ id: requestId, type: z.literal("rooms") }).strict(),
   z.object({ id: requestId, type: z.literal("create"), ...roomSettings, visibility: z.enum(["public", "private"]), targetScore: targetScore.default(100), roomName: roomNameSchema.optional(), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
-  z.object({ id: requestId, type: z.literal("join"), roomId: z.string().min(1), password: z.string().regex(/^\d{6}$/).optional() }).strict(),
+  z.object({ id: requestId, type: z.literal("join"), roomId: z.string().min(1), password: z.string().regex(/^\d{6}$/).optional(), botToken: z.string().optional() }).strict(),
   z.object({ id: requestId, type: z.literal("reconnect") }).strict(),
   z.object({ id: requestId, type: z.literal("observe") }).strict(),
   z.object({ id: requestId, type: z.literal("describe") }).strict(),

@@ -11,6 +11,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@cabo-game/bot": "workspace:*",
     "@cabo-game/shared": "workspace:*",
     "@colyseus/schema": "5.0.33",
     "colyseus": "0.18.6",

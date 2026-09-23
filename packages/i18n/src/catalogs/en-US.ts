@@ -118,7 +118,7 @@ export const enUS = {
   "room.ready": "Ready",
   "room.offline": "Offline",
   "room.openSeat": "Open seat",
-  "room.start": "Start game",
+  "room.bot": "Bot", "room.addBot": "Add Bot", "room.removeBot": "Remove", "room.botJoining": "Bot is joining…", "room.botLimit": "Maximum 4 Bots per room", "room.botPersona.abacus": "Abacus", "room.botPersona.gambler": "Gambler", "room.botPersona.mnemo": "Mnemo", "room.botPersona.gremlin": "Gremlin", "room.botPersona.chill": "Chill", "room.botPersona.moonchild": "Moonchild", "room.start": "Start game",
   "room.waitPlayers": "Waiting for players…",
   "room.waitHost": "Waiting for the host…",
   "room.quickRules": "Quick rules",

@@ -1,6 +1,7 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   agentCommandRequestSchema,
+  botCommandRequestSchema,
   clientCommandSchema,
   GameEngine,
   GameRuleError,
@@ -11,6 +12,8 @@ import {
   roomOptionsSchema,
   type ClientCommand,
   type AgentCommandResult,
+  type BotCommandResult,
+  type BotPersonaId,
   type Card,
   type EngineEvent,
   type ErrorMessage,
@@ -21,6 +24,7 @@ import {
 } from "@cabo-game/shared";
 import { type Client, Room } from "colyseus";
 import { CaboState, PlayerState, RoundHistoryCardState, RoundHistoryEntryState, RoundHistoryPlayerState } from "./state.js";
+import { botsEnabled, startBot, type BotHandle } from "./bot-worker.js";
 
 interface RoomMetadata {
   memoryMode: MemoryMode;
@@ -53,11 +57,16 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
   private readonly knowledge = new PrivateKnowledgeStore();
   private chatSequence = 0;
   private readonly chatBuckets = new Map<string, { tokens: number; updatedAt: number }>();
+  private readonly managedBots = new Map<string, BotHandle>();
+  private readonly pendingBots = new Map<string, { persona: BotPersonaId; name: string; resolve(playerId: string): void; reject(error: Error): void; handle: BotHandle | undefined }>();
+  private readonly botResults = new Map<string, BotCommandResult>();
+  private readonly botRequestsInFlight = new Map<string, Client[]>();
 
   messages = {
     command: (client: Client, payload: unknown) => this.handleCommand(client, payload),
     "agent-command": (client: Client, payload: unknown) => this.handleAgentCommand(client, payload),
     chat: (client: Client, payload: unknown) => this.handleChat(client, payload),
+    "bot-command": (client: Client, payload: unknown) => void this.handleBotCommand(client, payload),
   };
 
   async onCreate(rawOptions: unknown): Promise<void> {
@@ -81,29 +90,46 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     await this.updateListing();
   }
 
-  private validateJoin(rawOptions: unknown): { name: string } {
+  private validateJoin(rawOptions: unknown): { name: string; botToken?: string } {
     if (this.state.phase !== "LOBBY") throw new Error("ROOM_STARTED");
     const parsed = joinOptionsSchema.safeParse(rawOptions);
     if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid join options.");
-    if (this.visibility === "private" && !this.passwordMatches(parsed.data.password)) {
+    const bot = parsed.data.botToken ? this.pendingBots.get(parsed.data.botToken) : undefined;
+    if (parsed.data.botToken && !bot) throw new Error("INVALID_BOT_TOKEN");
+    if (bot && parsed.data.name !== bot.name) throw new Error("INVALID_BOT_TOKEN");
+    if (this.state.players.size + (bot ? 0 : this.pendingBots.size) >= this.maxClients) throw new Error("ROOM_FULL");
+    if (this.visibility === "private" && !bot && !this.passwordMatches(parsed.data.password)) {
       throw new Error("INVALID_PASSWORD");
     }
     const normalized = parsed.data.name.toLocaleLowerCase();
     for (const player of this.state.players.values()) {
       if (player.name.toLocaleLowerCase() === normalized) throw new Error("NICKNAME_TAKEN");
     }
-    return { name: parsed.data.name };
+    return { name: parsed.data.name, ...(parsed.data.botToken ? { botToken: parsed.data.botToken } : {}) };
   }
 
   async onJoin(client: Client, rawOptions: unknown): Promise<void> {
     const auth = this.validateJoin(rawOptions);
+    const pending = auth.botToken ? this.pendingBots.get(auth.botToken) : undefined;
+    const usedSeats = new Set([...this.state.players.values()].map((player) => player.seat));
+    const seat = [0, 1, 2, 3, 4].find((candidate) => !usedSeats.has(candidate));
+    if (seat === undefined) throw new Error("ROOM_FULL");
     const player = new PlayerState().assign({
       id: client.sessionId,
       name: auth.name,
-      seat: this.state.players.size,
+      seat,
       connected: true,
       isHost: this.state.players.size === 0,
+      isBot: Boolean(pending),
+      botPersona: pending?.persona ?? "",
     });
+    if (pending && auth.botToken) {
+      this.pendingBots.delete(auth.botToken);
+      this.state.pendingBotCount = this.pendingBots.size;
+      if (pending.handle) this.managedBots.set(client.sessionId, pending.handle);
+      console.info(`[bot] joined room=${this.roomId} player=${client.sessionId} persona=${pending.persona}`);
+      pending.resolve(client.sessionId);
+    }
     this.state.players.set(client.sessionId, player);
     this.bumpRevision();
     if (!this.hostId) this.hostId = client.sessionId;
@@ -132,19 +158,95 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
 
   async onLeave(client: Client): Promise<void> {
     this.chatBuckets.delete(client.sessionId);
+    const departed = this.state.players.get(client.sessionId);
+    if (departed) departed.connected = false;
+    this.managedBots.delete(client.sessionId);
     if (this.state.phase === "LOBBY") {
       this.state.players.delete(client.sessionId);
       if (this.hostId === client.sessionId) this.transferHost();
       this.bumpRevision();
       await this.updateListing();
+      if (departed && !departed.isBot && ![...this.state.players.values()].some((player) => !player.isBot)) void this.stopAllBots();
       return;
     }
+    if (departed && !departed.isBot && ![...this.state.players.values()].some((player) => !player.isBot && player.connected)) void this.stopAllBots();
+    if (this.state.phase === "MATCH_RESULT") return;
     if (this.engine) {
       this.dispatch(this.engine.forfeit(client.sessionId));
       this.sendAllKnowledge();
       this.syncFromEngine();
       this.startNextRoundIfReady();
     }
+  }
+
+  private async handleBotCommand(client: Client, payload: unknown): Promise<void> {
+    const parsed = botCommandRequestSchema.safeParse(payload);
+    const id = typeof (payload as { id?: unknown } | null)?.id === "string" ? (payload as { id: string }).id : "";
+    if (!parsed.success) {
+      client.send("bot-result", { id, ok: false, error: { code: "INVALID_COMMAND", message: "Invalid Bot command." } } satisfies BotCommandResult);
+      return;
+    }
+    const key = `${client.sessionId}:${parsed.data.id}`;
+    const cached = this.botResults.get(key);
+    if (cached) { client.send("bot-result", cached); return; }
+    const waiting = this.botRequestsInFlight.get(key);
+    if (waiting) { waiting.push(client); return; }
+    this.botRequestsInFlight.set(key, [client]);
+    const reply = (result: BotCommandResult) => {
+      this.botResults.set(key, result);
+      for (const recipient of this.botRequestsInFlight.get(key) ?? []) recipient.send("bot-result", result);
+      this.botRequestsInFlight.delete(key);
+    };
+    try {
+      if (this.state.phase !== "LOBBY") throw new GameRuleError("INVALID_PHASE", "Bots can only be managed in the lobby.");
+      if (client.sessionId !== this.hostId || this.state.players.get(client.sessionId)?.isBot) throw new GameRuleError("NOT_HOST", "Only a human host may manage bots.");
+      const command = parsed.data.command;
+      if (command.type === "remove-bot") {
+        const handle = this.managedBots.get(command.playerId);
+        if (!handle) throw new GameRuleError("BOT_NOT_FOUND", "Managed Bot not found.");
+        await handle.stop();
+        this.managedBots.delete(command.playerId);
+        for (let attempt = 0; attempt < 40 && this.state.players.has(command.playerId); attempt++) await new Promise((resolve) => setTimeout(resolve, 50));
+        if (this.state.players.has(command.playerId)) throw new GameRuleError("BOT_REMOVE_FAILED", "Bot seat did not leave.");
+        console.info(`[bot] removed room=${this.roomId} player=${command.playerId}`);
+        reply({ id: parsed.data.id, ok: true, playerId: command.playerId });
+        return;
+      }
+      if (!botsEnabled) throw new GameRuleError("BOT_DISABLED", "Bots are disabled on this server.");
+      if (this.pendingBots.size) throw new GameRuleError("BOT_PENDING", "Wait for the current Bot invitation.");
+      if ([...this.state.players.values()].filter((player) => player.isBot).length + this.pendingBots.size >= 4) throw new GameRuleError("BOT_LIMIT", "A room may have at most four Bots.");
+      if (this.state.players.size + this.pendingBots.size >= this.maxClients) throw new GameRuleError("ROOM_FULL", "The room is full.");
+      const token = randomBytes(32).toString("hex");
+      const name = `${command.persona}-${randomBytes(2).toString("hex")}`;
+      let resolve!: (playerId: string) => void;
+      let reject!: (error: Error) => void;
+      const joined = new Promise<string>((yes, no) => { resolve = yes; reject = no; });
+      const pending = { persona: command.persona, name, resolve, reject, handle: undefined as BotHandle | undefined };
+      this.pendingBots.set(token, pending);
+      this.state.pendingBotCount = this.pendingBots.size;
+      this.bumpRevision();
+      try {
+        pending.handle = startBot(this.roomId, command.persona, token, name, (error) => reject(new Error(error)));
+        const playerId = await Promise.race([joined, new Promise<never>((_, no) => setTimeout(() => no(new Error("Bot join timed out.")), 15_000))]);
+        reply({ id: parsed.data.id, ok: true, playerId });
+      } catch (error) {
+        console.error(`[bot] invitation failed room=${this.roomId}: ${error instanceof Error ? error.message : String(error)}`);
+        if (pending.handle) await pending.handle.stop();
+        throw error;
+      } finally {
+        this.pendingBots.delete(token);
+        this.state.pendingBotCount = this.pendingBots.size;
+        this.bumpRevision();
+      }
+    } catch (error) {
+      const code = error instanceof GameRuleError ? error.code : "BOT_START_FAILED";
+      reply({ id: parsed.data.id, ok: false, error: { code, message: error instanceof Error ? error.message : "Bot request failed." } });
+    }
+  }
+
+  private async stopAllBots(): Promise<void> {
+    await Promise.all([...this.managedBots.values(), ...[...this.pendingBots.values()].flatMap((pending) => pending.handle ? [pending.handle] : [])].map((handle) => handle.stop()));
+    this.managedBots.clear();
   }
 
   private handleCommand(client: Client, rawPayload: unknown): void {
@@ -304,6 +406,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
 
   private startGame(client: Client): void {
     if (client.sessionId !== this.hostId) throw new GameRuleError("NOT_HOST", "Only the host can start the game.");
+    if (this.pendingBots.size) throw new GameRuleError("BOT_PENDING", "Wait for the Bot to join.");
     const connectedPlayers = [...this.state.players.values()].filter((player) => player.connected && !player.forfeited);
     if (connectedPlayers.length < 2) throw new GameRuleError("NOT_ENOUGH_PLAYERS", "At least two connected players are required.");
     if (this.state.phase !== "LOBBY") throw new GameRuleError("INVALID_PHASE", "The game has already started.");
@@ -424,6 +527,7 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     }
     this.bumpRevision();
     void this.updateListing();
+    if (snapshot.phase === "MATCH_RESULT") setTimeout(() => { void this.stopAllBots(); }, 1000);
   }
 
   private bumpRevision(): void {
@@ -481,10 +585,14 @@ export class CaboRoom extends Room<{ state: CaboState; metadata: RoomMetadata }>
     if (this.engine.currentPlayerId === playerId && this.engine.getSnapshot().phase === "POWER_PENDING") apply({ type: "skip" });
   }
 
-  onDispose(): void { this.clearDeadline(); }
+  onDispose(): void {
+    this.clearDeadline();
+    for (const pending of this.pendingBots.values()) pending.reject(new Error("Room closed."));
+    void this.stopAllBots();
+  }
 
   private transferHost(): void {
-    const next = [...this.state.players.values()].sort((a, b) => a.seat - b.seat)[0];
+    const next = [...this.state.players.values()].filter((player) => !player.isBot).sort((a, b) => a.seat - b.seat)[0];
     this.hostId = next?.id ?? "";
     for (const player of this.state.players.values()) player.isHost = player.id === this.hostId;
   }

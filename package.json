@@ -10,7 +10,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "dev:server": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/server dev",
+    "dev:server": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/client-core build && pnpm --filter @cabo-game/bot build && pnpm --filter @cabo-game/server dev",
     "dev:cli": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/client-core build && pnpm --filter @cabo-game/cli dev",
     "dev:agent": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/client-core build && pnpm --filter @cabo-game/cli dev:agent",
     "dev:web": "pnpm --filter @cabo-game/shared build && pnpm --filter @cabo-game/client-core build && pnpm --filter @cabo-game/i18n build && pnpm --filter @cabo-game/web dev",

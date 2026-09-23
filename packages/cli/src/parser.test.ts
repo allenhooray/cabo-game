@@ -10,6 +10,10 @@ describe("parseCommand", () => {
     expect(() => parseCommand("create public --mode other")).toThrow();
   });
   it("parses room management commands", () => {
+    expect(parseCommand("bot add")).toEqual({ kind: "bot-add", persona: "abacus" });
+    expect(parseCommand("bot add mnemo")).toEqual({ kind: "bot-add", persona: "mnemo" });
+    expect(parseCommand("bot remove player-1")).toEqual({ kind: "bot-remove", playerId: "player-1" });
+    expect(() => parseCommand("bot add unknown")).toThrow("Persona");
     expect(parseCommand("create private 150")).toEqual({ kind: "create", memoryMode: "classic", turnDurationSeconds: 60, visibility: "private", targetScore: 150 });
     expect(parseCommand("join abc123 123456")).toEqual({ kind: "join", roomId: "abc123", password: "123456" });
     expect(parseCommand('create public 120 --name "Friday night"')).toEqual({ kind: "create", memoryMode: "classic", turnDurationSeconds: 60, visibility: "public", targetScore: 120, roomName: "Friday night" });

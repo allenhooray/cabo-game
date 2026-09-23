@@ -234,6 +234,28 @@ test("a five-player room fills every seat and starts", async ({ browser }) => {
   await Promise.all(contexts.map((context) => context.close()));
 });
 
+test("host can fill a private lobby with four Bots and replace one", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("textbox", { name: "Player name" }).fill("Bot Host");
+  await page.getByRole("button", { name: "Create room" }).click();
+  await page.getByRole("button", { name: "Private" }).click();
+  await page.getByLabel("Six-digit password").fill("123456");
+  await page.getByRole("button", { name: "Create table" }).click();
+  await expect(page.locator(".lobby-panel")).toBeVisible();
+  await page.getByRole("combobox", { name: "Add Bot" }).selectOption("mnemo");
+  for (let count = 1; count <= 4; count++) {
+    await page.getByRole("button", { name: "Add Bot" }).click();
+    await expect(page.locator(".seat.seat-filled")).toHaveCount(count + 1);
+  }
+  await expect(page.getByRole("button", { name: "Add Bot" })).toBeDisabled();
+  await page.getByRole("button", { name: "Remove" }).first().click();
+  await expect(page.locator(".seat.seat-filled")).toHaveCount(4);
+  await page.getByRole("button", { name: "Add Bot" }).click();
+  await expect(page.locator(".seat.seat-filled")).toHaveCount(5);
+  await page.getByRole("button", { name: "Start game" }).click();
+  await expect(page.getByRole("region", { name: "Your hand and actions" })).toBeVisible();
+});
+
 test("private room requires its six-digit password", async ({ browser }) => {
   const hostContext = await browser.newContext();
   const guestContext = await browser.newContext();

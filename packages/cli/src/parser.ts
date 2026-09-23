@@ -1,4 +1,4 @@
-import type { ClientCommand, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
+import { BOT_PERSONAS, type BotPersonaId, type ClientCommand, type MemoryMode, type TurnDurationSeconds } from "@cabo-game/shared";
 
 export type LocalCommand =
   | { kind: "help" }
@@ -8,6 +8,8 @@ export type LocalCommand =
   | { kind: "reconnect" }
   | { kind: "show" }
   | { kind: "players" }
+  | { kind: "bot-add"; persona: BotPersonaId }
+  | { kind: "bot-remove"; playerId: string }
   | { kind: "leave" }
   | { kind: "chat"; text?: string }
   | { kind: "quit" }
@@ -83,6 +85,15 @@ export function parseCommand(input: string): LocalCommand {
       return { kind: "show" };
     case "players":
       return { kind: "players" };
+    case "bot": {
+      if (args[0] === "add" && args.length <= 2) {
+        const persona = args[1] ?? "abacus";
+        if (!BOT_PERSONAS.includes(persona as BotPersonaId)) throw new Error(`Persona must be one of: ${BOT_PERSONAS.join(", ")}.`);
+        return { kind: "bot-add", persona: persona as BotPersonaId };
+      }
+      if (args[0] === "remove" && args[1] && args.length === 2) return { kind: "bot-remove", playerId: args[1] };
+      throw new Error("Usage: bot add [persona] | bot remove PLAYER_ID.");
+    }
     case "leave":
       return { kind: "leave" };
     case "quit":

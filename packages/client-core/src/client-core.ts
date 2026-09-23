@@ -1,4 +1,4 @@
-import type { AgentCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage, RoomChatMessage, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
+import type { AgentCommandResult, BotCommand, BotCommandResult, ClientCommand, ErrorMessage, PrivateKnowledgeSnapshot, PrivateRevealMessage, RoomChatMessage, MemoryMode, TurnDurationSeconds } from "@cabo-game/shared";
 import { Client, type Room } from "@colyseus/sdk";
 import { applyKnowledgeSnapshot, applyOwnActionEvent, applyReveal, applySwapEvent, createKnowledge, resetForRound, storedKnowledge, type KnowledgeState, type PendingGameAction } from "./knowledge.js";
 import type { CaboStateLike, ListedRoom, ListedRoomResponse } from "./model.js";
@@ -57,6 +57,12 @@ interface PendingAgentResult {
   timer: ReturnType<typeof setTimeout>;
 }
 
+interface PendingBotResult {
+  resolve(result: BotCommandResult): void;
+  reject(error: Error): void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
 interface RevisionWaiter {
   revision: number;
   resolve(): void;
@@ -81,6 +87,7 @@ export class CaboClientCore {
   private pendingGameAction: PendingGameAction | undefined;
   private sessionWrites = Promise.resolve();
   private readonly pendingAgentResults = new Map<string, PendingAgentResult>();
+  private readonly pendingBotResults = new Map<string, PendingBotResult>();
   private readonly revisionWaiters: RevisionWaiter[] = [];
 
   constructor(options: CaboClientCoreOptions) {
@@ -112,9 +119,9 @@ export class CaboClientCore {
     await this.attach(room);
   }
 
-  async join(roomId: string, password?: string): Promise<void> {
+  async join(roomId: string, password?: string, botToken?: string): Promise<void> {
     if (this.room) throw new Error("Leave the current room first.");
-    const room = await this.client.joinById(roomId, { name: this.playerName, ...(password ? { password } : {}) });
+    const room = await this.client.joinById(roomId, { name: this.playerName, ...(password ? { password } : {}), ...(botToken ? { botToken } : {}) });
     await this.attach(room);
   }
 
@@ -137,6 +144,16 @@ export class CaboClientCore {
   sendChat(text: string): void {
     if (!this.room) throw new Error("Join a room first.");
     this.room.send("chat", { text });
+  }
+
+  async manageBot(command: BotCommand, timeoutMs = 20_000): Promise<BotCommandResult> {
+    if (!this.room) throw new Error("Join a room first.");
+    const id = `bot-${Date.now()}-${++requestSequence}`;
+    return new Promise<BotCommandResult>((resolve, reject) => {
+      const timer = setTimeout(() => { this.pendingBotResults.delete(id); reject(new Error("Bot request timed out.")); }, timeoutMs);
+      this.pendingBotResults.set(id, { resolve, reject, timer });
+      this.room?.send("bot-command", { id, command });
+    });
   }
 
   execute(command: ClientCommand, options: ExecuteOptions = {}): Promise<AgentCommandResult> {
@@ -246,6 +263,13 @@ export class CaboClientCore {
       clearTimeout(pending.timer);
       pending.resolve(result);
     });
+    nextRoom.onMessage<BotCommandResult>("bot-result", (result) => {
+      const pending = this.pendingBotResults.get(result.id);
+      if (!pending) return;
+      this.pendingBotResults.delete(result.id);
+      clearTimeout(pending.timer);
+      pending.resolve(result);
+    });
     nextRoom.onMessage<any>("event", (event) => {
       if (event.type === "discard" && event.playerId === nextRoom.sessionId) {
         this.knowledge = applyOwnActionEvent(this.knowledge, this.pendingGameAction);
@@ -324,6 +348,8 @@ export class CaboClientCore {
   }
 
   private rejectPendingRequests(error: Error): void {
+    for (const pending of this.pendingBotResults.values()) { clearTimeout(pending.timer); pending.reject(error); }
+    this.pendingBotResults.clear();
     for (const pending of this.pendingAgentResults.values()) {
       clearTimeout(pending.timer);
       pending.reject(error);

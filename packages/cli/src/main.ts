@@ -376,7 +376,19 @@ async function execute(command: LocalCommand): Promise<boolean> {
       break;
     }
     case "show": renderState(); break;
-    case "players": for (const player of players()) addEvent(`${player.name} (${player.id})${player.isHost ? " [host]" : ""}`); renderNow(); break;
+    case "players": for (const player of players()) addEvent(`${player.name} (${player.id})${player.isHost ? " [host]" : ""}${player.isBot ? ` [bot: ${player.botPersona}]` : ""}`); renderNow(); break;
+    case "bot-add": {
+      const result = await gameClient.manageBot({ type: "invite-bot", persona: command.persona });
+      addEvent(result.ok ? `Bot joined: ${result.playerId}` : `Bot invite failed: ${result.error.message}`);
+      renderNow();
+      break;
+    }
+    case "bot-remove": {
+      const result = await gameClient.manageBot({ type: "remove-bot", playerId: command.playerId });
+      addEvent(result.ok ? `Bot removed: ${command.playerId}` : `Bot removal failed: ${result.error.message}`);
+      renderNow();
+      break;
+    }
     case "game": {
       const gameCommand = withTarget(command);
       if (gameCommand.type === "cabo") {

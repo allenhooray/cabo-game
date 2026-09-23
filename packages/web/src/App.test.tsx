@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CaboStateLike, KnowledgeState } from "@cabo-game/client-core";
+import type { CaboStateLike, KnowledgeState, StatePlayer } from "@cabo-game/client-core";
 import { createTranslator } from "@cabo-game/i18n";
 import { I18nextProvider } from "react-i18next";
 import { App } from "./App.js";
@@ -11,6 +11,7 @@ import { buildFlights } from "./features/game/MotionLayer.js";
 import { Results, ScoreFallback } from "./features/results/Results.js";
 import { Lobby, RulesPopover, ScoreHistoryPanel, ShareRoom } from "./features/room/RoomComponents.js";
 import { SettingsMenu } from "./components/SettingsMenu.js";
+import { CaboI18nProvider } from "./i18n/I18nProvider.js";
 
 const makeState = (overrides: Partial<CaboStateLike> = {}): CaboStateLike => ({
   memoryMode: "classic",
@@ -227,16 +228,35 @@ describe("Cabo game table additions", () => {
         roomName="Friday night"
         targetScore={100}
         players={[]}
+        pendingBotCount={0}
         selfId="alice"
         canStart={false}
         busy={false}
         onStart={vi.fn()}
+        onAddBot={vi.fn()}
+        onRemoveBot={vi.fn()}
         onLeave={vi.fn()}
       />,
     );
     expect(container.querySelector(".room-name")).toHaveTextContent("Friday night");
     expect(container.querySelector(".room-id")).toHaveTextContent("abc123");
     expect(container.querySelectorAll(".seat")).toHaveLength(5);
+  });
+
+  it("lets the host invite a persona and remove a Bot, then enforces the four Bot limit", () => {
+    const onAddBot = vi.fn();
+    const onRemoveBot = vi.fn();
+    const host = { id: "alice", name: "Alice", seat: 0, isHost: true, isBot: false, connected: true } as StatePlayer;
+    const bot = (seat: number) => ({ id: `bot-${seat}`, name: `Bot ${seat}`, seat, isHost: false, isBot: true, botPersona: "abacus", connected: true }) as StatePlayer;
+    const props = { roomId: "room", roomName: "Friday", targetScore: 100, selfId: "alice", canStart: true, busy: false, pendingBotCount: 0, onStart: vi.fn(), onLeave: vi.fn(), onAddBot, onRemoveBot };
+    const { rerender } = render(<Lobby {...props} players={[host, bot(1)]} />);
+    fireEvent.change(screen.getByRole("combobox", { name: "Add Bot" }), { target: { value: "mnemo" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Bot" }));
+    expect(onAddBot).toHaveBeenCalledWith("mnemo");
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    expect(onRemoveBot).toHaveBeenCalledWith("bot-1");
+    rerender(<Lobby {...props} players={[host, bot(1), bot(2), bot(3), bot(4)]} />);
+    expect(screen.getByRole("button", { name: "Add Bot" })).toBeDisabled();
   });
 
   it("opens quick rules on hover and links to the full rules", () => {
@@ -261,7 +281,7 @@ describe("Cabo game table additions", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("uses the shared popover interaction for share and settings", () => {
+  it("uses the shared popover interaction for share and settings", async () => {
     const { rerender } = render(<ShareRoom roomId="abc123" server="ws://localhost:2567" />);
     const share = screen.getByRole("button", { name: "Share" });
     const sharePanel = document.querySelector(".share-room-panel") as HTMLElement;
@@ -276,7 +296,9 @@ describe("Cabo game table additions", () => {
     expect(share).toHaveAttribute("aria-expanded", "false");
     expect(sharePanel).not.toBeVisible();
 
-    rerender(<SettingsMenu />);
+    const english = await createTranslator("en-US");
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    rerender(<CaboI18nProvider initialLocale="en-US" initialInstance={english.i18n}><SettingsMenu /></CaboI18nProvider>);
     const settings = screen.getByRole("button", { name: "Settings" });
     expect(settings).toHaveClass("popover-trigger");
     fireEvent.click(settings);
@@ -284,7 +306,7 @@ describe("Cabo game table additions", () => {
     expect(screen.getByRole("dialog", { name: "Settings" })).toHaveClass("popover-panel");
     expect(screen.getByRole("dialog", { name: "Settings" }).firstElementChild).toHaveClass("settings-panel-content");
     expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("auto");
-    expect(screen.getByRole("combobox", { name: "Language" })).toHaveValue("auto");
+    expect(screen.getByRole("combobox", { name: "Language" })).toHaveValue("en-US");
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("combobox", { name: "Theme" }), { target: { value: "dark" } });
     expect(screen.getByRole("combobox", { name: "Theme" })).toHaveValue("dark");
