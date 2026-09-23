@@ -5,6 +5,8 @@ import {
   GameEngine,
   GameRuleError,
   joinOptionsSchema,
+  PrivateKnowledgeStore,
+  publicAction,
   roomChatInputSchema,
   roomOptionsSchema,
   type ClientCommand,
@@ -19,7 +21,6 @@ import {
 } from "@cabo-game/shared";
 import { type Client, Room } from "colyseus";
 import { CaboState, PlayerState, RoundHistoryCardState, RoundHistoryEntryState, RoundHistoryPlayerState } from "./state.js";
-import { PrivateKnowledgeStore, publicAction } from "./private-knowledge.js";
 
 interface RoomMetadata {
   memoryMode: MemoryMode;

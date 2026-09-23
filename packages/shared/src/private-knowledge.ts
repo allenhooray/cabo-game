@@ -1,14 +1,14 @@
+import type { ClientCommand } from "./protocol.js";
 import type {
   Card,
-  ClientCommand,
   EngineEvent,
   KnownCard,
   KnownSlots,
+  MemoryMode,
   Position,
   PrivateKnowledgeSnapshot,
   PublicActionEvent,
-  MemoryMode,
-} from "@cabo-game/shared";
+} from "./types.js";
 
 const emptySlots = (length = 4): KnownSlots => Array.from({ length }, () => null);
 const displayCard = (card: Card | KnownCard): KnownCard => ({ label: card.label, rank: card.rank });

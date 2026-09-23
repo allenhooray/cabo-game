@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Card, EngineEvent, Rank } from "@cabo-game/shared";
+import type { Card, EngineEvent, Rank } from "./types.js";
 import { PrivateKnowledgeStore, publicAction } from "./private-knowledge.js";
 
 const card = (id: string, label: string, rank: Rank): Card => ({ id, label, rank });
@@ -71,5 +71,38 @@ describe("private knowledge", () => {
       revealedCards: [{ label: "2S", rank: 2 }, { label: "3H", rank: 3 }], penaltyCardPending: false,
     });
     expect(store.snapshot("alice")?.opponents[0]?.slots.slice(0, 2)).toEqual([{ label: "2S", rank: 2 }, { label: "3H", rank: 3 }]);
+  });
+
+  it("only exposes the inserted card when it was already public", () => {
+    const events: EngineEvent[] = [
+      { type: "discard", playerId: "alice", card: card("a", "5S", 5) },
+    ];
+    const fromDeck = publicAction({ type: "replace", positions: [1], replacementPosition: 1 }, "alice", events, undefined, { card: card("secret", "9C", 9), source: "deck" });
+    expect(fromDeck).toEqual({
+      type: "action", action: "replace", playerId: "alice", positions: [1], replacementPosition: 1, discardedCards: [{ label: "5S", rank: 5 }],
+    });
+    expect(fromDeck && "insertedCard" in fromDeck).toBe(false);
+
+    const fromDiscard = publicAction({ type: "replace", positions: [1], replacementPosition: 1 }, "alice", events, undefined, { card: card("open", "9C", 9), source: "discard" });
+    expect(fromDiscard).toMatchObject({ insertedCard: { label: "9C", rank: 9 } });
+  });
+
+  it("shifts every known position when a mismatch is resolved on the left", () => {
+    const store = new PrivateKnowledgeStore();
+    store.reset(1, ["alice", "bob"], "assisted");
+    store.applyPrivateReveal({ type: "private-reveal", playerId: "bob", reason: "peek", position: 1, card: card("x", "AS", 1) }, { type: "peek-other", targetPlayerId: "alice", position: 1 });
+    const viewer = store.snapshot("bob")!;
+    expect(viewer.opponents[0]?.slots[0]).toEqual({ label: "AS", rank: 1 });
+
+    store.applyAction({ type: "action", action: "resolve-mismatch", playerId: "alice", drawnPlacement: "left", penaltyPlacement: "right" });
+    const after = store.snapshot("bob")!;
+    expect(after.opponents[0]?.slots[0]).toBeNull();
+    expect(after.opponents[0]?.slots[1]).toEqual({ label: "AS", rank: 1 });
+    expect(after.opponents[0]?.slots).toHaveLength(6);
+
+    store.applyAction({ type: "action", action: "resolve-mismatch", playerId: "alice", drawnPlacement: "right" });
+    const stable = store.snapshot("bob")!;
+    expect(stable.opponents[0]?.slots[1]).toEqual({ label: "AS", rank: 1 });
+    expect(stable.opponents[0]?.slots).toHaveLength(7);
   });
 });
