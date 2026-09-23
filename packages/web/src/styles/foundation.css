@@ -68,6 +68,7 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .button { min-height: 44px; border: 1px solid var(--line); border-radius: 11px; padding: 0 18px; background: transparent; color: var(--ink); font-size: 13px; font-weight: 500; letter-spacing: .01em; cursor: pointer; transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease; }
 .button:hover:not(:disabled) { transform: translateY(-1px); background: var(--surface-2); }
 .button.primary { background: var(--ink); border-color: var(--ink); color: var(--bg); box-shadow: 0 10px 24px var(--shadow); }
+.button.primary:hover:not(:disabled) { background: var(--ink); }
 .button.ghost { border-color: transparent; }
 .button.small { min-height: 38px; padding-inline: 15px; }
 .text-button { min-height: 40px; padding: 0; border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }

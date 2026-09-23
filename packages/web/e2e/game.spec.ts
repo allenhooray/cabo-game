@@ -37,6 +37,21 @@ async function finishSimpleTurn(page: Page): Promise<void> {
   await expect(page.locator(".motion-layer")).toHaveCount(0);
 }
 
+test("primary button keeps its readable colors when hovered", async ({ page }) => {
+  await page.goto("/");
+  const button = page.getByRole("button", { name: "Create room" });
+  const colors = await button.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, text: style.color };
+  });
+
+  await button.hover();
+  await page.waitForTimeout(200);
+
+  await expect(button).toHaveCSS("background-color", colors.background);
+  await expect(button).toHaveCSS("color", colors.text);
+});
+
 test("two isolated players create, join, start, and reconnect", async ({ browser }) => {
   const aliceContext = await browser.newContext();
   const bobContext = await browser.newContext();
