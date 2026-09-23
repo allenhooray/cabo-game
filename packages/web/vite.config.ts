@@ -1,11 +1,24 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { rewriteLocalizedDocsUrl } from "./src/docs-route.js";
 
 const entry = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    {
+      name: "localized-docs-dev-routes",
+      configureServer(server) {
+        server.middlewares.use((request, _response, next) => {
+          const rewritten = request.url && rewriteLocalizedDocsUrl(request.url);
+          if (rewritten) request.url = rewritten;
+          next();
+        });
+      },
+    },
+    react(),
+  ],
   server: { port: 5173 },
   build: {
     outDir: "dist",
