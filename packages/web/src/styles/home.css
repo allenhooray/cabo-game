@@ -35,15 +35,3 @@
 .server-settings summary::after { content: ""; flex: 0 0 auto; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform 160ms ease; }
 .server-settings[open] summary::after { transform: rotate(-135deg) translateY(-2px); }
 .server-settings form { max-width: 560px; padding-top: 20px; }
-
-@media (max-width: 760px) {
-  /* 两行：品牌名一行，导航 + 设置一行。比「品牌名 + 设置 / 导航」少 20px，
-     同时保留设置弹层的独立行位，避免它盖住导航（弹层锚点见下方 .popover-panel）。 */
-  .home-header { padding: 14px 18px; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand brand" "nav settings"; gap: 10px 8px; align-items: center; }
-  .home-header > .wordmark-static { grid-area: brand; }
-  .home-header nav { grid-area: nav; gap: 20px; }
-  /* 改 static 让弹层包含块上移到 .home-header（sticky），top 用百分比即可与头高解耦：
-     之前硬编码的 60px 是按 68px 顶栏算的，而首页头部在窄屏是两行高，弹层会盖住导航。 */
-  .home-header > .settings-menu { grid-area: settings; position: static; }
-  .home-header .settings-menu .popover-panel { position: absolute; top: calc(100% + 9px); right: 18px; }
-}

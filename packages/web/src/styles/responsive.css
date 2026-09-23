@@ -100,7 +100,7 @@
   .score-history, .score-history-shell { width: 118px; }
   .settings-trigger span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   /* 触发器只剩图标（20px 宽）时，箭头要跟着左移，否则会指向图标右侧的空白。 */
-  .home-header .settings-menu .popover-panel::before { right: 6px; }
+  .site-header .settings-menu .popover-panel::before { right: 6px; }
   /* 动作区 max-content ≈316px，与品牌名（57）+ Share（45）排不进一行。
      隐去纯装饰的品牌名，并把中段列从 1fr 改成内容宽度：1fr 会被动作区压成 0 宽，
      Share 触发器随即向左溢出，与「CABO」叠印成「CABOARE」。 */

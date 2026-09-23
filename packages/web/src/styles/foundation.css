@@ -129,3 +129,13 @@ button:disabled { opacity: .36; cursor: not-allowed; }
 .field-label { color: var(--muted); font-size: 12px; letter-spacing: .02em; }
 .field-label span { opacity: .7; }
 .eyebrow, .action-kicker { margin: 0 0 10px; color: var(--muted); font-size: 11px; font-weight: 500; letter-spacing: .17em; text-transform: uppercase; }
+
+@media (max-width: 760px) {
+  /* 品牌独占首行，导航和设置共用第二行。首页与文档页保持一致。 */
+  .site-header { padding: 14px 18px; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand brand" "nav settings"; gap: 10px 8px; align-items: center; }
+  .site-header > .wordmark-static { grid-area: brand; }
+  .site-header nav { grid-area: nav; gap: 20px; }
+  /* 以 sticky 头部为包含块，让弹层始终落在整个导航栏下方。 */
+  .site-header > .settings-menu { grid-area: settings; position: static; }
+  .site-header .settings-menu .popover-panel { position: absolute; top: calc(100% + 9px); right: 18px; }
+}
