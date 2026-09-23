@@ -5,3 +5,6 @@ coverage/
 .DS_Store
 *.log
 .env
+
+# 本地 agent 工作状态（记忆日志等），不入版本历史
+.workbuddy-ai/

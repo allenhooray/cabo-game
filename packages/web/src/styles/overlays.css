@@ -6,7 +6,7 @@
 .motion-card.motion-swap { animation-name: card-swap-flight; animation-duration: 740ms; }
 
 .modal-layer, .reveal-layer { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 20px; background: var(--overlay); backdrop-filter: blur(16px); animation: veil-in 190ms ease both; }
-.modal-card { width: min(520px, 100%); max-height: calc(100vh - 40px); overflow: auto; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 28px 90px var(--shadow); animation: modal-in 210ms cubic-bezier(.2, .8, .2, 1) both; }
+.modal-card { width: min(520px, 100%); max-height: calc(100svh - 40px); overflow: auto; padding: 26px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 28px 90px var(--shadow); animation: modal-in 210ms cubic-bezier(.2, .8, .2, 1) both; }
 .modal-heading { display: flex; justify-content: space-between; align-items: center; }
 .modal-heading button { width: 40px; height: 40px; border: 0; background: none; color: var(--muted); font-size: 22px; cursor: pointer; }
 .modal-card h2 { margin: 0; font: 400 34px Georgia, serif; }
@@ -15,6 +15,9 @@
 .next-round-timer { margin-top: 12px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
 .result-lede { margin-bottom: 24px; }
 .score-list > div, .result-hands > div { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-top: 1px solid var(--soft-line); }
+/* 允许名字列收缩并省略，避免「长名字 + 4 张牌」在 ≤340px 时把牌面挤出弹窗。 */
+.result-hands > div > div:first-child { min-width: 0; }
+.result-hands > div > div:first-child strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .score-list span, .result-hands span { color: var(--muted); font-size: 11px; }
 .result-hands > div > div:first-child strong, .result-hands > div > div:first-child span { display: block; }
 .result-hands > div > div:first-child span { margin-top: 4px; }
@@ -31,4 +34,10 @@
 .reveal-front strong { font: 400 54px Georgia, serif; }
 .reveal-front span { margin-top: 8px; color: var(--muted); font-size: 12px; }
 .reveal-card small { margin-top: 28px; color: var(--muted); }
+
+@media (max-width: 380px) {
+  .score-list > div, .result-hands > div { gap: 12px; }
+  .result-cards { gap: 3px; }
+  .result-cards span { min-width: 24px; }
+}
 

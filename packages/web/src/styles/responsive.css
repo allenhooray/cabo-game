@@ -1,17 +1,7 @@
-@media (max-width: 760px) {
-  .home-header, .home-footer { padding-inline: 18px; }
-  .home-header > span:last-child { display: none; }
-  .home-main { width: min(100% - 28px, 560px); padding: 30px 0 48px; grid-template-columns: 1fr; gap: 32px; }
-  .intro h1 { font-size: clamp(42px, 13vw, 62px); }
-  .entry-panel { padding: 18px; }
-  .rooms-section, .server-settings { grid-column: auto; }
-  .room-row { grid-template-columns: 1fr auto; gap: 12px; padding: 12px 0; }
-  .room-row > span { display: none; }
-  .server-settings summary span { max-width: 55%; }
-  .home-footer { padding-block: 16px; flex-wrap: wrap; justify-content: center; gap: 16px; text-align: center; }
-
-  .topbar { grid-template-columns: auto 1fr auto; padding-inline: 15px; }
-  .topbar-actions { gap: 12px; }
+/* 平板及以下：聊天侧栏改为抽屉。
+   761–1100px 若保留 320px 常驻侧栏，牌桌每张对手卡只剩约 147px，
+   而 .player-main 的 min-content 是 208px，手牌会溢出卡片并压到相邻玩家。 */
+@media (max-width: 1100px) {
   .room-layout { width: 100%; display: block; }
   .room-main { margin-left: 0; }
   .chat-sidebar { display: none; }
@@ -19,7 +9,37 @@
   .chat-drawer-layer { position: fixed; inset: 0; z-index: 25; display: flex; align-items: flex-end; background: var(--overlay); backdrop-filter: blur(10px); }
   .chat-drawer { width: 100%; height: min(72svh, 620px); position: relative; border: 1px solid var(--line); border-bottom: 0; border-radius: 20px 20px 0 0; background: var(--surface); box-shadow: 0 -24px 70px var(--shadow); overflow: hidden; animation: modal-in 190ms ease both; }
   .chat-close { width: 42px; height: 42px; position: absolute; z-index: 2; top: 12px; right: 10px; border: 0; background: none; color: var(--muted); font-size: 24px; cursor: pointer; }
-  .score-history.is-open .score-history-shell { width: calc(100vw - 18px); height: min(620px, calc(100svh - 78px)); position: fixed; top: 74px; right: 9px; }
+
+  /* 顶栏中段收敛：只保留可省略的房间名与 Share，避免把动作区挤出视口。
+     这里刻意不用 overflow: hidden —— 那会裁掉 .share-room 的弹层面板。 */
+  .room-meta { justify-content: center; }
+  .room-meta > .room-setting, .room-meta > span { display: none; }
+  .room-title { min-width: 0; }
+
+  /* 计分面板从 154px 的触发器向左展开；改 fixed 后与视口对齐，避免 761–968px 左溢。
+     .topbar 带 backdrop-filter，是 fixed 后代的包含块，所以 100% 恒等于顶栏实际高度——
+     窄屏顶栏换行变高时面板也不会错位（用 --topbar-h 硬编码会差一整行）。 */
+  .score-history.is-open .score-history-shell { width: calc(100vw - 18px); height: min(620px, calc(100svh - var(--topbar-h) - 10px)); position: fixed; top: calc(100% + 8px); right: 9px; }
+
+  /* Share 的触发器在顶栏左侧，而面板固定 360px 宽。761–1100px 区间右对齐到触发器时
+     左边缘会跑到屏幕外（768px 实测 -56px，「ROOM CODE」被裁）。同样改为视口右对齐。 */
+  .share-room .popover-panel { position: fixed; top: calc(100% + 6px); right: 9px; }
+}
+
+@media (max-width: 760px) {
+  :root { --page-gutter: 15px; }
+  .home-header, .home-footer { padding-inline: 18px; }
+  .home-main { width: min(100% - 28px, 560px); padding: 30px 0 48px; grid-template-columns: 1fr; gap: 32px; }
+  .intro h1 { font-size: clamp(42px, 13vw, 62px); }
+  .entry-panel { padding: 18px; }
+  .rooms-section, .server-settings { grid-column: auto; }
+  .room-row { grid-template-columns: 1fr auto; gap: 12px; padding: 12px 0; }
+  .room-row > span { display: none; }
+  .server-settings summary span { max-width: 48%; }
+  .home-footer { padding-block: 16px; flex-wrap: wrap; justify-content: center; gap: 16px; text-align: center; }
+
+  .topbar { grid-template-columns: auto 1fr auto; }
+  .topbar-actions { gap: 12px; }
   .score-history-content { padding: 14px 10px 12px; }
   .score-history-heading { min-height: 54px; }
   .score-history-heading h2 { font-size: 20px; }
@@ -31,9 +51,8 @@
   .score-cell.is-revealed .score-mini-cards { display: flex; }
   .score-cell.is-revealed { min-height: 96px; }
   .score-mini-cards i { min-width: 18px; height: 23px; }
-  .room-meta { justify-content: center; }
-  .room-meta > .room-title, .room-meta > .room-setting, .room-meta > span { display: none; }
-  .popover-panel { position: fixed; top: 60px; right: 9px; }
+  .room-meta > .room-title { display: none; }
+  .popover-panel { position: fixed; top: calc(100% + 6px); right: 9px; }
   .share-room .popover-panel::before { right: calc(50vw - 14px); }
   .rules-popover .popover-panel::before { right: 91px; }
   .settings-menu .popover-panel::before { right: 18px; }
@@ -41,10 +60,16 @@
   .lobby-copy h1 { font-size: 48px; }
   .lobby-panel { padding: 18px; }
 
-  .game-shell { min-height: calc(100svh - 68px); grid-template-rows: auto minmax(270px, 1fr) auto auto; }
+  .game-shell { min-height: calc(100svh - var(--topbar-h)); grid-template-rows: auto minmax(270px, 1fr) auto auto; }
   .opponents { width: calc(100% - 18px); padding-top: 14px; gap: 3px; }
   .player-card { border-radius: 12px; }
-  .player-main { min-height: 54px; padding: 7px 6px; gap: 6px; display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  /* 三个子项（头像 / 名字 / 手牌）在两列网格里会自动排成 (1,1)(1,2)(2,1)，
+     手牌落进 auto 列后把该列撑到 80px，名字列被压成 0 宽、整张卡只剩头像首字母。
+     显式指定区域：第一行头像 + 名字，第二行手牌横跨两列。 */
+  .player-main { min-height: 54px; padding: 7px 6px; gap: 6px; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; }
+  .player-main > .avatar { grid-area: 1 / 1; }
+  .player-main > .player-copy { grid-area: 1 / 2; }
+  .player-main > .opponent-hand { grid-area: 2 / 1 / 3 / 3; }
   .avatar { width: 28px; height: 28px; }
   .opponent-hand { gap: 2px; }
   .opponent-slot, .opponent-decision { width: 17px; height: 25px; font-size: 8px; }
@@ -57,6 +82,8 @@
   .cabo-button, .leave-button { bottom: 4px; }
   .player-dock { width: calc(100% - 18px); margin-bottom: 8px; padding: 14px; grid-template-columns: 1fr; gap: 14px; }
   .own-hand { justify-content: space-between; gap: 5px; }
+  /* 非换牌阶段直接移出流，省下 56px 垂直空间（桌面端仍保留占位）。 */
+  .exchange-controls.is-empty { display: none; }
   .exchange-controls { align-items: flex-start; }
   .exchange-controls > div { flex-shrink: 0; }
   .hand-slot, .decision-card { width: min(64px, calc((100% - 20px) / 5)); height: 76px; }
@@ -67,12 +94,58 @@
   .event-strip { padding-inline: 14px; }
 }
 
+/* 极窄屏：顶栏动作区（Chat + Scores 154 + Rules + 连接 + 设置 ≈410px）放不下一行。
+   收窄计分触发器并把设置文案转成视觉隐藏（保留无障碍名称），维持 68px 单行顶栏。 */
+@media (max-width: 520px) {
+  .score-history, .score-history-shell { width: 118px; }
+  .settings-trigger span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  /* 触发器只剩图标（20px 宽）时，箭头要跟着左移，否则会指向图标右侧的空白。 */
+  .home-header .settings-menu .popover-panel::before { right: 6px; }
+  /* 动作区 max-content ≈316px，与品牌名（57）+ Share（45）排不进一行。
+     隐去纯装饰的品牌名，并把中段列从 1fr 改成内容宽度：1fr 会被动作区压成 0 宽，
+     Share 触发器随即向左溢出，与「CABO」叠印成「CABOARE」。 */
+  .topbar { grid-template-columns: auto minmax(0, 1fr); }
+  .topbar > .wordmark { display: none; }
+  .room-meta { justify-content: flex-start; }
+}
+
 @media (max-width: 390px) {
   .create-fields, .create-fields-primary { grid-template-columns: 1fr; }
   .room-row > div { display: grid; gap: 3px; }
   .turn-label strong { font-size: 16px; }
   .piles { gap: 18px; }
   .playing-card { width: 68px; height: 100px; }
+  /* 320px + 4 名对手时，每张对手卡只有 99px，原尺寸手牌会溢出 2px。 */
+  .opponent-hand { gap: 1px; }
+  .opponent-slot, .opponent-decision { width: 15px; font-size: 7px; }
+}
+
+/* 手机横屏：宽度 >760px 会走桌面断点，但高度只有 390–430px。
+   压缩行高并改 4 列对手，避免要滚动 3 屏才能看到操作区。
+   限定 max-width:1100px，避免误伤矮的桌面窗口。 */
+@media (orientation: landscape) and (max-height: 560px) and (max-width: 1100px) {
+  .game-shell { grid-template-rows: auto minmax(170px, 1fr) auto auto; }
+  .opponents { grid-template-columns: repeat(4, minmax(0, 1fr)); padding-top: 8px; }
+  /* 桌面 flex 布局里手牌（4×24 + 待定牌 ≈136px）会把名字挤成 0 宽，
+     这里沿用窄屏的两行网格：第一行头像 + 名字，第二行手牌横跨两列。 */
+  .player-main { min-height: 40px; padding: 4px 6px; gap: 3px; display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; }
+  .player-main > .avatar { grid-area: 1 / 1; }
+  .player-main > .player-copy { grid-area: 1 / 2; }
+  .player-main > .opponent-hand { grid-area: 2 / 1 / 3 / 3; }
+  .avatar { width: 24px; height: 24px; }
+  .player-copy strong { font-size: 11px; }
+  .player-copy small { margin-top: 1px; font-size: 9px; }
+  .opponent-hand { gap: 2px; }
+  .opponent-slot, .opponent-decision { width: 17px; height: 22px; font-size: 7px; }
+  .opponent-decision { margin-left: 2px; }
+  /* 名字现在独占第一行、会一直延伸到卡片右缘，而倒计时固定在右上角，需要预留空间。 */
+  .player-card.active .player-copy { padding-right: 26px; }
+  .turn-label { top: 4px; }
+  .piles { padding-top: 26px; gap: clamp(18px, 4vw, 30px); }
+  .playing-card { width: 60px; height: 86px; }
+  .player-dock { grid-template-columns: minmax(0, 1fr) minmax(240px, .5fr); gap: 18px; padding: 12px; align-items: start; }
+  .action-zone { padding: 0 0 0 18px; border-left: 1px solid var(--soft-line); border-top: 0; }
+  .event-strip { min-height: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

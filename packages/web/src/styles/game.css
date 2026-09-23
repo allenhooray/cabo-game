@@ -1,4 +1,7 @@
-.game-shell { min-height: calc(100vh - 68px); display: grid; grid-template-rows: auto minmax(310px, 1fr) auto auto; }
+/* 显式声明列：隐式 auto 列会被 .event-strip 里 nowrap 的事件文本撑到内容宽度，
+   进而把所有 calc(100% - 18px) 的子区块一起撑出视口（窄屏下 Call Cabo 会被推到屏幕外）。 */
+.game-shell { min-height: calc(100svh - var(--topbar-h)); display: grid; grid-template-rows: auto minmax(310px, 1fr) auto auto; grid-template-columns: minmax(0, 1fr); }
+.game-shell > * { min-width: 0; }
 .opponents { width: min(1040px, calc(100% - 40px)); margin: 0 auto; padding: 24px 0 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .player-card { min-width: 0; position: relative; border: 1px solid transparent; border-radius: 16px; transition: background 180ms ease, border 180ms ease, box-shadow 180ms ease; }
 .player-card.active { border-color: var(--line); background: color-mix(in srgb, var(--surface) 84%, transparent); box-shadow: 0 10px 26px var(--shadow); animation: player-breathe 2.8s ease-in-out infinite; }
@@ -78,5 +81,5 @@ button.playing-card:hover:not(:disabled) { transform: translateY(-5px); box-shad
 .action-zone > .button, .action-zone > .text-button { align-self: flex-start; margin-top: 12px; }
 .event-strip { min-height: 42px; padding: 0 24px; display: flex; align-items: center; gap: 18px; border-top: 1px solid var(--soft-line); color: var(--muted); font-size: 10px; }
 .event-strip span { letter-spacing: .13em; text-transform: uppercase; }
-.event-strip p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.event-strip p { margin: 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

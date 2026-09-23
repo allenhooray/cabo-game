@@ -113,7 +113,7 @@ export function App() {
         <div className="room-meta">
           <strong className="room-title">{state.roomName}</strong>
           <span aria-hidden="true" />
-          <span className="room-setting">{state.memoryMode === "classic" ? t("home.classic") : t("home.assisted")}</span>
+          <span className="room-setting">{state.memoryMode === "classic" ? t("home.classicShort") : t("home.assistedShort")}</span>
           <span aria-hidden="true" />
           <span className="room-setting">{state.turnDurationSeconds ? t("common.seconds", { count: state.turnDurationSeconds }) : t("home.unlimited")}</span>
           <span aria-hidden="true" />

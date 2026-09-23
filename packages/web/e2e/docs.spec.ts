@@ -47,7 +47,8 @@ test("localized docs are server-rendered and keep their page when language chang
   await page.goto("/zh-CN/docs/rules/");
   await expect(page.getByRole("heading", { level: 1, name: "保持最低手牌" })).toBeVisible();
   await page.getByRole("button", { name: "设置" }).click();
-  await page.getByRole("radio", { name: "English (United States)" }).evaluate((element: HTMLInputElement) => element.click());
+  // 设置菜单已从单选按钮重构为 <select>，这里同步改成选择语言项。
+  await page.getByLabel("语言").selectOption("en-US");
   await expect(page).toHaveURL(/\/en-US\/docs\/rules\/$/);
 });
 

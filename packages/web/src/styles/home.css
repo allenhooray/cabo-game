@@ -29,12 +29,21 @@
 .room-row span { color: var(--muted); font-size: 12px; }
 .empty-state { margin: 0; padding: 30px 0; color: var(--muted); border-bottom: 1px solid var(--soft-line); }
 .server-settings { grid-column: 1 / -1; color: var(--muted); border-top: 1px solid var(--soft-line); padding-top: 18px; }
-.server-settings summary { display: flex; justify-content: space-between; cursor: pointer; font-size: 12px; }
-.server-settings summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 20px; }
+.server-settings summary { min-height: 32px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; }
+.server-settings summary span { margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* <summary> 改成 flex 后不再是 list-item，原生 ::marker 不再渲染，补一个自定义指示符。 */
+.server-settings summary::after { content: ""; flex: 0 0 auto; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform 160ms ease; }
+.server-settings[open] summary::after { transform: rotate(-135deg) translateY(-2px); }
 .server-settings form { max-width: 560px; padding-top: 20px; }
 
 @media (max-width: 760px) {
-  .home-header { padding: 14px 18px; grid-template-columns: 1fr; gap: 12px; }
-  .home-header nav { justify-content: space-between; gap: 20px; padding-top: 12px; border-top: 1px solid var(--soft-line); }
-  .home-header > .settings-menu { position: absolute; top: 14px; right: 18px; }
+  /* 两行：品牌名一行，导航 + 设置一行。比「品牌名 + 设置 / 导航」少 20px，
+     同时保留设置弹层的独立行位，避免它盖住导航（弹层锚点见下方 .popover-panel）。 */
+  .home-header { padding: 14px 18px; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "brand brand" "nav settings"; gap: 10px 8px; align-items: center; }
+  .home-header > .wordmark-static { grid-area: brand; }
+  .home-header nav { grid-area: nav; gap: 20px; }
+  /* 改 static 让弹层包含块上移到 .home-header（sticky），top 用百分比即可与头高解耦：
+     之前硬编码的 60px 是按 68px 顶栏算的，而首页头部在窄屏是两行高，弹层会盖住导航。 */
+  .home-header > .settings-menu { grid-area: settings; position: static; }
+  .home-header .settings-menu .popover-panel { position: absolute; top: calc(100% + 9px); right: 18px; }
 }

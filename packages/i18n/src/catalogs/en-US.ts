@@ -41,6 +41,8 @@ export const enUS = {
   "home.memoryMode": "Memory mode",
   "home.classic": "Classic — remember cards yourself",
   "home.assisted": "Assisted — keep seen cards visible",
+  "home.classicShort": "Classic",
+  "home.assistedShort": "Assisted",
   "home.stepTimer": "Step timer",
   "home.unlimited": "Unlimited",
   "home.passwordSix": "Six-digit password",

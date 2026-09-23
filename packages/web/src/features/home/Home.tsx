@@ -97,7 +97,7 @@ export function Home(props: HomeProps) {
           <div className="room-list">
             {props.rooms.length ? props.rooms.map((room) => (
               <article className="room-row" key={room.roomId}>
-                <div><strong>{room.roomName}</strong><span>{t("home.roomSummary", { id: room.roomId, score: room.targetScore, mode: room.memoryMode === "classic" ? t("home.classic") : t("home.assisted"), timer: room.turnDurationSeconds ? t("common.seconds", { count: room.turnDurationSeconds }) : t("home.unlimited") })}</span></div>
+                <div><strong>{room.roomName}</strong><span>{t("home.roomSummary", { id: room.roomId, score: room.targetScore, mode: room.memoryMode === "classic" ? t("home.classicShort") : t("home.assistedShort"), timer: room.turnDurationSeconds ? t("common.seconds", { count: room.turnDurationSeconds }) : t("home.unlimited") })}</span></div>
                 <span>{t("home.roomState", { capacity: room.isFull ? t("home.full") : t("home.open"), state: room.isStarted ? t("home.started") : t("home.waiting"), count: room.playerCount, max: room.maxClients })}</span>
                 <Button size="small" disabled={props.busy || !room.canJoin} onClick={() => props.onJoin(room.roomId)}>{t("home.join")}</Button>
               </article>
