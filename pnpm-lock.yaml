@@ -21,6 +21,15 @@ importers:
         specifier: ^3.1.1
         version: 3.2.7(@types/node@22.20.4)(jsdom@26.1.0)(tsx@4.23.13)
 
+  packages/bot:
+    dependencies:
+      '@cabo-game/client-core':
+        specifier: workspace:*
+        version: link:../client-core
+      '@cabo-game/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/cli:
     dependencies:
       '@cabo-game/client-core':
@@ -1773,8 +1782,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  uWebSockets.js@https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/cfc9a40d8132a34881813cec3d5f8e3a185b3ce3:
-    resolution: {gitHosted: true, integrity: sha512-1eSUhK/WLig+fbq6dB18hsmkoaC+6YGVkAp2r0tQ6PGBxsOPpLUmMsKN/7ANoYtWiou+lU46+Bnf8JBYES9EsA==, tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/cfc9a40d8132a34881813cec3d5f8e3a185b3ce3}
+  uWebSockets.js@git+ssh://git@github.com/uNetworking/uWebSockets.js.git#cfc9a40d8132a34881813cec3d5f8e3a185b3ce3:
+    resolution: {commit: cfc9a40d8132a34881813cec3d5f8e3a185b3ce3, repo: git@github.com:uNetworking/uWebSockets.js.git, type: git}
     version: 20.52.0
 
   uid-safe@2.1.5:
@@ -2212,7 +2221,7 @@ snapshots:
   '@colyseus/uwebsockets-transport@0.18.3(@colyseus/core@0.18.14)':
     dependencies:
       '@colyseus/core': 0.18.14(@colyseus/auth@0.18.2)(@colyseus/better-call@1.3.3(zod@4.6.5))(@colyseus/schema@5.0.33(typescript@5.9.3))(@colyseus/ws-transport@0.18.2)(@pm2/io@6.1.0)(express@5.2.1)(zod@4.6.5)
-      uWebSockets.js: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/cfc9a40d8132a34881813cec3d5f8e3a185b3ce3
+      uWebSockets.js: git+ssh://git@github.com/uNetworking/uWebSockets.js.git#cfc9a40d8132a34881813cec3d5f8e3a185b3ce3
 
   '@colyseus/ws-transport@0.18.2(@colyseus/core@0.18.14)(express@5.2.1)':
     dependencies:
@@ -3580,7 +3589,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  uWebSockets.js@https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/cfc9a40d8132a34881813cec3d5f8e3a185b3ce3: {}
+  uWebSockets.js@git+ssh://git@github.com/uNetworking/uWebSockets.js.git#cfc9a40d8132a34881813cec3d5f8e3a185b3ce3: {}
 
   uid-safe@2.1.5:
     dependencies:

@@ -1,0 +1,35 @@
+{
+  "name": "@cabo-game/bot",
+  "version": "0.2.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "prepack": "pnpm run build",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.json && vitest run",
+    "dev": "tsx src/driver.ts",
+    "selfplay": "tsx src/harness/self-play.ts"
+  },
+  "dependencies": {
+    "@cabo-game/client-core": "workspace:*",
+    "@cabo-game/shared": "workspace:*"
+  }
+}
