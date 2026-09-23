@@ -54,8 +54,8 @@
 }
 
 * { box-sizing: border-box; }
-html { background: var(--bg); }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--bg); color: var(--ink); }
+html { overflow-x: clip; background: var(--bg); }
+body { width: 100vw; margin: 0; overflow-x: clip; min-width: 320px; min-height: 100vh; background: var(--bg); color: var(--ink); }
 button, input { font: inherit; }
 button { color: inherit; }
 button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
