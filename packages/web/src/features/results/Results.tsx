@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { CardToken, Modal } from "../../components/TablePrimitives.js";
 import type { ResultEvent } from "../game/types.js";
 import { PlayerScoreRow, ScoreList } from "../../components/ScoreList.js";
+import { CountdownLabel } from "../../components/CountdownLabel.js";
 
 export function Results(props: { result: ResultEvent; state: CaboStateLike; selfId?: string; playerName(id: string): string; busy: boolean; remainingSeconds?: number | undefined; onReady?(): void; onLeave(): Promise<void> }) {
   const { t } = useTranslation();
@@ -30,5 +31,5 @@ function NextRoundReady(props: { state: CaboStateLike; selfId: string | undefine
   const ready = active.filter((player) => player.nextRoundReady).length;
   const self = props.selfId ? props.state.players.get(props.selfId) : undefined;
   const confirmed = Boolean(self?.nextRoundReady);
-  return <><div className="modal-actions"><span>{t("result.readyCount", { ready, count: active.length })}</span>{self && !self.forfeited && <button className="button primary" type="button" disabled={props.busy || confirmed || !props.onReady} onClick={props.onReady}>{confirmed ? t("result.waitOthers") : props.busy ? t("result.confirming") : t("result.readyNext")}</button>}</div>{props.remainingSeconds !== undefined && <div className="next-round-timer" role="timer">{t("result.nextIn", { count: props.remainingSeconds })}</div>}</>;
+  return <><div className="modal-actions"><span>{t("result.readyCount", { ready, count: active.length })}</span>{self && !self.forfeited && <button className="button primary" type="button" disabled={props.busy || confirmed || !props.onReady} onClick={props.onReady}>{confirmed ? t("result.waitOthers") : props.busy ? t("result.confirming") : t("result.readyNext")}</button>}</div>{props.remainingSeconds !== undefined && <CountdownLabel as="div" className="next-round-timer" variant="message" seconds={props.remainingSeconds} message={t("result.nextIn", { count: props.remainingSeconds })} />}</>;
 }

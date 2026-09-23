@@ -3,6 +3,7 @@ import { CaboClientCore, caboRisk, legalActions, type CaboStateLike, type StateP
 import type { ClientCommand, KnownCard } from "@cabo-game/shared";
 import { Avatar, CardFace, formatCardLabel } from "../../components/TablePrimitives.js";
 import { ActionPrompt } from "../../components/ActionPrompt.js";
+import { CountdownLabel } from "../../components/CountdownLabel.js";
 import { MotionLayer } from "./MotionLayer.js";
 import type { CardMotion, ClientEvent, Confirmation, Selection, TemporaryCard } from "./types.js";
 import { useTranslation } from "react-i18next";
@@ -211,7 +212,7 @@ function PositionPicker(props: { count: number; onChoose(position: number): void
 
 function TurnTimer(props: { seconds: number }) {
   const { t } = useTranslation();
-  return <span className="turn-timer" role="timer" aria-label={t("common.secondsRemaining", { count: props.seconds })}>{props.seconds}s</span>;
+  return <CountdownLabel className="turn-timer" variant="compact" seconds={props.seconds} ariaLabel={t("common.secondsRemaining", { count: props.seconds })} />;
 }
 
 function gameStatus(state: CaboStateLike, selfId: string, t: TFunction) {
